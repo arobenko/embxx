@@ -1,0 +1,16 @@
+/// @defgroup io I/O - Various input/output operations
+/// @brief I/O module provides an additional I/O functionality.
+/// io module contains following functionalities:
+/// @li @ref io_iosimple_page
+
+/// @namespace embxx::io
+/// @ingroup io
+/// @brief Provides scope for I/O operations.
+
+/// @namespace embxx::io::traits
+/// @ingroup io
+/// @brief Provides scope for definitions of various traits.
+
+/// @namespace embxx::io::traits::endian
+/// @ingroup io
+/// @brief Provides scope for definitions endianness traits.
