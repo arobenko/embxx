@@ -1,0 +1,27 @@
+/// @page util_integral_promotion_page Integral Promotion
+/// @section util_integral_promotion_desc Overview
+/// When there is a need to promote integral type to a bigger type to
+/// avoid value wrap around when doing math operations, embxx::util::IntegralPromotion
+/// may be used to retrieve appropriate type. Please note that 64 bit types
+/// are promoted to themselves. 
+/// @code
+/// template <typename T>
+/// typename embxx::util::IntegralPromotion<T>::Type
+/// serialiseSigned(T signedValue)
+/// {
+///     typedef typename embxx::util::IntegralPromotion<T>::Type PromotedType;
+///     auto outcome = 
+///            static_cast<PromotedType>(signedValue) - 
+///            static_cast<PromotedType>(std::numeric_limits<T>::min());
+///     assert(0 <= outcome); // Serialised value must be non-negative
+///     return outcome; 
+/// }
+///
+/// template <typename T>
+/// T deserialiseSigned(typename embxx::util::IntegralPromotion<T>::Type value)
+/// {
+///     assert(0 <= value); // Serialised value must be non-negative
+///     typedef typename embxx::util::IntegralPromotion<T>::Type PromotedType;
+///     return static_cast<PromotedType>(value + std::numeric_limits<T>::min());
+/// }
+/// @endcode 

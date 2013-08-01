@@ -1,0 +1,88 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+
+#include <type_traits>
+
+#include "embxx/util/SizeToType.h"
+#include "cxxtest/TestSuite.h"
+
+class SizeToTypeTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+    void test8();
+    void test9();
+
+private:
+};
+
+void SizeToTypeTestSuite::test1()
+{
+    typedef embxx::util::SizeToType<1>::Type Type;
+    static_assert(std::is_same<Type, std::uint8_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test2()
+{
+    typedef embxx::util::SizeToType<2>::Type Type;
+    static_assert(std::is_same<Type, std::uint16_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test3()
+{
+    typedef embxx::util::SizeToType<3>::Type Type;
+    static_assert(std::is_same<Type, std::uint32_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test4()
+{
+    typedef embxx::util::SizeToType<4>::Type Type;
+    static_assert(std::is_same<Type, std::uint32_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test5()
+{
+    typedef embxx::util::SizeToType<5>::Type Type;
+    static_assert(std::is_same<Type, std::uint64_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test6()
+{
+    typedef embxx::util::SizeToType<6>::Type Type;
+    static_assert(std::is_same<Type, std::uint64_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test7()
+{
+    typedef embxx::util::SizeToType<7>::Type Type;
+    static_assert(std::is_same<Type, std::uint64_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test8()
+{
+    typedef embxx::util::SizeToType<8>::Type Type;
+    static_assert(std::is_same<Type, std::uint64_t>::value,
+        "Types are not identical");
+}
+
+void SizeToTypeTestSuite::test9()
+{
+    typedef embxx::util::SizeToType<9>::Type Type;
+    static_assert(std::is_same<Type, std::array<std::uint8_t, 9> >::value,
+        "Types are not identical");
+}

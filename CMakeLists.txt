@@ -28,9 +28,12 @@ if (NOT DEFINED CROSS_COMPILE AND NOT DEFINED NO_UNIT_TEST)
     endif ()
 endif ()
 
-add_subdirectory (module)
+set (INSTALL_DIR "${CMAKE_BINARY_DIR}/install")
+set (EXAMPLES_DIR "${INSTALL_DIR}/example")
 
 install (
     DIRECTORY "${CMAKE_SOURCE_DIR}/embxx"
-    DESTINATION "${CMAKE_BINARY_DIR}/install")
+    DESTINATION "${INSTALL_DIR}/include")
+
+add_subdirectory (module)
 

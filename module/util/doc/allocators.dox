@@ -1,0 +1,96 @@
+/// @page util_allocators_page Allocators
+/// @section util_allocators_overview Overview
+/// When writing a generic code there could be a need to allocate memory
+/// and construct elements. However, there may be a restriction of using
+/// dynamic memory allocation, especially in pure embedded environments. There
+/// is a need to have common generic interface that could be used to either
+/// dynamically allocate memory or use "in place" object construction. There
+/// several allocators that provide the required facility:
+/// @li embxx::util::DynMemAllocator - Dynamic memory allocator, uses standard new operator.
+/// @li embxx::util::BasicInPlaceAllocator - Basic "in place" allocator, uses provided 
+///     pointer as an allocation space without any alignment or size 
+///     availability checks.
+/// @li embxx::util::InPlaceAllocator - Safer "in place" allocator, creates aligned 
+///     storage based on provided size and alignment requirements.
+/// @li embxx::util::SpecificInPlaceAllocator - One more safe "in place" allocator, 
+///     creates aligned storage based on list of provided types.
+///
+/// All the allocators have alloc() templated member function that returns
+/// std::unique_ptr to the allocated object. While embxx::util::DynMemAllocator uses
+/// standard deleter for the allocated object, other allocators use custom
+/// one that calls the destructor of the allocated object.
+///
+/// @section util_allocators_dyn_mem_allocator DynMemAllocator
+/// The allocation is as following:
+/// @code
+/// embxx::util::DynMemAllocator allocator;
+/// auto ptr = allocator.alloc<CustomType>(/* constructor params */);
+/// ... // object is deleted when out of scope.
+/// @endcode
+/// If std::unique_ptr is not suitable, the object can be released and wrapped
+/// in std::shared_ptr for example.
+/// @code
+/// auto uniquePtr = allocator.alloc<CustomType>(/* constructor params */);
+/// std::shared_ptr<CustomType> sharedPtr(uniquePtr.release());
+/// @endcode
+///
+/// @section util_allocators_basic_in_place_allocator BasicInPlaceAllocator
+/// In case no stdlib or heap are used and there is no way to use dynamic memory
+/// allocation, "in place" allocation must be used.
+/// @code
+/// unsigned place[1024] = {0}
+/// embxx::util::BasicInPlaceAllocator allocator(&place[0]);
+/// auto ptr = allocator.alloc<CustomType>(/* constructor params */);
+/// ... // Do something with allocated object, object will be destructed when out of scope
+/// @endcode
+/// Note that second allocation will fail unless the object from previous 
+/// allocation was destructed.
+/// @code
+/// auto ptr = allocator.alloc<CustomType>(/* constructor params */);
+/// assert(ptr);
+/// auto ptr2 = allocator.alloc<CustomType>(/* constructor params */);
+/// assert(!ptr2); // Allocation is unsuccessful
+/// ptr1.reset(); // Destruction of first object
+/// ptr2 = allocator.alloc<CustomType>(/* constructor params */);
+/// assert(ptr2); // Allocation is successful this time
+/// @endcode
+/// Also note embxx::util::BasicInPlaceAllocator doesn't check the alignment and
+/// size requirements when allocating new object.
+///
+/// It is still possible to call release() member function of std::unique_ptr, 
+/// but this doesn't release the space from the allocator's perspective, any
+/// subsequent allocation requests will fail until the allocated object
+/// is properly destructed using destructor of original std::unique_ptr.
+/// @code
+/// auto ptr = allocator.alloc<CustomType>(/* constructor params */);
+/// CustomType* rawPtr = ptr.release();
+/// ...
+/// decltype(ptr) otherPtr(rawPtr);
+/// otherPtr.reset(); // Properly destructs allocated object and releases the space of the allocator.
+/// @endcode
+///
+/// @section util_allocators_in_place_allocator InPlaceAllocator
+/// embxx::util::InPlaceAllocator is much safer version of embxx::util::BasicInPlaceAllocator.
+/// It receives size and alignment requirements for the allocation space as
+/// template parameters and creates this space as internal member data.
+/// @code
+/// embxx::util::InPlaceAllocator<1024, 8> allocator; // Size = 1024 bytes, Allignment = 8 bytes
+/// auto ptr = allocator.alloc<CustomType>(/* constructor params */);
+/// @endcode
+/// Every other aspect of the "in place" allocation is exactly the same as
+/// for embxx::util::BasicInPlaceAllocation. In fact, embxx::util::InPlaceAllocator uses
+/// embxx::util::BasicInPlaceAllocator internally.
+///
+/// @section util_allocators_specific_in_place_allocator SpecificInPlaceAllocator
+/// embxx::util::SpecificInPlaceAllocator provides an interface to specify the list
+/// of types it can be used to allocate (as std::tuple). It uses this list to 
+/// calculate the required storage and required alignment, then uses 
+/// embxx::util::InPlaceAllocator internally to allocate requested objects.
+/// @code
+/// typedef std::tuple<CustomType1, CustomType2, CustomType3> AllocationTypes;
+/// embxx::util::SpecificInPlaceAllocator<AllocationTypes> allocator;
+/// auto ptr = allocator.alloc<CustomType2>(/* constructor params */);
+/// // auto ptr = allocator.alloc<CustomType4>(/* constructor params */); // The compilation will fail because CustomType4 wasn't in original list.
+/// @endcode
+///
+///

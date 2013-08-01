@@ -1,0 +1,13 @@
+/// @page util_size_to_type_page Size To Type
+/// @section util_size_to_type_desc Overview
+/// Often there may be a need to define a type based on size of the field.
+/// embxx::util::SizeToType stuct comes to help with this task. For example some 
+/// value can be represented in 3 bytes (compile time constant) than the
+/// type of the variable will be as following:
+/// @code
+/// static const ValueLen = 3;
+/// typedef embxx::util::SizeToType<ValueLen>::Type ValueType;
+/// ValueType value;
+/// ... // Read the value
+/// @endcode 
+

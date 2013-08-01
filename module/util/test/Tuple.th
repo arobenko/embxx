@@ -1,0 +1,109 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include "embxx/util/Tuple.h"
+#include "embxx/util/assert/CxxTestAssert.h"
+
+#include "cxxtest/TestSuite.h"
+
+class TupleTestSuite : public CxxTest::TestSuite,
+                       public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+
+private:
+    struct IncValue
+    {
+        template <typename T>
+        void operator()(T& value)
+        {
+            value += 1;
+        }
+    };
+
+    struct SumValues
+    {
+        template <typename TSum, typename T>
+        TSum operator()(const TSum& sum, const T& value)
+        {
+            return sum + static_cast<TSum>(value);
+        }
+    };
+
+};
+
+void TupleTestSuite::test1()
+{
+    typedef int NotTuple1;
+    typedef std::vector<int> NotTuple2;
+    typedef TupleTestSuite NotTuple3;
+    typedef std::tuple<int, double, float, unsigned, char, long double, short, double> Tuple1;
+    typedef std::tuple<NotTuple1, NotTuple2, NotTuple3> Tuple2;
+    typedef std::tuple<Tuple1, Tuple2> Tuple3;
+
+    static_assert(embxx::util::IsTuple<NotTuple1>::Value == false, "Not tuple");
+    static_assert(embxx::util::IsTuple<NotTuple2>::Value == false, "Not tuple");
+    static_assert(embxx::util::IsTuple<NotTuple3>::Value == false, "Not tuple");
+
+    static_assert(embxx::util::IsTuple<Tuple1>::Value == true, "tuple");
+    static_assert(embxx::util::IsTuple<Tuple2>::Value == true, "tuple");
+    static_assert(embxx::util::IsTuple<Tuple3>::Value == true, "tuple");
+}
+
+void TupleTestSuite::test2()
+{
+    typedef std::tuple<char, int, short, float, double> AllTypes;
+
+    static_assert(embxx::util::IsInTuple<char, AllTypes>::Value, "Must contain char");
+    static_assert(embxx::util::IsInTuple<int, AllTypes>::Value, "Must contain int");
+    static_assert(embxx::util::IsInTuple<short, AllTypes>::Value, "Must contain short");
+    static_assert(embxx::util::IsInTuple<float, AllTypes>::Value, "Must contain float");
+    static_assert(embxx::util::IsInTuple<double, AllTypes>::Value, "Must contain double");
+
+    static_assert(!embxx::util::IsInTuple<unsigned char, AllTypes>::Value, "Mustn't contain unsigned char");
+    static_assert(!embxx::util::IsInTuple<unsigned int, AllTypes>::Value, "Mustn't contain unsigned int");
+    static_assert(!embxx::util::IsInTuple<unsigned short, AllTypes>::Value, "Mustn't contain unsigned short");
+    static_assert(!embxx::util::IsInTuple<std::uint8_t, AllTypes>::Value, "Mustn't contain uint8_t");
+    static_assert(!embxx::util::IsInTuple<std::uint16_t, AllTypes>::Value, "Mustn't contain uint8_t");
+
+}
+
+void TupleTestSuite::test3()
+{
+    typedef std::tuple<char, int, short, float, double> AllTypes;
+    typedef embxx::util::TupleAsAlignedUnion<AllTypes>::Type StorageType;
+
+    static_assert(sizeof(double) <= sizeof(StorageType), "Invalid size");
+    static_assert(std::alignment_of<double>::value <= std::alignment_of<StorageType>::value, "Invalid alignment");
+}
+
+void TupleTestSuite::test4()
+{
+    typedef std::tuple<char, int, short, float, double> UniqueTuple;
+    typedef std::tuple<char, int, short, float, double, int, unsigned> NotUniqueTuple;
+
+    static_assert(embxx::util::TupleIsUnique<UniqueTuple>::Value, "Must be unique");
+    static_assert(!embxx::util::TupleIsUnique<NotUniqueTuple>::Value, "Mustn't be unique");
+}
+
+void TupleTestSuite::test5()
+{
+    auto values = std::make_tuple(int(1), long(2), short(3), double(4.0));
+    embxx::util::tupleForEach(values, IncValue());
+    auto incValues = std::make_tuple(int(2), long(3), short(4), double(5.0));
+    TS_ASSERT_EQUALS(values, incValues);
+}
+
+void TupleTestSuite::test6()
+{
+    auto values = std::make_tuple(int(1), long(2), short(3), double(4.0));
+    auto sum = embxx::util::tupleAccumulate(values, std::size_t(0), SumValues());
+    TS_ASSERT_EQUALS(sum, 10U);
+}

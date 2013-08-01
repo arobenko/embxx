@@ -1,0 +1,84 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+
+#include "embxx/util/Assert.h"
+#include "cxxtest/TestSuite.h"
+
+class TestAssert : public embxx::util::Assert
+{
+public:
+    TestAssert() : failCount_(0)
+    {
+    }
+    virtual ~TestAssert() {};
+    void fail(
+        const char* expr,
+        const char* file,
+        unsigned int line,
+        const char* function)
+    {
+        static_cast<void>(expr);
+        static_cast<void>(file);
+        static_cast<void>(line);
+        static_cast<void>(function);
+
+        ++failCount_;
+    }
+
+    std::size_t count() { return failCount_; }
+    void clear() { failCount_ = 0; }
+private:
+    std::size_t failCount_;
+};
+
+
+class AssertTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+
+private:
+};
+
+void AssertTestSuite::test1()
+{
+    TS_ASSERT(!embxx::util::AssertManager::instance().hasAssertRegistered());
+    {
+        GASSERT(true);
+
+        embxx::util::EnableAssert<TestAssert> enAssert;
+        TS_ASSERT(embxx::util::AssertManager::instance().hasAssertRegistered());
+
+        TS_ASSERT_EQUALS(enAssert.getAssert().count(), 0U);
+        GASSERT(true);
+        TS_ASSERT_EQUALS(enAssert.getAssert().count(), 0U);
+        GASSERT(1 == 2);
+        TS_ASSERT_EQUALS(enAssert.getAssert().count(), 1U);
+        GASSERT(1 == 1);
+        TS_ASSERT_EQUALS(enAssert.getAssert().count(), 1U);
+    }
+    TS_ASSERT(!embxx::util::AssertManager::instance().hasAssertRegistered());
+    GASSERT(true);
+}
+
+
+void AssertTestSuite::test2()
+{
+    embxx::util::EnableAssert<TestAssert> enAssert1;
+    TS_ASSERT_EQUALS(enAssert1.getAssert().count(), 0U);
+    GASSERT(false);
+    TS_ASSERT_EQUALS(enAssert1.getAssert().count(), 1U);
+
+    {
+        embxx::util::EnableAssert<TestAssert> enAssert2;
+        TS_ASSERT_EQUALS(enAssert2.getAssert().count(), 0U);
+        GASSERT(false);
+        TS_ASSERT_EQUALS(enAssert1.getAssert().count(), 1U);
+        TS_ASSERT_EQUALS(enAssert2.getAssert().count(), 1U);
+    }
+    GASSERT(false);
+    TS_ASSERT_EQUALS(enAssert1.getAssert().count(), 2U);
+}

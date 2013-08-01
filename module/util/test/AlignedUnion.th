@@ -1,0 +1,25 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+
+#include "embxx/util/AlignedUnion.h"
+#include "embxx/util/assert/CxxTestAssert.h"
+
+#include "cxxtest/TestSuite.h"
+
+class AlignedUnionTestSuite : public CxxTest::TestSuite,
+                              public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+};
+
+void AlignedUnionTestSuite::test1()
+{
+    typedef typename embxx::util::AlignedUnion<int, double, float, unsigned, char, long double, short, double>::Type AlignedUnion;
+
+    TS_ASSERT_LESS_THAN_EQUALS(sizeof(long double), sizeof(AlignedUnion));
+    TS_ASSERT_LESS_THAN_EQUALS(std::alignment_of<double>::value, std::alignment_of<AlignedUnion>::value);
+}
+

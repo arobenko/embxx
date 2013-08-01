@@ -1,0 +1,56 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include "embxx/util/IntegralPromotion.h"
+#include "cxxtest/TestSuite.h"
+
+class IntegralPromotionTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+};
+
+void IntegralPromotionTestSuite::test1()
+{
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::uint8_t>::Type, std::uint16_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::uint16_t>::Type, std::uint32_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::uint32_t>::Type, std::uint64_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::uint64_t>::Type, std::uint64_t>::value,
+        "Promotion didn't work");
+
+}
+
+void IntegralPromotionTestSuite::test2()
+{
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::int8_t>::Type, std::int16_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::int16_t>::Type, std::int32_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::int32_t>::Type, std::int64_t>::value,
+        "Promotion didn't work");
+
+    static_assert(
+        std::is_same<embxx::util::IntegralPromotion<std::int64_t>::Type, std::int64_t>::value,
+        "Promotion didn't work");
+
+}
+
+
+

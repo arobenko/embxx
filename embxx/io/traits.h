@@ -22,10 +22,12 @@ namespace endian
 
 /// @ingroup io
 /// @brief Empty class used in traits to indicate Big Endian.
+/// @headerfile embxx/io/traits.h
 struct Big {};
 
 /// @ingroup io
 /// @brief Empty class used in traits to indicate Little Endian.
+/// @headerfile embxx/io/traits.h
 struct Little {};
 
 }  // namespace endian
