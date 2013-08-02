@@ -1,0 +1,237 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#ifndef UTIL_TEST_MSGSIZELAYER_TH_
+#define UTIL_TEST_MSGSIZELAYER_TH_
+
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
+#include <algorithm>
+#include <iterator>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/comms/MsgAllocators.h"
+#include "embxx/comms/protocol.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+class MsgSizeLayerTestSuite : public CxxTest::TestSuite,
+                              public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+
+private:
+
+    struct Traits1 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t MsgSizeLen = 2;
+        static const std::size_t ExtraSizeValue = 0;
+    };
+
+    struct Traits2 {
+        typedef embxx::comms::traits::endian::Little Endianness;
+        static const std::size_t MsgIdLen = 2;
+        static const std::size_t MsgSizeLen = 3;
+        static const std::size_t ExtraSizeValue = 0;
+    };
+
+    struct Traits3 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t MsgSizeLen = 2;
+        static const std::size_t ExtraSizeValue = MsgSizeLen;
+    };
+
+
+    template <typename TTraits>
+    struct ProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::MsgSizeLayer<
+                TTraits,
+                MsgIdLayer
+            > MsgSizeLayer;
+
+        typedef MsgSizeLayer Type;
+    };
+
+    template <typename TTraits>
+    struct RevProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgSizeLayer<
+                TTraits,
+                MsgDataLayer
+            > MsgSizeLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                MsgSizeLayer
+            > MsgIdLayer;
+
+        typedef MsgIdLayer Type;
+    };
+
+    template <typename TTraits>
+    struct InPlaceProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::InPlaceMsgAllocator<typename AllMessages<TTraits>::Type>,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::MsgSizeLayer<
+                TTraits,
+                MsgIdLayer
+            > MsgSizeLayer;
+
+        typedef MsgSizeLayer Type;
+    };
+
+};
+
+void MsgSizeLayerTestSuite::test1()
+{
+    const char buf[] = {
+        0x0, 0x3, MessageType1, 0x01, 0x02, static_cast<char>(0x3f)
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message1, ProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+
+    auto sameMsg = successfulReadWriteMsgTest<Traits1, Message1, ProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(sameMsg.getValue(), 0x0102);
+
+    TS_ASSERT_EQUALS(msg, sameMsg);
+}
+
+void MsgSizeLayerTestSuite::test2()
+{
+    typedef Message1<Traits2> Message;
+    Message msg;
+    msg.setValue(0x0304);
+
+    const char expectedBuf[] = {
+        0x4, 0x0, 0x0, MessageType1, 0x0, 0x04, 0x03
+    };
+
+    static const std::size_t bufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    char buf[bufSize] = {0};
+
+    writeReadMsgTest<Traits2, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, expectedBuf);
+    writeReadMsgTest<Traits2, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, expectedBuf);
+}
+
+
+void MsgSizeLayerTestSuite::test3()
+{
+    const char buf[] = {
+        0x0, 0x2, MessageType1, 0x00, 0x00
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits1, ProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!msg);
+
+    auto inPlaceMsg = readWriteMsgTest<Traits1, InPlaceProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!inPlaceMsg);
+}
+
+void MsgSizeLayerTestSuite::test4()
+{
+    const char buf[] = {
+        0x0
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits1, ProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT(!msg);
+
+    auto inPlaceMsg = readWriteMsgTest<Traits1, InPlaceProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT(!inPlaceMsg);
+
+}
+
+void MsgSizeLayerTestSuite::test5()
+{
+    typedef Message1<Traits2> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    char buf[2] = {0};
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    writeReadMsgTest<Traits2, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+    writeReadMsgTest<Traits2, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+void MsgSizeLayerTestSuite::test6()
+{
+    const char buf[] = {
+        MessageType1, 0x0, 0x2, 0x01, 0x02, static_cast<char>(0x3f)
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message1, RevProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+}
+
+void MsgSizeLayerTestSuite::test7()
+{
+    const char buf[] = {
+        MessageType1, 0x0, 0x4, 0x01, 0x02
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits3, Message1, RevProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+}
+
+
+#endif // UTIL_TEST_MSGSIZELAYER_TH_

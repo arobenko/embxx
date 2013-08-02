@@ -1,0 +1,230 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+
+#include <cstdint>
+#include <cstddef>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+
+class MessageTestSuite : public CxxTest::TestSuite,
+                         public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+
+private:
+
+    template <template<class> class TMessage, typename TTraits>
+    TMessage<TTraits> internalReadWriteTest(
+        const char* buf,
+        std::size_t bufSize,
+        embxx::comms::ErrorStatus expectedErrStatus);
+
+    template <template<class> class TMessage, typename TTraits>
+    void internalWriteReadTest(
+        const TMessage<TTraits>& msg,
+        char* buf,
+        std::size_t bufSize,
+        embxx::comms::ErrorStatus expectedErrStatus);
+
+
+    struct BigEndianTraits {
+        typedef embxx::comms::traits::endian::Big Endianness;
+    };
+
+    struct LittleEndianTraits {
+        typedef embxx::comms::traits::endian::Little Endianness;
+    };
+
+};
+
+void MessageTestSuite::test1()
+{
+    const char buf[] = {
+        0x01, 0x02
+    };
+
+    auto beMsg =
+        internalReadWriteTest<Message1, BigEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::Success);
+
+    TS_ASSERT_EQUALS(beMsg.getValue(), 0x0102);
+
+    auto leMsg =
+        internalReadWriteTest<Message1, LittleEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::Success);
+
+    TS_ASSERT_EQUALS(leMsg.getValue(), 0x0201);
+}
+
+void MessageTestSuite::test2()
+{
+    const char expectecedBeBuf[] = {
+        0x01, 0x02
+    };
+
+    Message1<BigEndianTraits> beMsg;
+    beMsg.setValue(0x0102);
+    char beBuf[2] = {0};
+    internalWriteReadTest(beMsg, beBuf, sizeof(beBuf)/sizeof(beBuf[0]), embxx::comms::ErrorStatus::Success);
+    TS_ASSERT(std::equal(&expectecedBeBuf[0], &expectecedBeBuf[0] + sizeof(beBuf)/sizeof(beBuf[0]), &beBuf[0]));
+
+    const char expectecedLeBuf[] = {
+        0x02, 0x01
+    };
+    Message1<LittleEndianTraits> leMsg;
+    leMsg.setValue(0x0102);
+    char leBuf[2] = {0};
+    internalWriteReadTest(leMsg, leBuf, sizeof(leBuf)/sizeof(leBuf[0]), embxx::comms::ErrorStatus::Success);
+    TS_ASSERT(std::equal(&expectecedLeBuf[0], &expectecedLeBuf[0] + sizeof(leBuf)/sizeof(leBuf[0]), &leBuf[0]));
+}
+
+void MessageTestSuite::test3()
+{
+    const char buf[] = {
+        0x01
+    };
+
+    auto beMsg =
+        internalReadWriteTest<Message1, BigEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::NotEnoughData);
+
+    auto leMsg =
+        internalReadWriteTest<Message1, LittleEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::NotEnoughData);
+}
+
+void MessageTestSuite::test4()
+{
+    char buf[1] = {0};
+
+    Message1<BigEndianTraits> beMsg;
+    beMsg.setValue(0x0102);
+    internalWriteReadTest(beMsg, buf, sizeof(buf)/sizeof(buf[0]), embxx::comms::ErrorStatus::BufferOverflow);
+
+    Message1<LittleEndianTraits> leMsg;
+    leMsg.setValue(0x0102);
+    internalWriteReadTest(leMsg, buf, sizeof(buf)/sizeof(buf[0]), embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+void MessageTestSuite::test5()
+{
+    const char buf[] = {
+        0x01, 0x02, 0x3, 0x4, (char)-5, (char)0xde, (char)0xad, 0x00, (char)0xaa, (char)0xff
+    };
+
+    auto beMsg =
+        internalReadWriteTest<Message3, BigEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::Success);
+
+    TS_ASSERT_EQUALS(std::get<0>(beMsg.getFields()).getValue(), 0x01020304);
+    TS_ASSERT_EQUALS(std::get<1>(beMsg.getFields()).getValue(), -5);
+    TS_ASSERT_EQUALS(std::get<2>(beMsg.getFields()).getValue(), 0xdead);
+    TS_ASSERT_EQUALS(std::get<3>(beMsg.getFields()).getValue(), 0xaaff);
+    TS_ASSERT_EQUALS(beMsg.getDataSize(), 10);
+
+    auto leMsg =
+        internalReadWriteTest<Message3, LittleEndianTraits>(
+            buf,
+            sizeof(buf)/sizeof(buf[0]),
+            embxx::comms::ErrorStatus::Success);
+
+    TS_ASSERT_EQUALS(std::get<0>(leMsg.getFields()).getValue(), 0x04030201);
+    TS_ASSERT_EQUALS(std::get<1>(leMsg.getFields()).getValue(), -5);
+    TS_ASSERT_EQUALS(std::get<2>(leMsg.getFields()).getValue(), 0xadde);
+    TS_ASSERT_EQUALS(std::get<3>(leMsg.getFields()).getValue(), 0xffaa00);
+    TS_ASSERT_EQUALS(leMsg.getDataSize(), 10);
+}
+
+void MessageTestSuite::test6()
+{
+    char buf[4] = {0};
+
+    Message3<BigEndianTraits> beMsg;
+    internalWriteReadTest(beMsg, buf, sizeof(buf)/sizeof(buf[0]), embxx::comms::ErrorStatus::BufferOverflow);
+
+    Message3<LittleEndianTraits> leMsg;
+    internalWriteReadTest(leMsg, buf, sizeof(buf)/sizeof(buf[0]), embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+
+template <template<class> class TMessage, typename TTraits>
+TMessage<TTraits> MessageTestSuite::internalReadWriteTest(
+    const char* buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus)
+{
+    typedef TTraits Traits;
+    typedef TMessage<Traits> TestMsg;
+    TestMsg msg;
+
+    InputBuf inBuf(buf, bufSize);
+    inBuf.pubseekpos(0, std::ios_base::in);
+    embxx::comms::ErrorStatus es = msg.read(inBuf, bufSize);
+    TS_ASSERT_EQUALS(es, expectedErrStatus);
+
+    if (es == embxx::comms::ErrorStatus::Success) {
+        auto lastPos =
+            static_cast<std::size_t>(
+                inBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::in));
+
+        std::unique_ptr<char[]> outDataBuf(new char[lastPos]);
+        OutputBuf outBuf(&outDataBuf[0], lastPos);
+        outBuf.pubseekpos(0, std::ios_base::out);
+
+        auto writeES = msg.write(outBuf, lastPos);
+        TS_ASSERT_EQUALS(writeES, embxx::comms::ErrorStatus::Success);
+        TS_ASSERT(std::equal(buf, buf + lastPos, &outDataBuf[0]));
+    }
+
+    return msg;
+}
+
+
+template <template<class> class TMessage, typename TTraits>
+void MessageTestSuite::internalWriteReadTest(
+    const TMessage<TTraits>& msg,
+    char* buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus)
+{
+    OutputBuf outBuf(buf, bufSize);
+    outBuf.pubseekpos(0, std::ios_base::out);
+    embxx::comms::ErrorStatus es = msg.write(outBuf, bufSize);
+    TS_ASSERT_EQUALS(es, expectedErrStatus);
+
+    if (es == embxx::comms::ErrorStatus::Success) {
+        auto lastPos =
+            static_cast<std::size_t>(
+                outBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::out));
+
+        InputBuf inBuf(buf, lastPos);
+        inBuf.pubseekpos(0, std::ios_base::in);
+
+        TMessage<TTraits> readMsg;
+        auto readES = readMsg.read(inBuf, lastPos);
+        TS_ASSERT_EQUALS(readES, embxx::comms::ErrorStatus::Success);
+        TS_ASSERT_EQUALS(msg, readMsg);
+    }
+}
+

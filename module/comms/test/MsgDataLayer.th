@@ -1,0 +1,175 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
+#include <algorithm>
+#include <iterator>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/comms/protocol.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+class MsgDataLayerTestSuite : public CxxTest::TestSuite,
+                              public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+
+private:
+
+    template <template<class> class TMessage, typename TTraits>
+    TMessage<TTraits> internalReadWriteTest(
+        const char* buf,
+        std::size_t bufSize,
+        embxx::comms::ErrorStatus expectedErrStatus = embxx::comms::ErrorStatus::Success);
+
+    template <template<class> class TMessage, typename TTraits>
+    void internalWriteReadTest(
+        const TMessage<TTraits>& msg,
+        char* buf,
+        std::size_t bufSize,
+        embxx::comms::ErrorStatus expectedErrStatus = embxx::comms::ErrorStatus::Success,
+        const char* expectedBuf = 0);
+
+    struct BigEndianTraits {
+        typedef embxx::comms::traits::endian::Big Endianness;
+    };
+
+    struct LittleEndianTraits {
+        typedef embxx::comms::traits::endian::Little Endianness;
+    };
+
+    template <typename TTraits>
+    struct ProtocolStack {
+        typedef embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits> > Type;
+    };
+};
+
+void MsgDataLayerTestSuite::test1()
+{
+    const char buf[] = {
+        0x01, 0x02
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+
+    auto msg = internalReadWriteTest<Message1, BigEndianTraits>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+}
+
+void MsgDataLayerTestSuite::test2()
+{
+    typedef Message1<BigEndianTraits> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    const char expectedBuf[] = {
+        0x02, 0x03
+    };
+
+    const std::size_t bufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    char buf[bufSize] = {0};
+
+    internalWriteReadTest(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, &expectedBuf[0]);
+}
+
+void MsgDataLayerTestSuite::test3()
+{
+    const char buf[] = {
+        0
+    };
+
+    auto msg = internalReadWriteTest<Message2, BigEndianTraits>(buf, 0);
+}
+
+void MsgDataLayerTestSuite::test4()
+{
+    typedef Message1<LittleEndianTraits> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    char buf[1] = {0};
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    internalWriteReadTest(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+template <template<class> class TMessage, typename TTraits>
+TMessage<TTraits> MsgDataLayerTestSuite::internalReadWriteTest(
+    const char* buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus)
+{
+    typedef TMessage<TTraits> Message;
+    typedef TTraits Traits;
+    typedef typename ProtocolStack<Traits>::Type ProtStack;
+
+    ProtStack stack;
+    InputBuf inBuf(buf, bufSize);
+    inBuf.pubseekpos(0, std::ios_base::in);
+    std::unique_ptr<Message> msg(new Message);
+    auto es = stack.read(msg, inBuf, bufSize);
+    TS_ASSERT_EQUALS(es, expectedErrStatus);
+
+    if (es == embxx::comms::ErrorStatus::Success) {
+        auto lastPos =
+            static_cast<std::size_t>(
+                inBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::in));
+
+        std::unique_ptr<char[]> outDataBuf(new char[lastPos]);
+        OutputBuf outBuf(&outDataBuf[0], lastPos);
+        outBuf.pubseekpos(0, std::ios_base::out);
+
+        auto writeES = stack.write(*msg, outBuf, lastPos);
+        TS_ASSERT_EQUALS(writeES, embxx::comms::ErrorStatus::Success);
+        TS_ASSERT(std::equal(buf, buf + lastPos, &outDataBuf[0]));
+    }
+
+    return *msg;
+}
+
+
+template <template<class> class TMessage, typename TTraits>
+void MsgDataLayerTestSuite::internalWriteReadTest(
+    const TMessage<TTraits>& msg,
+    char* buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus,
+    const char* expectedBuf)
+{
+    typedef TMessage<TTraits> Message;
+    typedef TTraits Traits;
+    typedef typename ProtocolStack<Traits>::Type ProtStack;
+
+    ProtStack stack;
+    OutputBuf outBuf(buf, bufSize);
+    outBuf.pubseekpos(0, std::ios_base::out);
+    embxx::comms::ErrorStatus es = stack.write(msg, outBuf, bufSize);
+    TS_ASSERT_EQUALS(es, expectedErrStatus);
+
+    if (es == embxx::comms::ErrorStatus::Success) {
+        auto lastPos =
+            static_cast<std::size_t>(
+                outBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::out));
+
+        TS_ASSERT(expectedBuf != 0);
+        TS_ASSERT(std::equal(expectedBuf, expectedBuf + lastPos, buf));
+
+        InputBuf inBuf(buf, lastPos);
+        inBuf.pubseekpos(0, std::ios_base::in);
+
+        std::unique_ptr<Message> readMsgPtr(new Message);
+        auto readES = stack.read(readMsgPtr, inBuf, lastPos);
+        TS_ASSERT_EQUALS(readES, embxx::comms::ErrorStatus::Success);
+        TS_ASSERT_EQUALS(msg, *readMsgPtr);
+    }
+}
