@@ -1,0 +1,13 @@
+/// @mainpage Embedded C++ Library
+/// Embxx is Embedded C++ library that is developed with intetion to be
+/// used in bare metal and Linux based embedded environments. It comes to
+/// supplement essential functionality that is missing in widely used 
+/// STL and BOOST C++ libraries.
+///
+/// Embxx doesn't use "RTTI" and "exceptions". It makes a significant effort to 
+/// completely eliminate or minimise usage of dynamic memory allocation in order
+/// to make it usable with embedded system with low memory footprint and/or
+/// slow CPUs.
+///
+/// Click on <a href="modules.html">Modules</a> tab to view currently 
+/// implemented functionality.
