@@ -1,0 +1,260 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
+#include <algorithm>
+#include <iterator>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/comms/MsgAllocators.h"
+#include "embxx/comms/protocol.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+class ChecksumLayerTestSuite : public CxxTest::TestSuite,
+                               public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+    void test8();
+
+private:
+    struct Traits1 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        typedef embxx::comms::traits::checksum::VerifyBeforeProcessing ChecksumVerification;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t ChecksumLen = 2;
+    };
+
+    struct Traits2 {
+        typedef embxx::comms::traits::endian::Little Endianness;
+        typedef embxx::comms::traits::checksum::VerifyBeforeProcessing ChecksumVerification;
+        static const std::size_t MsgIdLen = 2;
+        static const std::size_t ChecksumLen = 2;
+    };
+
+    struct Traits3 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        typedef embxx::comms::traits::checksum::VerifyAfterProcessing ChecksumVerification;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t MsgSizeLen = 1;
+        static const std::size_t ChecksumLen = 2;
+        static const std::size_t ExtraSizeValue = ChecksumLen;
+    };
+
+    struct Traits4 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        typedef embxx::comms::traits::checksum::VerifyAfterProcessing ChecksumVerification;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t MsgSizeLen = 1;
+        static const std::size_t ChecksumLen = 2;
+        static const std::size_t ExtraSizeValue = 0;
+    };
+
+
+
+    template <typename TTraits>
+    struct ProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::ChecksumLayer<
+                TTraits,
+                embxx::comms::protocol::checksum::CrcBasic<TTraits>,
+                MsgIdLayer> ChecksumLayer;
+
+        typedef ChecksumLayer Type;
+
+    };
+
+    template <typename TTraits>
+    struct InPlaceProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::InPlaceMsgAllocator<typename AllMessages<TTraits>::Type>,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::ChecksumLayer<
+                TTraits,
+                embxx::comms::protocol::checksum::CrcBasic<TTraits>,
+                MsgIdLayer> ChecksumLayer;
+
+        typedef ChecksumLayer Type;
+    };
+
+    template <typename TTraits>
+    struct ProtocolStackWithSize
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::MsgSizeLayer<
+                TTraits,
+                MsgIdLayer
+            > MsgSizeLayer;
+
+        typedef
+            embxx::comms::protocol::ChecksumLayer<
+                TTraits,
+                embxx::comms::protocol::checksum::CrcBasic<TTraits>,
+                MsgSizeLayer> ChecksumLayer;
+
+        typedef ChecksumLayer Type;
+
+    };
+
+};
+
+void ChecksumLayerTestSuite::test1()
+{
+    const char buf[] = {
+        MessageType1, 0x01, 0x02, 0x13, 0x73
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message1, ProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+    auto sameMsg = successfulReadWriteMsgTest<Traits1, Message1, InPlaceProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg, sameMsg);
+}
+
+void ChecksumLayerTestSuite::test2()
+{
+    typedef Message1<Traits2> Message;
+    Message msg;
+    msg.setValue(0x0304);
+
+    const char expectedBuf[] = {
+        MessageType1, 0x0, 0x04, 0x03, (char)0xa7, (char)0xfc
+    };
+
+    static const std::size_t bufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    char buf[bufSize] = {0};
+
+    writeReadMsgTest<Traits2, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, &expectedBuf[0]);
+    writeReadMsgTest<Traits2, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, &expectedBuf[0]);
+}
+
+
+void ChecksumLayerTestSuite::test3()
+{
+    const char buf[] = {
+        MessageType1, 0x03, 0x04, 0xf, 0xf
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits1, ProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!msg);
+
+    auto inPlaceMsg = readWriteMsgTest<Traits1, InPlaceProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!inPlaceMsg);
+}
+
+void ChecksumLayerTestSuite::test4()
+{
+    const char buf[] = {
+        0xf
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits1, ProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT(!msg);
+
+    auto inPlaceMsg = readWriteMsgTest<Traits1, InPlaceProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT(!inPlaceMsg);
+}
+
+void ChecksumLayerTestSuite::test5()
+{
+    typedef Message1<Traits2> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    char buf[5] = {0};
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    writeReadMsgTest<Traits2, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+    writeReadMsgTest<Traits2, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+void ChecksumLayerTestSuite::test6()
+{
+    const char buf[] = {
+        0x5, MessageType1, 0x01, 0x02, (char)0xaf, 0x36
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits3, Message1, ProtocolStackWithSize>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+}
+
+void ChecksumLayerTestSuite::test7()
+{
+    const char buf[] = {
+        0x3, MessageType1, 0x01, 0x02, (char)0xaf
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits4, ProtocolStackWithSize>(buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT(!msg);
+}
+
+void ChecksumLayerTestSuite::test8()
+{
+    const char buf[] = {
+        0x4, MessageType1, 0x01, 0x02, (char)0xaf
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits3, ProtocolStackWithSize>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!msg);
+}
+

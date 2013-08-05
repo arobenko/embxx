@@ -1,0 +1,147 @@
+/// @page util_stream_logger_page Stream Logger
+/// @section util_stream_logger_desc Overview
+/// There is often need to use some kind of logging facility while developing
+/// pure software or embedded electronic product. Stream Logger provides a
+/// convenient way to use various log streams and different logging levels,
+/// while providing an ability to use various output formats and locking
+/// policies.
+/// @section util_stream_logger_tutorial How to use
+/// Define the logger object(s) your are going to use:
+/// @code
+/// // Choose minimal log levels, defined in embxx::util::log::Level.
+/// using embxx::util::log;
+/// #ifndef DEBUG_LOG_LEVEL
+/// #define DEBUG_LOG_LEVEL log::Debug
+/// #endif // #ifndef DEBUG_LOG_LEVEL
+///
+/// #ifndef ERROR_LOG_LEVEL
+/// #define ERROR_LOG_LEVEL log::Warning
+/// #endif // #ifndef ERROR_LOG_LEVEL
+///
+/// typedef embxx::util::StreamLogger<DEBUG_LOG_LEVEL> DebugLog;
+/// typedef embxx::util::StreamLogger<ERROR_LOG_LEVEL> ErrorLog;
+///
+/// DebugLog& debugLog()
+/// {
+///     static DebugLog log(std::cout);
+///     return log;
+/// }
+///
+/// ErrorLog& errorLog()
+/// {
+///     static ErrorLog log(std::cerr);
+///     return log;
+/// }
+/// @endcode
+/// Now, use SLOG() macro every time the logging is required:
+/// @code
+/// SLOG(debugLog(), log::Debug, "Debug output\n");
+/// SLOG(errorLog(), log::Error, "Error output: " << -1 << '\n');
+/// @endcode
+/// The strings will be printed only if minimal output level of the logger
+/// is less or equal to the requested output level in the SLOG() macro.
+///
+/// Note that the third argument is forwarded to output stream as is.
+///
+/// In the example above the following will be printed:
+/// @code
+/// Debug output // Goes to std::cout
+/// Error output: -1 // Goes to std::cerr
+/// @endcode
+///
+/// @section util_stream_logger_custom Customisation
+/// By default no additional formatting is provided by the default instance
+/// of the StreamLogger. However there are multiple "decorators" that can
+/// be used to provide an additional functionality.
+/// @li embxx::util::log::LevelStringPrefixer - adds "[<log_level>] " prefix to
+///     the provided output.
+/// @li embxx::util::log::StreamableValuePrefixer - adds output of the provided
+///     constant value (such as string or character) at the beginning of the output.
+/// @li embxx::util::log::StreamableValueSuffixer - adds output of the provided
+///     constant value (such as string or character) at the end of the output.
+///     May be used to add '\\n' character at the end of every output.
+/// @li embxx::util::log::StreamFlushSuffixer - calls "flush()" member function
+///     of the stream at the end of the output.
+/// @li embxx::util::log::Locker - adds locking ability to ensure that the log
+///     output from multiple independent execution threads are not interleaved.
+///
+/// For example:
+/// @code
+/// #include <iostream>
+/// #include <mutex>
+///
+/// #include "embxx/util/log/LevelStringPrefixer.h"
+/// #include "embxx/util/log/StreamableValuePrefixer.h"
+/// #include "embxx/util/log/StreamableValueSuffixer.h"
+/// #include "embxx/util/log/StreamFlushSuffixer.h"
+/// #include "embxx/util/log/Locker.h"
+///
+/// // Logger that will put '\n' at the end every output
+/// typedef
+///     embxx::util::log::StreamableValueSuffixer<
+///         char,
+///         embxx::util::StreamLogger<embxx::util::log::Info>
+/// > Logger1;
+///
+/// // Logger that prints log leves + colon at the beginning, puts '\n' at the end
+/// // and flushes the stream:
+/// typedef
+///     embxx::util::log::StreamFlushSuffixer<
+///         embxx::util::log::StreamableValueSuffixer<
+///             char,
+///             embxx::util::log::LevelStringPrefixer<
+///                 embxx::util::log::StreamableValuePrefixer<
+///                     const char*,
+///                     embxx::util::StreamLogger<embxx::util::log::Info>
+///                 >
+///             >
+///         >
+///     > Logger2
+///
+/// // Logger that makes sure that the log output from multiple threads do
+/// // not interleave
+/// typedef
+///     embxx::util::log::Locker<
+///         std::mutex,
+///         embxx::util::StreamLogger<embxx::util::log::Info>
+///     > Logger3;
+///
+/// int main(int argc, const char* argv[])
+/// {
+///     Logger1 logger1('\n', std::cout);
+///
+///     // Simple output with '\n' at every line:
+///     SLOG(logger1, log::Info, "Info string");
+///
+///     Logger2 logger2(
+///         '\n', // parameter for StreamableValueSuffixer
+///         ": ", // parameter for StreamableValuePrefixer
+///         std::cout // parameter for StreamLogger
+///     );
+///
+///     // Will output "[WARNING] : This is warning" with new line and stream flush at the end.
+///     SLOG(logger2, log::Warning, "This is warning");
+/// 
+///     std::mutex_t mutex;
+///     Logger3 logger3(
+///         mutex, // parameter to Locker
+///         std::cout // parameter to StreamLogger
+///     );
+///     
+///     ...
+///     // From within thread one:
+///     SLOG(logger3, log::Info, "Thread " << 1 << "ontput\n");
+///     ...
+///     // From within thread two
+///     SLOG(logger3, log::Info, "Thread " << 2 << "output\n");
+///     return 0;
+/// }
+/// @endcode
+/// 
+/// @see embxx::util::StreamLogger
+/// @see SLOG()
+/// @see embxx::util::log::LevelStringPrefixer
+/// @see embxx::util::log::StreamableValuePrefixer
+/// @see embxx::util::log::StreamableValueSuffixer
+/// @see embxx::util::log::StreamFlushSuffixer
+/// @see embxx::util::log::Locker

@@ -1,0 +1,519 @@
+/// @page comms_tutorial_page Comms Module Tutorial
+/// @section comms_tutorial_overview Intention
+/// The main intention would be to use the "comms" component to deserialise 
+/// and handle the message in the following way:
+/// @code
+/// typedef ... ProtocolStack; // Combine several protocol layers into single type.
+/// typedef ProtocolStack::MsgPtr MsgPtr; // smart pointer to allocated message
+/// ... // Receive data from the communication link
+/// ProtocolStack protStack;
+/// MsgPtr msg;
+/// auto errorStatus = protStack.read(msg, buf, size);
+/// if (!msg) {
+///     // Process errorStatus to identify the cause of the error
+///     ...
+///     return;
+/// }
+/// 
+/// msg->dispatch(someHandler); // Dispatch message to appropriate handler.
+/// @endcode
+///
+///
+/// To serialise message in order to send it over the communication link
+/// would be something like that:
+/// @code
+/// auto errorStatus = protStack.write(msg, buf, size);
+/// if (errorStatus != Success) {
+///     // Process errorStatus to identify the cause of the error
+///     ...
+///     return;
+/// }
+/// // Send buffer contents over the communication link.
+/// ...
+/// @endcode
+/// The "comms" module uses std::streambuf for serialising and desrialising
+/// of the messages. If needed, it is quite easy to wrap regular array or 
+/// any other standard sequential container in std::streambuf using 
+/// boost::iostreams library.
+///
+/// @section comms_tutorial_requirements What is required
+/// In order to be able to use the comms component in the way described above
+/// the following things are needed:
+/// @li Define all custom message classes publicly inheriting from 
+/// embxx::comms::MessageBase and implementing required virtual functions to serialise
+/// and deserialise message data.
+/// @li Define the whole stack of protocol layers by combining layers provided
+/// by the "comms" component and/or adding new project specific ones.
+/// @li Implement message handling functionality.
+///
+/// @section comms_tutorial_msg_defs Definition of custom messages.
+/// Every message must have a numeric ID and its value mustn't exceed the 
+/// maximal value of unsigned type (typedefed as embxx::comms::traits::MsgIdType). 
+/// In most cases IDs of the messages are defined as enum:
+/// @code
+/// enum MessageId {
+///     MessageId_Ack,
+///     MessageId_Something
+///     MessageId_SomethingElse
+///     ...
+/// };
+/// @endcode
+///
+/// Provide forward declaration for your "handler" class:
+/// @code
+/// class MyMessageHandler;
+/// @endcode
+///
+/// Define base class for all the custom messages. This base class must 
+/// be derived from embxx::comms::Message and if needed extend the common interface
+/// of all the messages. This class will be used as an abstract interface
+/// for all the messages. For example, every message should also provide its name:
+/// @code
+/// struct MyProjectMsgTraits {
+///     typedef embxx::comms::traits::endianness::Big Endianness; // Use big endian
+/// };
+/// 
+/// class MyProjectMessageBase : public embxx::comms::Message<MyMessageHandler, MyProjectMsgTraits>
+/// {
+/// public:
+///     const char* getName() const
+///     {
+///         // Using NVI idiom
+///         return getNameImpl();
+///     }
+///
+/// protected:
+///     virtual const char* getNameImpl() const = 0;
+/// };
+/// @endcode
+/// Please note that the base embxx::comms::Message class requires two template
+/// parameters:
+/// @li Forward declared handler class to which messages will be
+///     dispatched for handling. It may be an abstract class with virtual
+///     handling functions.
+/// @li Traits class that contains typedef for Endianness. Use either
+///     embxx::comms::traits::endian::Big for big endian or 
+///     embxx::comms::traits::endian::Little for little endian.
+///
+/// Define message classes by inheriting from embxx::comms::MessageBase or any other
+/// class that dirives from embxx::comms::MessageBase and implement all required 
+/// virtual functions. Direct inheriting from embxx::comms::MessageBase requeres the
+/// following protected virtual functions to be implemented:
+/// @li @code virtual embxx::comms::ErrorStatus readImpl(std::streambuf& buf, std::size_t size); @endcode
+///     See embxx::comms::MessageBase::readImpl().
+/// @li @code virtual embxx::comms::ErrorStatus writeImpl(std::streambuf& buf, std::size_t size) const; @endcode
+///     See embxx::comms::MessageBase::writeImpl().
+/// @li @code virtual std::size_t getDataSizeImpl() const; @endcode
+///     See embxx::comms::MessageBase::getDataSizeImpl().
+/// 
+/// For example:
+/// @code
+/// class AckMsg : public embxx::comms::MessageBase<MessageId_Ack, 
+///                                                 MyProjectMessageBase, 
+///                                                 AckMsg>
+/// {
+/// public:
+///     typedef embxx::comms::ErrorStatus ErrorStatus;
+///     typedef std::uint16_t RespnseType;
+///  
+///     AckMsg() : m_responseCode(0) {}
+///
+/// protected:
+///     virtual ErrorStatus readImpl(std::streambuf& buf, std::size_t size)
+///     {
+///         assert(size <= buf.in_avail()); // Check on preconditions
+///         m_responseCode = getData<ResponseType>(buf); // getData() is defined in embxx::comms::Message
+///         return ErrorStatus::Success;
+///     }
+///
+///     virtual ErrorStatus writeImpl(std::streambuf& buf, std::size_t size) const
+///     {
+///         putData(m_responseCode, buf); // // putData() is defined in embxx::comms::Message
+///         return ErrorStatus::Success;
+///     }
+///
+///     virtual std::size_t getDataSizeImpl() const
+///     {
+///         return sizeof(m_responseCode);
+///     }
+///
+///     virtual const char* getNameImpl() const
+///     {
+///         return "AckMsg";
+///     }
+///
+/// private:
+///     ResponseType m_responseCode;    
+/// };
+/// @endcode
+/// In the example above, please note several things:
+/// @li First template parameter of embxx::comms::MessageBase is a numeric value of
+///     message ID.
+/// @li Second template parameter of embxx::comms::MessageBase is a base (an interface) 
+///     class for all the messages defined earlier. It will become a base class
+///     for embxx::comms::MessageBase. The inheritance chain in the example above
+///     will be: AckMsg -> embxx::comms::MessageBase -> MyProjectMessageBase -> embxx::comms::Message.
+/// @li Third template parameter is the message class being defined. It is
+///     required to implement correct "dispatch" functionality. (Will be
+///     described later).
+/// @li embxx::comms::Message class provides static embxx::comms::Message::getData() 
+///     and embxx::comms::Message::putData() member functions to
+///     read/write data from/into stream buffer with endianness specified in
+///     traits class of embxx::comms::Message. 
+///
+/// If a custom message doesn't have any body it is possible to inherit from
+/// embxx::comms::EmptyBodyMessage without any need to implement required
+/// virtual functions:
+/// @code
+/// class SomethingMsg : public embxx::comms::EmptyBodyMessage<MessageId_Something, 
+///                                                            MyProjectMessageBase, 
+///                                                            SomethingMsg>
+/// {
+///     // No need to override or implement readImpl()/writeImpl()/getDataSizeImpl();
+/// public:
+///     virtual const char* getNameImpl() const
+///     {
+///         return "SomethingMsg";
+///     }
+/// }; 
+/// @endcode
+/// If there are multiple fields in the message it may become tedious and 
+/// error-prone to read/write every field in the message. 
+/// To resolve this problem embxx::comms::MetaMessageBase class was defined.
+/// It is similar to embxx::comms::MessageBase one, but requires one more template
+/// parameter: all the field classes bundled in std::tuple class. Then
+/// embxx::comms::MetaMessageBase implements required readImpl(), writeImpl(), and
+/// getDataSizeImpl() member functions by iterating over all the field classes
+/// and calling their read(), write() and getLength() fields respectively.
+/// Current version of the "comms" module provides the following field classes:
+/// @li embxx::comms::field::BasicIntValue
+/// @li embxx::comms::field::BitmaskValue
+///
+/// @code
+/// typedef std::tuple<
+///     embxx::comms::field::BasicIntValue<std::uint32_t, MyProjectMsgTraits>, // 4 bytes unsigned int
+///     embxx::comms::field::BitmaskValue<2, MyProjectMsgTraits>, // 2 bytes of bitmask
+///     embxx::comms::field::BasicIntValue<std::uint32_t, MyProjectMsgTraits, 3>, // 3 bytes unsigned int
+///     embxx::comms::field::BasicIntValue<std::int16_t, MyProjectMsgTraits, 1, -2000> // 1 byte encoding of the year starting from 2000.
+/// > SomethingElseMsgFields;
+/// class SomethingElseMsg : public embxx::comms::MetaMessageBase<MessageId_SomethingEse, 
+///                                                               MyProjectMessageBase, 
+///                                                               SomethingElseMsg,
+///                                                               SomethingElseMsgFields>
+/// {
+///     // No need to override or implement readImpl()/writeImpl()/getDataSizeImpl();
+/// public:
+///     virtual const char* getNameImpl() const
+///     {
+///         return "SomethingElseMsg";
+///     }
+/// }; 
+/// @endcode
+/// To access the fields, "getFields()" member function can be used:
+/// @code
+/// SomethingElseMsg msg;
+/// ...
+/// auto& fields = msg.getFields();
+/// std::uint32_t firstValue = std::get<0>(fields).getValue();
+/// std::uint16_t secondValue = std::get<1>(fields).getValue();
+/// std::uint32_t thirdValue = std::get<2>(fields).getValue();
+/// std::int16_t fourthValue = std::get<3>(fields).getValue();
+/// @endcode
+///
+/// @section comms_tutorial_protocol_stack Defining protocol stack
+/// Serialising and deserialising body of the message is only part of the job.
+/// There can be multiple protocol layers that required other fields such as:
+/// message ID, serialised data size, checksum, etc... It is necessary to 
+/// use various protocol layers to define protocol stack that will be able to
+/// serialise and deserialise whole messages.
+/// 
+/// This module currently provides the following protocol layers:
+/// @li embxx::comms::protocol::MsgDataLayer - a must have layer that forwards
+///     serialisation/deserialisation requests to the message object.
+/// @li embxx::comms::protocol::MsgIdLayer - a must have layer that uses message
+///     ID field to differtiate between messages and is responsible for creation
+///     of appropriate message objects based on their IDs.
+/// @li embxx::comms::protocol::MsgSizeLayer - an optional layer that uses additional
+///     "data size" field to indicate size of the serialised message data.
+/// @li embxx::comms::protocol::ChecksumLayer - an optional layer that uses checksum
+///     to verify the correctness of serialised data.
+///
+/// The protocol layers are folded into one another and the one that wraps all
+/// others are defined to be a "protocol stack". For example protocol stack
+/// that defines following format for the message: \<msg_id\>\<msg_size\>\<msg_dita\>\<checksum\>
+/// will be defined like that:
+/// @code
+/// typedef embxx::comms::protocol::ChecksumLayer<
+///     ...,
+///     embxx::comms::protocol::MsgIdLayer<
+///         ...,
+///         embxx::comms::protocol::MsgSizeLayer<
+///             ...,
+///             embxx::comms::protocol::MsgDataLayer<...>
+///         >
+///     >
+/// > ProtocolStack
+/// ...
+/// ProtocolStack stack;
+/// stack.write(msg, buf, size); // Serialise message object into the buffer
+/// @endcode 
+/// Other example is protocol stack that doesn't require checksum and puts
+/// message size before message id: \<msg_size\>\<msg_id\>\<msg_data\>
+/// @code
+/// typedef embxx::comms::protocol::MsgSizeLayer<
+///     ...,
+///     embxx::comms::protocol::MsgIdLayer<
+///         ...,
+///         embxx::comms::protocol::MsgDataLayer<...>
+///     >
+/// > ProtocolStack
+/// ...
+/// @endcode
+///
+/// @subsection comms_tutorial_protocol_stack_data_layer MsgDataLayer
+/// "Message Data" protocol layer is a "must have" protocol layer and it must
+/// always be the last in the protocol stack. It just forwards the read/write
+/// request to the already allocated message object in order to read/write
+/// the body of the message.
+/// 
+/// There is single template parameter of embxx::comms::protocol::MsgDataLayer class 
+/// which specifies the base (inteface) class for all the messages:
+/// @code
+/// typedef embxx::comms::protocol::MsgDataLayer<MyProjectMessageBase> MyProjectMsgDataLayer;
+/// @endcode
+///
+/// @subsection comms_tutorial_protocol_stack_id_layer MsgIdLayer
+/// "Message ID" protocol layer is a also a "must have" one. It is
+/// responsible for creating right message object based on the ID field when
+/// deserialising the message, and for writing ID field of the message before
+/// forwarding the write request to the next layer when serialising it.
+/// 
+/// embxx::comms::protocol::MsgIdLayer has 4 template parameters. First one is
+/// all the defined custom messages wrapped in std::tuple class:
+/// @code
+/// typedef std::tuple<
+///     AckMsg,
+///     SomethingMsg,
+///     SomethingElseMsg,
+///     ...
+/// > MyProjectAllMessages;
+/// @endcode
+///
+/// Second temlate parameter is an allocator for the message objects. If 
+/// dynamic memory allocation is allowed then embxx::comms::DymMemMsgAllocator can
+/// be used.
+/// @code
+/// typedef coms::DymMemMsgAllocator MyProjectMsgAllocator;
+/// @endcode 
+/// If not, then some kind of "in place" allocation must be used.
+/// "comms" module provides embxx::comms::InPlaceMsgAllocator allocator which
+/// receives std::tuple of all the message types it is supposed to be able
+/// to allocate, calculates required storage space and alignment and creates
+/// this space internally. As a result only single message object can exist at
+/// a time, it won't be able to allocate second message object until the first
+/// one is destructed.
+/// @code
+/// typedef embxx::comms::InPlaceMsgAllocator<MyProjectAllMessages> MyProjectMsgAllocator;
+/// @endcode
+///
+/// Third template parameter is a "traits" class that must provide endianness
+/// type information by typedef-ing embxx::comms::traits::endian::Big or 
+/// embxx::comms::traits::endian::Little to Endianness type and length of the ID
+/// field in bytes by providing "static const std::size_t MsgIdLen" value:
+/// @code
+/// struct MyProjectMsgIdLayerTraits
+/// {
+///     typedef embxx::comms::traits::endian::Big Endianness;
+///     static const std::size_t MsgIdLen = 2;
+/// };
+/// @endcode
+///
+/// Fourth template parameter is next layer of the protocol stack. 
+/// 
+/// As the result the definition of MsgIdLayer will be something like that:
+/// @code
+/// typedef embxx::comms::MsgIdLayer<
+///     MyProjectAllMessages,
+///     MyProjectMsgAllocator,
+///     MyProjectMsgIdLayerTraits,
+///     MyProjectMsgDataLayer
+/// > MyProjectMsgIdLayer;
+/// @endcode 
+///
+/// @subsection comms_tutorial_protocol_stack_size_layer MsgSizeLayer
+/// "Message Size" protocol layer is an optional protocol layer, it comes
+/// to provide an information about size of the serialised data.
+///
+/// embxx::comms::protocol::MsgSizeLayer has two template parameters. First one is
+/// a "traits" class that must specify endianness of the written data, 
+/// length of the "size" field in bytes, and extra value that is added to the
+/// size when serialising:
+/// @code
+/// struct MyProjectMsgSizeLayerTraits
+/// {
+///     typedef embxx::comms::traits::endian::Big Endianness;
+///     static const std::size_t MsgSizeLen = 2;
+///     static const std::size_t ExtraSizeValue = 0;
+/// };
+/// @endcode
+/// When serialising a message, "Message Size" layer reserves "MsgSizeLen" 
+/// bytes in the stream buffer, then forwards write() request to the next
+/// layer. After the next layer has completed its write, "Message Size" layer
+/// calculates the size of the data that has been written by the next layer,
+/// adds "ExtraSizeValue" to the received result and updates "message size"
+/// field in the stream buffer, space for which was reserved earlier. So, 
+/// when "ExtraSizeValue" is 0 than "message size" field provides number of
+/// bytes written by the next layers not including "message size" field itself.
+/// If protocol demands that "message size" field includes size of itself or
+/// includes "checksum" field that will be written later, then "ExtraSizeValue"
+/// can be used for this purpose.
+///
+/// Second template parameter is the next layer in the protocol stack:
+/// @code
+/// typedef embxx::comms::MsgSizeLayer<
+///     MyProjectMsgSizeLayerTraits,
+///     MyProjectMsgIdLayer
+/// > MyProjectMsgIdLayer;
+/// @endcode 
+///
+/// @subsection comms_tutorial_protocol_stack_checksum_layer ChecksumLayer
+/// "Checksum" protocol layer is also an optional one. It is used to add
+/// "checksum" field at the end of the serialised data.
+/// 
+/// embxx::comms::protocol::ChecksumLayer has three template parameters. First one 
+/// is a traits class that must specify endianness of the written data,
+/// length of the checksum field, and order of checksum verification (whether
+/// it is done before forwarding read() request to the next layer or after
+/// the next layer processing was successful):
+/// @code
+/// struct MyProjectChecksumLayerTraits
+/// {
+///     typedef embxx::comms::traits::endian::Big Endianness;
+///     typedef embxx::comms::traits::checksum::VerifyAfterProcessing ChecksumVerification;
+///     static const std::size_t ChecksumLen = 2;
+/// };
+/// @endcode
+/// ChecksumVerification type can be only either 
+/// embxx::comms::traits::checksum::VerifyBeforeProcessing (makes the layer to 
+/// forward the read() request to the next layer only if checksum verification
+/// succeeds) or embxx::comms::traits::checksum::VerifyAfterProcessing (make the
+/// layer to verify the checksum only if read() request to the next layer
+/// was successful. 
+///
+/// Second template parameter is a "Checksum Calculator", it must have 
+/// static calc() member function. Currently "comms" module provides the
+/// following checksum calculators:
+/// @li embxx::comms::protocol::checksum::CrcBasic
+///
+/// Third template parameter is the next layer in the protocol stack:
+/// @code
+/// typedef embxx::comms::protocol::ChecksumLayer<
+///     MyProjectChecksumLayerTraits,
+///     embxx::comms::protocol::checksum::CrcBasic<MyProjectChecksumLayerTraits>,
+///     MyProjectMsgSizeLayer
+/// > MyProjectChecksumLayer;
+/// @endcode
+///
+/// @subsection comms_tutorial_protocol_stack_new_layer Adding new protocol layer
+/// It is possible to inmplement new protocols and add them to any place in the
+/// protocol stack. The new custom protocol stack must inherit from 
+/// embxx::comms::protocol::ProtocolLayer<...>, receive next layer in the protocol
+/// stack as template parameter, and implement following non-virtual
+/// functions that do their job and forward the request to the next layer:
+/// @li @code ErrorStatus read(MsgPtr& msgPtr, std::streambuf& buf, std::size_t size); @endcode
+/// @li @code ErrorStatus write(const MsgBase& msg, std::streambuf& buf, std::size_t size) const; @endcode
+///
+/// @subsection comms_tutorial_protocol_stack_summary Putting it all together
+/// The last protocol layer that wraps all the others is defined to be
+/// a protocol stack:
+/// @code
+/// typedef MyProjectChecksumLayer MyProjectProtocolStack;
+/// @endcode
+/// The protocol stack defines "MsgPtr" type, which is a smart pointer
+/// (std::unique_ptr) to the allocated message object:
+/// @code
+/// typedef MyProjectProtocolStack::MsgPtr MsgPtr;
+/// @endcode
+/// As a result to deserialise message object from the stream buffer the 
+/// following code should be written:
+/// @code
+/// MyProjectProtocolStack protocolStack;
+/// ...
+/// MsgPtr msgPtr;
+/// auto errorStatus = protocolStack.read(msgPtr, buf, size);
+/// if (errorStatus != embxx::comms::ErrorStatus::Success) {
+///     ... // handle error;
+///     return;
+/// }
+/// assert(msgPtr); // msgPtr points to valid message object
+/// msgPtr->dispatch(handler); // dispatch message object to appropriate handler. Will be in the next section.
+/// ...
+/// @endcode
+///
+/// @section comms_tutorial_protocol_stack_handling Dispatch message to handler
+/// The common "C"-like approach is to "switch" on message ID and call
+/// appropriate handler function in "case" statement. However "comms" module
+/// provides much more efficient way to dispatch message to appropriate handling
+/// function. In one of the earlier examples it was necessry to forward
+/// declare the message handling class. The example declared MyMessageHandler.
+/// The handling class must define "handleMessage()" member functions for
+/// all the messages it needs to handle:
+/// @code
+/// class MyMessageHandler
+/// {
+/// public:
+///     void handleMessage(AckMsg& msg) {...}
+///     void handleMessage(SomethingMsg& msg) {...}
+///     void handleMessage(SomethingElseMsg& msg) {...}
+///     void handleMessage(MyProjectMessageBase& msg) {...} // Handle all the rest
+/// };
+/// @endcode
+/// Please note, that calling "dispatch()" member function of the message
+/// object interface will call "handleMessage()" member function of the 
+/// handler class with appripriate type of the message. If the handler class
+/// doesn't need to handle all the defined message types, it needs to define
+/// "catch all" handleMessage() member function with common base class
+/// (MyProjectMessageBase) to make the code compile. The compiler will try to
+/// find the best match "handleMessage()" function. If it is not found, then
+/// the call to "catch all" one will be generated.
+/// 
+/// The reference to message object parameter in handleMessage() functions
+/// can also be "const" if needed.
+///
+/// Also note that handleMessage() member functions can be virtual and
+/// there can be multiple message handlers with the same interface and provide
+/// polymorphic behaviour. To simplify the process of defining message handler
+/// with polymorphic behaviour embxx::comms::MessageHandler class was introduced. It
+/// receives two template parameters. First one is a base class for all the
+/// messages (for "catch all" handling function). Second template parameter
+/// is all the custom messages bundled in the std::tuple (the one that was
+/// used with embxx::comms::protocol::MsgIdLayer). As the result of using these
+/// template parameters embxx::comms::MessageHandler class defines all the necessary
+/// handling functions as 
+/// @code virtual void handleMessage(<message_type>& msg); @endcode including
+/// the "catch all" one. The default behavour of every handling function is
+/// to call the "catch all" one, which by default does nothing. It is 
+/// possible to inherit the message handler class from embxx::comms::MessageHandler and
+/// override any of the generated handleMessage() functions to provide custom
+/// behaviour.
+///
+/// For example:
+/// @code
+/// class MyMessageHandler : public embxx::comms::MessageHandler
+/// {
+/// public:
+///     // Expecting only SomethingMsg, all other messages are irrelevant.
+///     virtual handleMessage(SomethingMsg& msg) 
+///     {
+///         ... // Handle SomethingMsg
+///     } 
+///
+///     virtual handleMessage(MyProjectMessageBase& msg);
+///     {
+///         // Log unexpected message and fail in debug mode
+///         std::cout << "Unexpected message of ID: " << msg.getId() << std::endl;
+///         assert(!"Unexpected message");
+///     }
+/// };
+/// @endcode 
+///

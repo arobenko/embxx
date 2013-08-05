@@ -1,0 +1,27 @@
+/// @page io_iosimple_page Put/Get functionality for integral types
+/// @section iosimple Overview
+/// There are many cases when it is needed to communicate some data
+/// between two nodes, such as over the network or serial connection.
+///
+/// The communication protocol must establish how the data is going
+/// to be transferred: the order and size of fields, big or little endian.
+///
+/// This module provides a simple functionality to put/get
+/// integral data types to/from stream buffer (std::streambuf).
+///
+/// Why std::strambuf? Because it is a standard way of providing
+/// reading and writing functionality to/from certain types of character
+/// sequences, such as external files or strings. It is quite easy to
+/// provide a std::streambuf wrapper around any container data structure using
+/// boost::iostreams library.
+///
+/// Currently supported functions:
+/// @li embxx::io::putBig() - serialise data using big endian representation
+/// @li embxx::io::getBig() - deserialise data using big endian representation
+/// @li embxx::io::putLittle() - serialise data using little endian representation
+/// @li embxx::io::getLittle() - desrialise data using little endian representation
+/// @li embxx::io::putData() - serialise data with endianness specified as a parameter
+/// @li embxx::io::getData() - deserialise data with endianness specified as a parameter
+///
+/// To include definition of the functions above use:
+/// @code #include <embxx/io/iosimple.h> @endcode

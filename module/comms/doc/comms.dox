@@ -1,0 +1,59 @@
+/// @defgroup comms Communication and message exchange facility.
+/// @brief Communication module provides a generic facility to
+///        define, serialize and dispatch custom (project specific) messages.
+/// @details
+/// Lots of pure software or electronic systems involve communication
+/// between two or more endpoints. The communication may be via various
+/// interfaces, such as network, serial connection, bluetooth,
+/// etc... In order to successfully send message it must be properly serialised 
+/// and in order to receive and dispatch to appropriate handler, the received 
+/// message data must be deserialised and valid message object created. In
+/// most cases the serialised message contains extra fields such as "message ID"
+/// and "size of the data". Sometimes (based on the nature of communication link)
+/// data correctness verification facility such as checksum field is added.
+///
+/// However all projects and communication protocols are different:
+/// @li Some use big endian when serialising the message data, others little
+///     endian.
+/// @li Length of fields differ. For example some protocols use 2 bytes to 
+///     specify the length of the message data, for others 1 byte is enough.
+/// @li Some communication links (such as RS-232) require checksum field, others
+///     (such as TCP/IP) don't.
+/// @li For some projects message objects require extra functionality such
+///     as providing name of the message in addition to basic ones of 
+///     read/write/dispatch.
+///
+/// As a result, in most projects the protocol stack is implemented from 
+/// scratch for every communication link. This module makes an attempt to 
+/// generalise the communication and message exchange facility and make it
+/// reusable between different implementations.
+///
+/// Read the @ref comms_tutorial_page    
+
+/// @namespace embxx::comms
+/// @ingroup comms
+/// @brief Provides main scope for all relevant classes.
+
+/// @namespace embxx::comms::protocol
+/// @ingroup comms
+/// @brief Provides scope for definitions of various protocol layers.
+
+/// @namespace embxx::comms::protocol::checksum
+/// @ingroup comms
+/// @brief Provides scope for definitions of checksum calculators.
+
+/// @namespace embxx::comms::field
+/// @ingroup comms
+/// @brief Provides scope for definition of various message fields.
+
+/// @namespace embxx::comms::traits
+/// @ingroup comms
+/// @brief Provides scope for definitions of various traits.
+
+/// @namespace embxx::comms::traits::endian
+/// @ingroup comms
+/// @brief Provides scope for definitions endianness traits.
+
+/// @namespace embxx::comms::traits::checksum
+/// @ingroup comms
+/// @brief Provides scope for definitions of checksum trait classes.

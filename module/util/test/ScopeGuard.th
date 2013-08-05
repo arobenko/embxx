@@ -1,0 +1,204 @@
+//
+// Copyright 2012 (C). Alex Robenko. All rights reserved.
+//
+
+#include "embxx/util/ScopeGuard.h"
+
+#include "cxxtest/TestSuite.h"
+
+class ScopeGuardTestSuite : public CxxTest::TestSuite
+{
+public:
+    void testGlobalScope();
+    void testLambda();
+    void testMemberFunc();
+    void testMoveConstructor();
+    void testSize();
+};
+
+namespace ScopeGuardTestSpace
+{
+
+void incFunc1(int& param)
+{
+    ++param;
+}
+
+void incFunc2(int& param1, int& param2)
+{
+    ++param1;
+    ++param2;
+}
+
+void incFunc4(
+    int& param1,
+    int& param2,
+    int& param3,
+    int& param4)
+{
+    ++param1;
+    ++param2;
+    ++param3;
+    ++param4;
+}
+
+}  // namespace ScopeGuardTestSpace
+
+void ScopeGuardTestSuite::testGlobalScope()
+{
+    const int InitialValue1 = 10;
+    const int InitialValue2 = 25;
+    int value1 = InitialValue1;
+    int value2 = InitialValue2;
+    {
+        auto guard = embxx::util::makeScopeGuard(&ScopeGuardTestSpace::incFunc1,
+                                          std::ref(value1));
+
+        static_cast<void>(guard);
+    }
+    // Make sure guard function is called
+    TS_ASSERT_EQUALS(value1, InitialValue1 + 1);
+    TS_ASSERT_EQUALS(value2, InitialValue2);
+
+    value1 = InitialValue1;
+    value2 = InitialValue2;
+    {
+        auto guard = embxx::util::makeScopeGuard(&ScopeGuardTestSpace::incFunc2,
+                                          std::ref(value1),
+                                          std::ref(value2));
+
+        static_cast<void>(guard);
+    }
+
+    // Make sure guard function is called
+    TS_ASSERT_EQUALS(value1, InitialValue1 + 1);
+    TS_ASSERT_EQUALS(value2, InitialValue2 + 1);
+
+    value1 = InitialValue1;
+    value2 = InitialValue2;
+    {
+        auto guard1 = embxx::util::makeScopeGuard(&ScopeGuardTestSpace::incFunc1,
+                                          std::ref(value1));
+
+        static_cast<void>(guard1);
+
+        auto guard2 = embxx::util::makeScopeGuard(&ScopeGuardTestSpace::incFunc2,
+                                          std::ref(value1),
+                                          std::ref(value2));
+
+        static_cast<void>(guard2);
+
+        // Release guards
+        TS_ASSERT(!guard1.isReleased());
+        TS_ASSERT(!guard2.isReleased());
+        guard1.release();
+        guard2.release();
+        TS_ASSERT(guard1.isReleased());
+        TS_ASSERT(guard2.isReleased());
+    }
+
+    // Make sure guard functions weren't called
+    TS_ASSERT_EQUALS(value1, InitialValue1);
+    TS_ASSERT_EQUALS(value2, InitialValue2);
+}
+
+void ScopeGuardTestSuite::testLambda()
+{
+    bool called1 = false;
+    {
+        auto guard = embxx::util::makeScopeGuard([&called1]()
+                                          {
+                                              called1 = true;
+                                          });
+    }
+    TS_ASSERT(called1);
+
+    bool called2 = false;
+    {
+        auto guard = embxx::util::makeScopeGuard([&called2]()
+                                          {
+                                              called2 = true;
+                                          });
+        TS_ASSERT(!guard.isReleased());
+        guard.release();
+        TS_ASSERT(guard.isReleased());
+    }
+    TS_ASSERT(!called2); // lambda wasn't called
+}
+
+void ScopeGuardTestSuite::testMemberFunc()
+{
+    class Dummy
+    {
+    public:
+        Dummy() : value_(0) {}
+        void func() { ++value_; }
+        int getValue() { return value_; }
+    private:
+        int value_;
+    };
+
+    Dummy dummy1;
+    {
+        auto guard = embxx::util::makeScopeGuard(&Dummy::func, &dummy1);
+        static_cast<void>(guard);
+        TS_ASSERT_EQUALS(dummy1.getValue(), 0);
+    }
+    TS_ASSERT_EQUALS(dummy1.getValue(), 1);
+
+    Dummy dummy2;
+    {
+        auto guard = embxx::util::makeScopeGuard(&Dummy::func, &dummy2);
+        static_cast<void>(guard);
+        TS_ASSERT_EQUALS(dummy2.getValue(), 0);
+
+        TS_ASSERT(!guard.isReleased());
+        guard.release();
+        TS_ASSERT(guard.isReleased());
+    }
+    TS_ASSERT_EQUALS(dummy2.getValue(), 0);
+}
+
+void ScopeGuardTestSuite::testMoveConstructor()
+{
+    const int InitialValue1 = 10;
+    int value1 = InitialValue1;
+    {
+        auto guard1 = embxx::util::makeScopeGuard(&ScopeGuardTestSpace::incFunc1,
+                                          std::ref(value1));
+        TS_ASSERT(!guard1.isReleased());
+
+        auto guard2(std::move(guard1));
+        TS_ASSERT(guard1.isReleased());
+        TS_ASSERT(!guard2.isReleased());
+
+        auto guard3(std::move(guard2));
+        TS_ASSERT(guard2.isReleased());
+        TS_ASSERT(!guard3.isReleased());
+    }
+    TS_ASSERT_EQUALS(value1, InitialValue1 + 1); // Guard function called once
+}
+
+void ScopeGuardTestSuite::testSize()
+{
+    int value1 = 0;
+    int value2 = 0;
+    int value3 = 0;
+    int value4 = 0;
+
+    auto func = std::bind(&ScopeGuardTestSpace::incFunc4,
+                          std::ref(value1),
+                          std::ref(value2),
+                          std::ref(value3),
+                          std::ref(value4));
+
+    auto minSize = sizeof(&ScopeGuardTestSpace::incFunc4) +
+                   sizeof(value1) +
+                   sizeof(value2) +
+                   sizeof(value3) +
+                   sizeof(value4);
+    TS_ASSERT(sizeof(func) >= minSize);
+    auto guard = embxx::util::makeScopeGuard(func);
+    TS_ASSERT(sizeof(guard) > sizeof(func));
+}
+

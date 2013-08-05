@@ -1,0 +1,94 @@
+/// @page util_tuple_page Tuple Utilities
+/// @section util_tuple_overview Overview
+/// std::tuple<> is a vary powerful tool to use in compile-time meta
+/// programming. Unfortunatelly neither boost::mpl nor boost::fusion classes
+/// operate on std::tuple, they use their own representation of 
+/// type sequences. This library provides basic functionality to inquire and
+/// manipulate std::tuple types.
+///
+/// @section util_tuple_is_tuple "Is tuple" inquiry
+/// To check whether some type is any variation of std::tuple, use 
+/// embxx::util::IsTuple.
+/// @code
+/// template <typename TType>
+/// class MyClass
+/// {
+///     static_assert(embxx::util::IsTuple<TType>::Value, "Only tuple types are supported");
+///     ...
+/// };
+/// @endcode
+///
+/// @section util_tuple_is_in_tuple "Is type in tuple" inquiry
+/// To check whether some type is included in std::tuple use 
+/// embxx::util::IsInTuple.
+/// @code
+/// typedef std::tuple<int, double, std::string> AllTypes;
+/// static_assert(embxx::util::IsInTuple<int, AllTypes>::Value, "Must contain int");
+/// static_assert(!embxx::util::IsInTuple<char, AllTypes>::Value, "Mustn't contain char");
+/// @endcode
+///
+/// @section util_tuple_as_aligned_union Get type returned by std::aligned_union for all types in tuple
+/// To get properly sized and aligned uninitialised storage type to be able to
+/// contain any of the types in tuple use embxx::util::TupleAsAlignedUnion
+/// @code
+/// typedef std::tuple<int, double, char, long double, unsigned> AllTypes;
+/// typedef embxx::util::TupleAsAlignedUnion<AllTypes>::Type StorateType;
+/// 
+/// StorageType space;
+/// static_assert(sizeof(double) <= sizeof(space), "Must have enough space");
+/// static_assert(std::alignment_of<double>::value <= std::alignment_of<StorageType>::value, "Must have proper alignment");
+/// double* double = new (space) double(5.0);
+/// ...
+/// static_assert(sizeof(int) <= sizeof(space), "Must have enough space");
+/// static_assert(std::alignment_of<int>::value <= std::alignment_of<StorageType>::value, "Must have proper alignment");
+/// int* intPtr = new (space) int(10);
+/// ...
+/// @endcode
+///
+/// @section util_tuple_is_unique "Is tuple sequence unique" inquiry
+/// To check whether tuple sequence is unique (no type is repeated) use 
+/// embxx::util::TupleIsUnique.
+/// @code
+/// template <typename TType>
+/// class MyClass
+/// {
+///     static_assert(embxx::util::IsTuple<TType>::Value, "Only tuple types are supported");
+///     static_assert(embxx::util::TupleIsUnique<TType>::Value, "Only unique tuples are supported");
+///     ...
+/// };
+/// @endcode
+///
+/// @section util_tuple_for_each Iterate over all elements of tuple
+/// If there is a need to perform similar operaton on all the elements of the
+/// tuple, embxx::util::tupleForEach() function can be used:
+/// @code
+/// struct IncValue
+/// {
+///     template <typename T>
+///     void operator()(T& value)
+///     {
+///         value += 1;
+///     }
+/// };
+/// ...
+/// auto values = std::make_tuple(...);
+/// embxx::util::tupleForEach(values, IncValue());
+/// @endcode
+///
+/// @section util_tuple_accumulate Perform "accumulate" allgorithm over all tuple elements.
+/// If there is a need to iterate over all tuple elements and come with some
+/// single value, embxx::util::tupleAccumulate function can be used:
+/// @code
+/// struct CalcSize
+/// {
+///     template <typename TSize, typename T>
+///     TSize operator()(const TSize& size, const T& element)
+///     {
+///         return size + element.getSize(); // every element must have getSize() function
+///     }
+/// };
+/// ...
+/// auto elements = std::make_tuple(...);
+/// embxx::util::tupleAccumulate(values, 0U, CalcSize());
+/// @endcode
+///

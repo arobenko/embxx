@@ -1,0 +1,85 @@
+/// @page util_assert_page Generic Assert
+/// @section util_assert Overview
+/// Standard assertion failure behaviour provided by the standard C library is
+/// not flexible enough to be used in the embedded environment, for example.
+/// It doesn't allow to redefine assertion failure functionality. In the pure
+/// embedded environment it would be useful to be able to flash some LEDs or
+/// print failure information to the serial interface. This module provides
+/// the flexibility to achieve these goals.
+/// @section util_assert_tutorial How to use
+/// First of all, define the custom assertion failure behaviour by inheriting
+/// from embxx::util::Assert class and overriding its @link embxx::util::Assert::fail() fail() @endlink
+/// member function:
+/// @code
+/// #include "embxx/util/Assert.h"
+/// class MyAssert : public embxx::util::Assert
+/// {
+/// public:
+///     virtual void fail(
+///         const char* expr,
+///         const char* file,
+///         unsigned int line,
+///         const char* function) override
+///     {
+///         ... // Custom failure behaviour here
+///     }
+/// @endcode
+/// Then instantiate embxx::util::EnableAssert<MyAssert> object to enable new
+/// assertion failure behaviour:
+/// @code
+/// #include "embxx/util/Assert.h"
+/// int main(int argc, const char* argv[])
+/// {
+///     embxx::util::EnableAssert<MyAssert> assertObj; // New assertion failure behaviour starts here
+///     static_cast<void>(assertObj);
+///     ...
+/// }
+/// @endcode
+/// It is possible to override the existing custom assert failure behaviour with
+/// new also custom one by instantiating new embxx::util::EnableAssert<...> object.
+/// @code
+/// #include "embxx/util/Assert.h"
+/// int main(int argc, const char* argv[])
+/// {
+///     embxx::util::EnableAssert<MyAssert1> assertObj1; // Assertion failure behaviour defined in MyAssert1 starts here
+///     static_cast<void>(assertObj1);
+///     ...
+///     {
+///         embxx::util::EnableAssert<MyAssert2> assertObj2; // Assertion failure behaviour defined in MyAssert2 starts here
+///         static_cast<void>(assertObj2);
+///         ...
+///     } // Assertion failure behaviour defined in MyAssert1 is restored here
+///     ...
+/// }
+/// @endcode
+/// Until the first embxx::util::EnableAssert<...> object is instantiated and
+/// after the last one is destructed, the default behaviour of using "assert"
+/// macro from "cstdlib" takes place.
+/// To use asserts with new failure behaviour use GASSERT() macro defined in
+/// util/Assert.h header file. Like with standard assert() macro the
+/// condition check takes place only if NDEBUG is not defined.
+/// @code
+/// GASSERT(some_condition);
+/// @endcode
+/// @see embxx::util::Assert
+/// @see embxx::util::EnableAssert
+/// @see GASSERT()
+///
+/// @section util_assert_cxxtest CxxTestAssert
+/// CxxTest is one of the most popular C++ unittesting frameworks. This
+/// library provides an ability to override assertion failure behaviour with
+/// call to TS_FAIL provided by the CxxTest framework.
+/// @code
+/// #include "cxxtest/TestSuite.h"
+/// #include "embxx/util/assert/CxxTestAssert.h"
+/// class MyTest : public CxxTest::TestSuite,
+///                public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+/// {
+/// public:
+///     ...
+/// }
+/// @endcode
+/// Note than when MyTest is instantiated the embxx::util::EnableAssert object is also
+/// constructed as a base class enabling custom assertion failure behaviour.
+/// @see embxx::util::assert::BasicCxxTestAssert
+///

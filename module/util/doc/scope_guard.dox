@@ -1,0 +1,25 @@
+/// @page util_scope_guard_page Scope Guard
+/// @section util_scope_guard_overview Overview
+/// Class ScopeGuard implements Scope Guard idiom, which allows to call
+/// any function with any number of parameters when the guard is destructed,
+/// unless the ScopeGuard::release() method is called prior to the destruction
+/// of the guard. The destruction may happen due to exception or preliminary
+/// return from the function.
+///
+/// Usage example:
+/// @code
+/// auto guard = embxx::util::makeScopeGuard(&func1, argByValue, std::ref(argByRef));
+/// ...
+/// if (error) {
+///     // Some error handling
+///     return; // The guard will call func1 with provided arguments.
+/// }
+/// ...
+/// someFuncMayThrow(); // In case of exception func1 will be called with provided arguments.
+/// ...
+/// guard.release();
+/// return; // The func1 WON'T be called after the guard has released its functor.
+/// @endcode
+/// @see embxx::util::ScopeGuard
+/// @see makeScopeGuard()
+///

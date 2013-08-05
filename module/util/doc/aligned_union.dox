@@ -1,0 +1,25 @@
+/// @page util_aligned_union_page Aligned Union
+/// @section util_aligned_union Overview
+/// Unfortunately std::aligned_union is not implemented in currently available 
+/// gcc 4.8. However, it is quite easy to implement using std::aligned_storage.
+/// Class embxx::util::AlignedUnion does exactly that:
+/// @code
+/// #include "embxx/util/AlignedUnion.h"
+/// ...
+/// typedef ... Type1;
+/// typedef ... Type2;
+/// typedef ... Type3;
+/// ...
+/// typedef embxx::util::AlignedUnion<Type1, Type2, Type3>::Type AlignedUnion;
+/// AlignedUnion alignedUnion; // Properly aligned and sized storage
+/// ...
+/// Type1* type1Ptr = new (&alignedUnion) Type1(...);
+/// ...
+/// type1Ptr->~Type1();
+/// Type2* type2Ptr = new (&alignedUnion) Type2(...);
+/// ...
+/// type2Ptr->~Type2();
+/// Type3* type3Ptr = new (&alignedUnion) Type3(...);
+/// ...
+/// type3Ptr->~Type3();
+/// @endcode

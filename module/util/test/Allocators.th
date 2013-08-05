@@ -1,0 +1,101 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include "embxx/util/Allocators.h"
+#include "embxx/util/assert/CxxTestAssert.h"
+
+#include "cxxtest/TestSuite.h"
+
+class AllocatorsTestSuite : public CxxTest::TestSuite,
+                            public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void testDynMemAllocator();
+    void testInPlaceAllocator();
+    void testInPlaceAllocator2();
+    void testInPlaceEmptyPointer();
+
+private:
+
+    class Base
+    {
+    public:
+        virtual ~Base() {}
+        Base(int value) : value_(value) {}
+        virtual int getValue() const {return value_; }
+
+    private:
+        int value_;
+    };
+
+    class Derived : public Base
+    {
+    public:
+        virtual ~Derived() {}
+        Derived(int value, int derValue) : Base(value), derValue_(derValue) {}
+        virtual int getValue() const {return derValue_; }
+
+    private:
+        int derValue_;
+    };
+
+    struct Simple
+    {
+        Simple(int value) : value_(value) {}
+        int value_;
+    };
+};
+
+void AllocatorsTestSuite::testDynMemAllocator()
+{
+    embxx::util::DynMemAllocator baseAllocator;
+    auto basePtr = baseAllocator.alloc<Base>(5);
+    TS_ASSERT_EQUALS(basePtr->getValue(), 5);
+    decltype(basePtr) derivedPtr = baseAllocator.alloc<Derived>(3, 7);
+    TS_ASSERT_EQUALS(derivedPtr->getValue(), 7);
+
+    embxx::util::DynMemAllocator simpleAllocator;
+    auto simplePtr = simpleAllocator.alloc<Simple>(10);
+    TS_ASSERT_EQUALS(simplePtr->value_, 10);
+}
+
+void AllocatorsTestSuite::testInPlaceAllocator()
+{
+    embxx::util::InPlaceAllocator<sizeof(Derived)> baseAllocator;
+    auto basePtr = baseAllocator.alloc<Base>(5);
+    TS_ASSERT_EQUALS(basePtr->getValue(), 5);
+    decltype(basePtr) derivedPtr = baseAllocator.alloc<Derived>(3, 7);
+    TS_ASSERT(!derivedPtr);
+    basePtr.reset();
+    derivedPtr = baseAllocator.alloc<Derived>(3, 7);
+    TS_ASSERT_EQUALS(derivedPtr->getValue(), 7);
+}
+
+
+void AllocatorsTestSuite::testInPlaceAllocator2()
+{
+    typedef std::tuple<Base, Derived, Simple> AllObjects;
+
+    embxx::util::SpecificInPlaceAllocator<AllObjects> allocator;
+    auto basePtr = allocator.alloc<Base>(15);
+    TS_ASSERT_EQUALS(basePtr->getValue(), 15);
+    auto derivedPtr = allocator.alloc<Derived>(13, 17);
+    TS_ASSERT(!derivedPtr);
+    basePtr.reset();
+    derivedPtr = allocator.alloc<Derived>(13, 17);
+    TS_ASSERT_EQUALS(derivedPtr->getValue(), 17);
+    auto simplePtr = allocator.alloc<Simple>(10);
+    TS_ASSERT(!simplePtr);
+    derivedPtr.reset();
+    simplePtr = allocator.alloc<Simple>(10);
+    TS_ASSERT_EQUALS(simplePtr->value_, 10);
+}
+
+void AllocatorsTestSuite::testInPlaceEmptyPointer()
+{
+    typedef embxx::util::InPlaceAllocator<sizeof(Derived)> Allocator;
+    typedef decltype(Allocator().alloc<Derived>(0, 0)) Ptr;
+    Ptr ptr;
+    static_cast<void>(ptr);
+}

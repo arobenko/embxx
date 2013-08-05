@@ -1,0 +1,144 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include <cstdint>
+#include <cstddef>
+#include <iostream>
+#include <algorithm>
+#include <iterator>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/comms/MsgAllocators.h"
+#include "embxx/comms/protocol.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+class MsgIdLayerTestSuite : public CxxTest::TestSuite,
+                            public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+
+private:
+
+    struct Traits1 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        static const std::size_t MsgIdLen = 1;
+    };
+
+    struct Traits2 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        static const std::size_t MsgIdLen = 2;
+    };
+
+    struct Traits3 {
+        typedef embxx::comms::traits::endian::Little Endianness;
+        static const std::size_t MsgIdLen = 3;
+    };
+
+    template <typename TTraits>
+    struct ProtocolStack {
+        typedef embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                embxx::comms::protocol::MsgDataLayer<
+                    TestMessageBase<TTraits> >
+                > Type;
+    };
+
+    template <typename TTraits>
+    struct InPlaceProtocolStack {
+        typedef embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::InPlaceMsgAllocator<typename AllMessages<TTraits>::Type>,
+                TTraits,
+                embxx::comms::protocol::MsgDataLayer<
+                    TestMessageBase<TTraits> >
+                > Type;
+    };
+};
+
+void MsgIdLayerTestSuite::test1()
+{
+    const char buf[] = {
+        MessageType1, 0x01, 0x02
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message1, ProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+
+    auto sameMsg = successfulReadWriteMsgTest<Traits1, Message1, InPlaceProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(sameMsg.getValue(), 0x0102);
+
+    TS_ASSERT_EQUALS(msg, sameMsg);
+}
+
+void MsgIdLayerTestSuite::test2()
+{
+    typedef Message1<Traits2> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    const char expectedBuf[] = {
+        0x0, MessageType1, 0x02, 0x03
+    };
+
+    char buf[4] = {0};
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    writeReadMsgTest<Traits2, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, &expectedBuf[0]);
+
+    writeReadMsgTest<Traits2, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::Success, &expectedBuf[0]);
+}
+
+void MsgIdLayerTestSuite::test3()
+{
+    const char buf[] = {
+        MessageType2, 0, 0
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits3, Message2, ProtocolStack>(buf, bufSize);
+    auto sameMsg = successfulReadWriteMsgTest<Traits3, Message2, InPlaceProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg, sameMsg);
+}
+
+
+void MsgIdLayerTestSuite::test4()
+{
+    const char buf[] = {
+        0x0, UnusedValue1, 0x00, 0x00
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits2, ProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::InvalidMsgId);
+    TS_ASSERT(!msg);
+
+    auto inPlaceMsg = readWriteMsgTest<Traits2, InPlaceProtocolStack>(buf, bufSize, embxx::comms::ErrorStatus::InvalidMsgId);
+    TS_ASSERT(!inPlaceMsg);
+}
+
+void MsgIdLayerTestSuite::test5()
+{
+    typedef Message1<Traits3> Message;
+    Message msg;
+    msg.setValue(0x0203);
+
+    char buf[2] = {0};
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    writeReadMsgTest<Traits3, Message1, ProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+    writeReadMsgTest<Traits3, Message1, InPlaceProtocolStack>(msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+}
+

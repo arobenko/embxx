@@ -1,0 +1,24 @@
+/// @defgroup util Utilities - Various code support utilities.
+/// @brief Utilities module provides various minor functionalities to 
+///        improve the quality of the code.
+/// @details Utilities module contains following functionalities:
+/// @li @ref util_assert_page - Customisation of the assertion functionality
+/// @li @ref util_scope_guard_page - Implementation of the "Scope Guard" idiom.
+/// @li @ref util_stream_logger_page - Generic logging facility.
+/// @li @ref util_size_to_type_page - Type definitions based on length of the value.
+/// @li @ref util_aligned_union_page - Creating aligned "union" storage for multiple types.
+/// @li @ref util_allocators_page - Various memory allocators with unified interface
+/// @li @ref util_tuple_page - Various compile time utilities to operate on std::tuple classes
+/// @li @ref util_integral_promotion_page - Utility class to perform promotion of integral types.
+
+/// @namespace embxx::util
+/// @ingroup util
+/// @brief Provides scope for utility classes/functions.
+
+/// @namespace embxx::util::assert
+/// @ingroup util
+/// @brief Provides scope for definitions of custom asserts.
+
+/// @namespace embxx::util::log
+/// @ingroup util
+/// @brief Provides scope for definition of extra decorators for StreamLogger.
