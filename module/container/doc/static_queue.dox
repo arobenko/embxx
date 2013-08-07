@@ -1,0 +1,25 @@
+/// @page container_static_queue_page Static Queue / Static Circular Buffer
+/// @section container_static_queue_overview Overview.
+/// embxx::container::BasicStaticQueue provides a functionality of a queue and a 
+/// circular buffer when the maximum size of the queue is predefined and cannot 
+/// be changed. It doesn't use any dynamic memory allocation or exception 
+/// handling. Hence, it is suitable for use in pure embedded environment with 
+/// small memory footprint.
+///
+/// Please refer to embxx::container::BasicStaticQueue class for the description 
+/// of this functionality. Provide DefaultStaticQueueTraits as behaviour traits
+/// to enforce behaviour of double ended queue. Provide
+/// DefaultCircularBufferTraits as behaviour traits to enforce behaviour of
+/// circular buffer.
+///
+/// Note that at this stage doxygen utility, that generated this documentation,
+/// doesn't support all the syntax of C++11. There are two partial template
+/// typedefs for BasicStaticQueue that use necessary traits. They are:
+/// @code
+/// template <typename T, std::size_t TSize>
+/// using StaticQueue = BasicStaticQueue<T, TSize, DefaultStaticQueueTraits>;
+///
+/// template <typename T, std::size_t TSize>
+/// using StaticCircularBuffer = BasicStaticQueue<T, TSize, DefaultCircularBufferTraits>;
+/// @endcode
+///
