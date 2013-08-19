@@ -1,0 +1,193 @@
+//
+// Copyright 2012 (C). Alex Robenko. All rights reserved.
+//
+
+#include <queue>
+#include "embxx/container/StaticQueue.h"
+#include "embxx/container/StaticQueueStlAdapter.h"
+#include "embxx/util/Assert.h"
+#include "embxx/util/assert/CxxTestAssert.h"
+
+#include "cxxtest/TestSuite.h"
+
+class StaticQueueStlAdapterTestSuite : public CxxTest::TestSuite,
+                                           public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void testConstruction();
+    void testAssignement();
+    void testPushPop();
+    void testIteration();
+    void testPriorityQueue();
+};
+
+
+void StaticQueueStlAdapterTestSuite::testConstruction()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
+
+    AdaptedQueue queue1;
+    AdaptedQueue queue2(queue1); // copy construction
+    AdaptedQueue queue3(std::move(queue1)); // move construction
+}
+
+void StaticQueueStlAdapterTestSuite::testAssignement()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
+
+    AdaptedQueue queue1;
+    AdaptedQueue queue2;
+    AdaptedQueue queue3;
+
+    queue2 = queue1;
+    queue3 = std::move(queue1);
+    queue1 = queue3.container();
+    queue1 = std::move(queue2.container());
+}
+
+void StaticQueueStlAdapterTestSuite::testPushPop()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
+
+    AdaptedQueue queue1;
+    queue1.push_back(1);
+    queue1.push_front(2);
+    TS_ASSERT_EQUALS(queue1.back(), 1);
+    TS_ASSERT_EQUALS(queue1.front(), 2);
+    TS_ASSERT_EQUALS(queue1.size(), 2U);
+
+    queue1.push_back(3);
+    queue1.push_front(4);
+    TS_ASSERT_EQUALS(queue1.back(), 3);
+    TS_ASSERT_EQUALS(queue1.front(), 4);
+    TS_ASSERT_EQUALS(queue1.size(), 4U);
+
+    queue1.pop_front();
+    TS_ASSERT_EQUALS(queue1.back(), 3);
+    TS_ASSERT_EQUALS(queue1.front(), 2);
+    TS_ASSERT_EQUALS(queue1.size(), 3U);
+
+    queue1.pop_front();
+    TS_ASSERT_EQUALS(queue1.back(), 3);
+    TS_ASSERT_EQUALS(queue1.front(), 1);
+    TS_ASSERT_EQUALS(queue1.size(), 2U);
+
+    queue1.pop_back();
+    TS_ASSERT_EQUALS(queue1.back(), 1);
+    TS_ASSERT_EQUALS(queue1.front(), 1);
+    TS_ASSERT_EQUALS(queue1.size(), 1U);
+
+    queue1.pop_back();
+    TS_ASSERT_EQUALS(queue1.size(), 0U);
+    TS_ASSERT(queue1.empty());
+
+    for (unsigned i = 0; i < MaxQueueSize; ++i) {
+        queue1.push_back(i);
+    }
+    TS_ASSERT_EQUALS(queue1.size(), queue1.capacity());
+
+    AdaptedQueue queue2(queue1);
+    TS_ASSERT_EQUALS(queue2.size(), queue1.size());
+    TS_ASSERT_EQUALS(queue2.size(), MaxQueueSize);
+    queue1.clear();
+    TS_ASSERT(queue1.empty());
+    TS_ASSERT_EQUALS(queue1.size(), 0U);
+}
+
+void StaticQueueStlAdapterTestSuite::testIteration()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
+
+    AdaptedQueue queue1;
+    const AdaptedQueue& constQueue1 = queue1;
+
+    for (unsigned i = 0; i < MaxQueueSize; ++i) {
+        queue1.push_back(i);
+    }
+    TS_ASSERT_EQUALS(queue1.size(), queue1.capacity());
+
+    for (auto iter = queue1.begin(); iter != queue1.end(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, iter - queue1.begin());
+    }
+
+    for (auto iter = constQueue1.begin(); iter != constQueue1.end(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, iter - constQueue1.begin());
+    }
+
+    for (auto iter = queue1.cbegin(); iter != queue1.cend(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, iter - queue1.cbegin());
+    }
+
+    for (auto iter = queue1.rbegin(); iter != queue1.rend(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, (MaxQueueSize - 1) - (iter - queue1.rbegin()));
+    }
+
+    for (auto iter = constQueue1.rbegin(); iter != constQueue1.rend(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, (MaxQueueSize - 1) - (iter - constQueue1.rbegin()));
+    }
+
+    for (auto iter = queue1.crbegin(); iter != queue1.crend(); ++iter) {
+        TS_ASSERT_EQUALS(*iter, (MaxQueueSize - 1) - (iter - queue1.crbegin()));
+    }
+}
+
+void StaticQueueStlAdapterTestSuite::testPriorityQueue()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
+    typedef std::priority_queue<typename AdaptedQueue::value_type,
+                                AdaptedQueue> PriorityQueue;
+
+    PriorityQueue queue;
+    for (unsigned i = MaxQueueSize; i > 0; --i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.top(), MaxQueueSize);
+    while (!queue.empty()) {
+        TS_ASSERT_EQUALS(queue.top(), queue.size());
+        queue.pop();
+    }
+
+    queue.push(10);
+    queue.push(100);
+    queue.push(1);
+    queue.push(5);
+    queue.push(3);
+
+    TS_ASSERT_EQUALS(queue.top(), 100);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 10);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 5);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 3);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 1);
+    queue.pop();
+    TS_ASSERT(queue.empty());
+
+    for (unsigned i = 0; i < MaxQueueSize; ++i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.size(), MaxQueueSize);
+
+    PriorityQueue queue2;
+    TS_ASSERT(queue2.empty());
+
+    queue2.swap(queue);
+    TS_ASSERT_EQUALS(queue2.size(), MaxQueueSize);
+    TS_ASSERT(queue.empty());
+
+}
+
