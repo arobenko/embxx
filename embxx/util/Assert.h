@@ -145,7 +145,7 @@ private:
 #ifndef NOSTDLIB
 #define GASSERT_FAIL_FUNC(expr) assert(expr)
 #else // #ifndef NOSTDLIB
-#define GASSERT_FAIL_FUNC(expr) util::AssertManager::instance().infiniteLoop()
+#define GASSERT_FAIL_FUNC(expr) embxx::util::AssertManager::instance().infiniteLoop()
 #endif // #ifndef NOSTDLIB
 
 /// @endcond
