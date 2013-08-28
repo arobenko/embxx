@@ -13,7 +13,17 @@ macro (ar_add_c_flags)
      _ar_add_compiler_flags ("CMAKE_C_FLAGS" "${ARGN}")
 endmacro ()
 
+macro (ar_add_asm_flags)
+     _ar_add_compiler_flags ("CMAKE_ASM_FLAGS" "${ARGN}")
+endmacro ()
+
 macro (ar_add_c_cxx_flags)
+    ar_add_c_flags (${ARGN})
+    ar_add_cxx_flags (${ARGN})
+endmacro ()
+
+macro (ar_add_asm_c_cxx_flags)
+    ar_add_asm_flags (${ARGN})
     ar_add_c_flags (${ARGN})
     ar_add_cxx_flags (${ARGN})
 endmacro ()
