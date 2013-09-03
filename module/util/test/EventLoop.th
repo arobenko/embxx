@@ -1,0 +1,54 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#pragma once
+
+#include <functional>
+#include <thread>
+#include <condition_variable>
+#include "embxx/util/EventLoop.h"
+#include "cxxtest/TestSuite.h"
+
+class EventLoopTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+
+    template <typename TEventLoop>
+    static void countInc(TEventLoop& el, int& count, int MaxCount)
+    {
+        ++count;
+        if (count < MaxCount) {
+            auto postResult =
+                el.post(
+                    std::bind(
+                        &EventLoopTestSuite::countInc<TEventLoop>,
+                        std::ref(el),
+                        std::ref(count),
+                        MaxCount));
+            TS_ASSERT(postResult);
+        }
+        else {
+            el.stop();
+        }
+    }
+};
+
+void EventLoopTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<132, std::mutex, std::condition_variable_any> EventLoop;
+
+    EventLoop el;
+
+    int count = 0;
+    static const int MaxCount = 100;
+
+    countInc(el, count, MaxCount);
+    el.run();
+    TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+
+
+

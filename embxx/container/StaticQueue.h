@@ -414,7 +414,7 @@ public:
     ///          in the original queue.
     /// @warning There is a temporary queue of the same type (same size)
     ///          created on the stack. Avoid using this function if the queue
-    ///          is too long and there is a size limit on the stack memory you
+    ///          is too long and there is a  limit on the stack memory you
     ///          could use. Instead use arrayOne() and arrayTwo() functions to
     ///          get details of internal two parts and iterate over them.
     /// @post The queue elements are linearised.

@@ -10,6 +10,7 @@
 /// @li @ref util_allocators_page - Various memory allocators with unified interface
 /// @li @ref util_tuple_page - Various compile time utilities to operate on std::tuple classes
 /// @li @ref util_integral_promotion_page - Utility class to perform promotion of integral types.
+/// @li @ref util_event_loop_page - Event loop for bare metal platforms
 
 /// @namespace embxx::util
 /// @ingroup util

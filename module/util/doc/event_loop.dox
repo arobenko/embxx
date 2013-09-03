@@ -1,0 +1,102 @@
+/// @page util_event_loop_page Event Loop
+/// @section util_event_loop_overview Overview
+/// Bare metal platforms usually have two threads (modes) of execution:
+/// @li Regular (non-interrupt) thread
+/// @li Interrupt thread
+///
+/// The "interrupt" thread always takes priority and may terminate the 
+/// "regular" one in any moment. The former must perform its required 
+/// functionality as quickly as possible and relinquish the CPU, so the 
+/// "regular" thread may continue its exeuction. There is often a need to be 
+/// able to schedule the execution of some functionality (sometimes referred as
+/// "bottom halves") in the "regular" thread from the "interrupt" one. The
+/// embxx::util::EventLoop class comes to provide all the required functionality
+/// for this purpose.
+///
+/// @section util_event_loop_tutorial How to use
+/// The embxx::util::EventLoop class has 3 template parameters. 
+/// @li First one is the maximal size in bytes of internal queue of the event 
+///     handlers. The queue is defined as internal data member of type 
+///     embxx::container::BasicStaticQueue, i.e. it doesn't use dynamic memory
+///     allocation and cannot be extended in the run time.
+/// @li Second parameter is a "lockable" class that must provide interface 
+///     similar to one of std::mutex. It is used to protect the updates to
+///     the event queue from the possible race conditions when two of the
+///     execution threads try to update it at the same time. In other words 
+///     its lock() member function must disable all the interrupts while
+///     unlock() restores original interrupt state prior to the call to the
+///     lock().
+/// @li Third parameter is a "condition variable" class that must provide
+///     interface similar to "std::condition_variable_any". It is used to
+///     wait for new handlers to execute when the queue gets emtpy and
+///     to notify that that current wait needs to be terminated when new
+///     handler has been added to the queue.
+/// 
+/// For example:
+/// @code
+/// struct InterruptDisabler
+/// {
+///     void lock() 
+///     {
+///         disableInterrupts()
+///     }
+///
+///     void unlock()
+///     {
+///         enableInterrupts();
+///     }
+/// };
+///
+/// class InterruptCondition
+/// {
+/// public:
+///
+///     template <typename TLock>
+///     void wait(TLock& lock)
+///     {
+///        lock_.unlock(); // The lock is locked prior to execution of wait
+///        __WFI(); // Wait for interrupt instruction
+///        lock_.lock(); // Must remain locked after __WFI returns
+///     }    
+///
+///     void notify_all()
+///     {
+///         __SEV(); // Set event instruction
+///     } 
+/// };
+///
+/// int main()
+/// {
+///     ... // some initialisation code
+///     embxx::util::EventLoop<1024, InterruptDisabler, InterruptCondition> el;
+///     ... // Pass reference/pointer to device drivers
+///     el.run(); // Run the event loop forever
+///     GASSERT(!"Mustn't get here");
+///     return 0;
+/// }
+/// @endcode
+///
+/// In order to schedule some function for later execution in the "regular" 
+/// thread use use embxx::util::EventLoop::post() member function in conjunction
+/// with std::bind():
+/// @code
+/// bool result = el.post(std::bind(&someMemFunc, someObj, someValue));
+/// if (!result) {
+///     GASSERT(!"EventLoop queue is too small");
+/// }
+/// @endcode
+/// Please note that embxx::util::EventLoop::post() calls lock() of internal
+/// locker object (disables interrupts in the example above). However when
+/// trying to schedule new handler from the "interrupt" thread, there will be
+/// no race condition and there is no need to disable interrupts (they are
+/// disabled by default). In this case use embxx::util::EventLoop::postNoLock()
+/// member function:
+/// @code
+/// void someInterruptHandler()
+/// {
+///     bool result = el.postNoLock(std::bind(&someMemFunc, someObj, someValue));
+///     if (!result) {
+///         GASSERT(!"EventLoop queue is too small");
+///     }
+/// }
+/// @endcode
