@@ -148,7 +148,8 @@ function (test_event_loop)
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
-    set (link)
+    set (link
+        "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     

@@ -30,13 +30,18 @@ namespace util
 /// @tparam TLock "Lockable" class. It must provide the following functions:
 ///         @li @code void lock(); @endcode
 ///         @li @code void unlock(); @endcode
+///         @li @code void lockInterruptCtx(); @endcode
+///         @li @code void unlockInterruptCtx(); @endcode
 ///
-///         This lock must have a default constructor. The lock is used to
-///         update the queue of pending handlers.
+///         This lock must have a default constructor. It is used to
+///         protect update of the pending handlers queue.
 /// @tparam TCond Wait condition variable class. It must have a default
 ///         constructor and provide the following functions:
 ///         @li @code template <typename TLock> void wait(TLock& lock); @endcode
-///         @li @code void notify_all(); @endcode
+///         @li @code void notify(); @endcode
+///
+///         Both of these functions are called after call to lock() member
+///         function of the TLock object.
 /// @headerfile embxx/util/EventLoop.h
 template <std::size_t TSize,
           typename TLock,
@@ -63,8 +68,10 @@ public:
     CondType& getCond();
 
     /// @brief Post new handler for execution.
-    /// @details Acquires lock before calling postNoLock(). See postNoLock()
-    ///          for details.
+    /// @details Acquires regular context lock. The task is added to the
+    ///          execution queue. If the execution queue is empty before the
+    ///          new handler is added, the condition variable is signalled by
+    ///          calling its notify() member function.
     /// @param[in] task R-value reference to new handler functor.
     /// @return true in case the handler was successfully posted, false if
     ///         there is not enough space in the execution queue.
@@ -73,18 +80,18 @@ public:
     template <typename TTask>
     bool post(TTask&& task);
 
-    /// @brief Post new handler for execution.
-    /// @details No lock is acquired. The task is added to the execution queue.
-    ///          If the execution queue is empty before the new handler is
-    ///          added, the condition variable is signalled by calling its
-    ///          notify_all() member function.
+    /// @brief Post new handler for execution from interrupt context.
+    /// @details Acquires interrupt context lock. The task is added to the
+    ///          execution queue. If the execution queue is empty before the
+    ///          new handler is added, the condition variable is signalled by
+    ///          calling its notify() member function.
     /// @param[in] task R-value reference to new handler functor.
     /// @return true in case the handler was successfully posted, false if
     ///         there is not enough space in the execution queue.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     template <typename TTask>
-    bool postNoLock(TTask&& task);
+    bool postInterruptCtx(TTask&& task);
 
     /// @brief Event loop execution function.
     /// @details The function keeps executing posted handlers until none
@@ -146,6 +153,26 @@ private:
     };
     /// @endcond
 
+    /// @cond DOCUMENT_INTERRUPT_LOCK_WRAPPER
+    template <typename TInternalLock>
+    class InterruptLockWrapper
+    {
+    public:
+        InterruptLockWrapper(TInternalLock& lock) : lock_(lock) {}
+        void lock()
+        {
+            lock_.lockInterruptCtx();
+        }
+
+        void unlock()
+        {
+            lock_.unlockInterruptCtx();
+        }
+    private:
+        TInternalLock& lock_;
+    };
+    /// @endcond
+
     typedef typename
         std::aligned_storage<
             sizeof(Task),
@@ -154,6 +181,9 @@ private:
 
     static const std::size_t ArraySize = TSize / sizeof(Task);
     typedef embxx::container::StaticQueue<ArrayElemType, ArraySize> EventQueue;
+
+    template <typename TTask>
+    bool postNoLock(TTask&& task);
 
     ArrayElemType* getAllocPlace(std::size_t requiredQueueSize);
 
@@ -206,29 +236,14 @@ template <std::size_t TSize,
           typename TLock,
           typename TCond>
 template <typename TTask>
-bool EventLoop<TSize, TLock, TCond>::postNoLock(TTask&& task)
+bool EventLoop<TSize, TLock, TCond>::postInterruptCtx(
+    TTask&& task)
 {
-    typedef TaskBound<typename std::decay<TTask>::type> TaskBoundType;
-    static_assert(std::alignment_of<Task>::value == std::alignment_of<TaskBoundType>::value,
-        "Alignment of TaskBound must be same as alignment of Task");
-
-    static const std::size_t requiredQueueSize = TaskBoundType::Size;
-
-    bool wasEmpty = queue_.isEmpty();
-
-    auto placePtr = getAllocPlace(requiredQueueSize);
-    if (placePtr == nullptr) {
-        return false;
-    }
-
-    auto taskPtr = new (placePtr) TaskBoundType(std::forward<TTask>(task));
-    static_cast<void>(taskPtr);
-
-    if (wasEmpty) {
-        cond_.notify_all();
-    }
-    return true;
+    InterruptLockWrapper<LockType> wrapperLock(lock_);
+    std::lock_guard<decltype(wrapperLock)> guard(wrapperLock);
+    return postNoLock(std::forward<TTask>(task));
 }
+
 
 template <std::size_t TSize,
           typename TLock,
@@ -260,8 +275,9 @@ template <std::size_t TSize,
           typename TCond>
 void EventLoop<TSize, TLock, TCond>::stop()
 {
+    std::lock_guard<LockType> guard(lock_);
     stopped_ = true;
-    cond_.notify_all();
+    cond_.notify();
 }
 
 template <std::size_t TSize,
@@ -333,6 +349,34 @@ void EventLoop<TSize, TLock, TCond>::TaskBound<TTask>::exec()
 }
 
 /// @endcond
+
+template <std::size_t TSize,
+          typename TLock,
+          typename TCond>
+template <typename TTask>
+bool EventLoop<TSize, TLock, TCond>::postNoLock(TTask&& task)
+{
+    typedef TaskBound<typename std::decay<TTask>::type> TaskBoundType;
+    static_assert(std::alignment_of<Task>::value == std::alignment_of<TaskBoundType>::value,
+        "Alignment of TaskBound must be same as alignment of Task");
+
+    static const std::size_t requiredQueueSize = TaskBoundType::Size;
+
+    bool wasEmpty = queue_.isEmpty();
+
+    auto placePtr = getAllocPlace(requiredQueueSize);
+    if (placePtr == nullptr) {
+        return false;
+    }
+
+    auto taskPtr = new (placePtr) TaskBoundType(std::forward<TTask>(task));
+    static_cast<void>(taskPtr);
+
+    if (wasEmpty) {
+        cond_.notify();
+    }
+    return true;
+}
 
 template <std::size_t TSize,
           typename TLock,

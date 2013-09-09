@@ -4,10 +4,10 @@
 /// @li Regular (non-interrupt) thread
 /// @li Interrupt thread
 ///
-/// The "interrupt" thread always takes priority and may terminate the 
+/// The "interrupt" thread always takes priority and may interrupt the 
 /// "regular" one in any moment. The former must perform its required 
 /// functionality as quickly as possible and relinquish the CPU, so the 
-/// "regular" thread may continue its exeuction. There is often a need to be 
+/// "regular" thread may continue its execution. There is often a need to be 
 /// able to schedule the execution of some functionality (sometimes referred as
 /// "bottom halves") in the "regular" thread from the "interrupt" one. The
 /// embxx::util::EventLoop class comes to provide all the required functionality
@@ -20,17 +20,30 @@
 ///     embxx::container::BasicStaticQueue, i.e. it doesn't use dynamic memory
 ///     allocation and cannot be extended in the run time.
 /// @li Second parameter is a "lockable" class that must provide interface 
-///     similar to one of std::mutex. It is used to protect the updates to
-///     the event queue from the possible race conditions when two of the
-///     execution threads try to update it at the same time. In other words 
-///     its lock() member function must disable all the interrupts while
-///     unlock() restores original interrupt state prior to the call to the
-///     lock().
+///     similar to one of std::mutex, but with two additional functions:
+///     lockInterruptCtx() and unlockInterruptCtx(). The lock object is used to  
+///     protect the updates to the event queue from the possible race conditions 
+///     when two of the execution threads try to update it at the same time.  
+///     In other words its lock() member function must disable all the 
+///     interrupts while unlock() restores original interrupt state prior to 
+///     the call to the lock(). On generic bare metal platforms its 
+///     lockInterruptCtx() and unlockInterruptCtx() member functions should
+///     be empty because "regular" thread cannot interfere and other interrupts
+///     are also disabled while the CPU is executing current interrupt handler.
+///     If this is not the case than lockInterruptCtx() must disable other
+///     interrupts with higher priority and unlockInterruptCtx() must restore
+///     the state that was prior to lockInterruptCtx() call.
 /// @li Third parameter is a "condition variable" class that must provide
-///     interface similar to "std::condition_variable_any". It is used to
-///     wait for new handlers to execute when the queue gets emtpy and
-///     to notify that that current wait needs to be terminated when new
-///     handler has been added to the queue.
+///     the following interface:
+///     @code
+///     template <typename TLock>
+///     void wait(TLock& lock);
+///
+///     void notify();
+///     @endcode
+///     It is used to wait for new handlers to execute when the queue gets 
+///     emtpy and to notify that that current wait needs to be terminated when 
+///     new handler has been added to the queue.
 /// 
 /// For example:
 /// @code
@@ -45,6 +58,15 @@
 ///     {
 ///         enableInterrupts();
 ///     }
+///
+///     void lockInterruptCtx() 
+///     {
+///         // All interrupts are already disabled, no need to do anything
+///     }
+///
+///     void unlockInterruptCtx()
+///     {
+///     }
 /// };
 ///
 /// class InterruptCondition
@@ -54,14 +76,15 @@
 ///     template <typename TLock>
 ///     void wait(TLock& lock)
 ///     {
-///        lock_.unlock(); // The lock is locked prior to execution of wait
-///        __WFI(); // Wait for interrupt instruction
-///        lock_.lock(); // Must remain locked after __WFI returns
+///        // Wait for interrupt instruction, no need to unlock (enable interrupts).
+///        // The WFI instruction will exit when there is a pending interrupt
+///        // even if all the interrupts are masked 
+///        __WFI(); 
 ///     }    
 ///
-///     void notify_all()
+///     void notify()
 ///     {
-///         __SEV(); // Set event instruction
+///         // No need to do anything
 ///     } 
 /// };
 ///
@@ -87,14 +110,12 @@
 /// @endcode
 /// Please note that embxx::util::EventLoop::post() calls lock() of internal
 /// locker object (disables interrupts in the example above). However when
-/// trying to schedule new handler from the "interrupt" thread, there will be
-/// no race condition and there is no need to disable interrupts (they are
-/// disabled by default). In this case use embxx::util::EventLoop::postNoLock()
-/// member function:
+/// trying to schedule new handler from the "interrupt" thread, use 
+/// embxx::util::EventLoop::postInterruptCtx() member function:
 /// @code
 /// void someInterruptHandler()
 /// {
-///     bool result = el.postNoLock(std::bind(&someMemFunc, someObj, someValue));
+///     bool result = el.postInterruptCtx(std::bind(&someMemFunc, someObj, someValue));
 ///     if (!result) {
 ///         GASSERT(!"EventLoop queue is too small");
 ///     }
