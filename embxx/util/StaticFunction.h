@@ -45,6 +45,8 @@ public:
     /// @brief Result type
     typedef TRet result_type;
 
+    static const std::size_t Size = TSize;
+
     /// @brief Default constructor
     StaticFunction();
 
@@ -126,8 +128,8 @@ private:
     {
     public:
         InvokerBound(TFunc&& func);
-        InvokerBound(const InvokerBound& other) = default;
-        InvokerBound(InvokerBound&& other) = default;
+        InvokerBound(const InvokerBound&) = default;
+        InvokerBound(InvokerBound&&) = default;
         virtual ~InvokerBound();
         virtual TRet exec(TArgs... args) const;
         virtual TRet exec(TArgs... args);
