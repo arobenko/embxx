@@ -159,6 +159,27 @@ endfunction ()
 
 #################################################################
 
+function (test_static_function)
+    set (test_suite_name "StaticFunction")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link
+        "pthread")
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 test_assert()
@@ -169,5 +190,6 @@ test_aligned_union()
 test_tuple()
 test_integral_promotion()
 test_event_loop()
+test_static_function()
 
 endif ()

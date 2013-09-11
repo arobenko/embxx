@@ -1,0 +1,102 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include <functional>
+
+#include "embxx/util/StaticFunction.h"
+#include "embxx/util/assert/CxxTestAssert.h"
+
+#include "cxxtest/TestSuite.h"
+
+class StaticFunctionTestSuite : public CxxTest::TestSuite,
+                                public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+
+    template <typename T>
+    void incFunc(T& value)
+    {
+        ++value;
+    }
+};
+
+void StaticFunctionTestSuite::test1()
+{
+    typedef embxx::util::StaticFunction<void ()> Func;
+    Func func;
+    TS_ASSERT(!func);
+    TS_ASSERT_EQUALS(false, static_cast<bool>(func));
+
+    Func func2([](){});
+    TS_ASSERT(func2);
+    TS_ASSERT_EQUALS(false, !func2);
+}
+
+void StaticFunctionTestSuite::test2()
+{
+    typedef embxx::util::StaticFunction<int ()> Func;
+
+    Func func([]() -> int {return 5;});
+
+    TS_ASSERT(func);
+    TS_ASSERT_EQUALS(func(), 5);
+
+    func = nullptr;
+    TS_ASSERT(!func);
+    func = []() -> int {return 10;};
+    TS_ASSERT(func);
+    TS_ASSERT_EQUALS(func(), 10);
+
+    Func func2([]() -> int {return 15;});
+    func = func2;
+    TS_ASSERT(func);
+    TS_ASSERT(func2);
+    TS_ASSERT_EQUALS(func(), 15);
+
+    func = std::move(func2);
+    TS_ASSERT(func);
+    TS_ASSERT(!func2);
+
+    Func func3(std::move(func));
+    TS_ASSERT(func3);
+    TS_ASSERT(!func);
+    TS_ASSERT_EQUALS(func3(), 15);
+}
+
+void StaticFunctionTestSuite::test3()
+{
+    typedef embxx::util::StaticFunction<int (int)> Func;
+
+    Func func(
+        [](int i) -> int
+        {
+            return 2 * i;
+        });
+
+    TS_ASSERT(func);
+    TS_ASSERT_EQUALS(func(5), 10);
+}
+
+void StaticFunctionTestSuite::test4()
+{
+    typedef embxx::util::StaticFunction<void (int&), 20> Func;
+
+    int value = 10;
+    Func func(
+        std::bind(
+            &StaticFunctionTestSuite::incFunc<int>,
+            this,
+            std::placeholders::_1));
+
+    TS_ASSERT(static_cast<bool>(func));
+    func(value);
+    TS_ASSERT_EQUALS(value, 11);
+}
+
+
+

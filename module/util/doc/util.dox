@@ -11,6 +11,7 @@
 /// @li @ref util_tuple_page - Various compile time utilities to operate on std::tuple classes
 /// @li @ref util_integral_promotion_page - Utility class to perform promotion of integral types.
 /// @li @ref util_event_loop_page - Event loop for bare metal platforms
+/// @li @ref util_static_function_page - Static function (equivalent to std::function without dynamic memory usage) 
 
 /// @namespace embxx::util
 /// @ingroup util
