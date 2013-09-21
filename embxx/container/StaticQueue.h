@@ -26,10 +26,12 @@ namespace container
 namespace static_queue_traits
 {
 
+/// @ingroup container
 /// @brief Ignore error behaviour trait class of the BasicStaticQueue
 /// @headerfile embxx/container/StaticQueue.h
 class IgnoreError {};
 
+/// @ingroup container
 /// @brief Overwrite behaviour trait class of the BasicStaticQueue
 /// @headerfile embxx/container/StaticQueue.h
 class Overwrite {};

@@ -1,0 +1,25 @@
+/// @defgroup driver Driver - Periphiral drivers for a bare metal platform.
+/// @brief Driver module provides peripheral drivers for a bare metal platform.
+/// @details 
+/// Every hardware peripheral provides some kind of event notifications via
+/// interrupts. However in most cases the information delivered in the 
+/// interrupt should be processed in the context of regular execution thread.
+/// Every device driver class in this module receives a reference to
+/// embxx::util::EventLoop that is going to execute posted handlers in regular
+/// thread context and uses its post() and postInterruptCtx() member functions
+/// to deliver appropriate information for execution.
+/// 
+/// Although every embedded platform is different and even if CPUs are of the
+/// same family there can be differences in control of their peripherals. However
+/// the logic of controlling these peripherals can be common. Every device
+/// driver in this module also receives a reference to a "device control" 
+/// object that exposes predefined interface and uses it to control the
+/// platform specific peripheral.
+/// 
+/// Driver module contains following drivers:
+/// @li @ref driver_timer_mgr_page
+
+/// @namespace embxx::driver
+/// @ingroup driver
+/// @brief Provides scope for driver classes.
+

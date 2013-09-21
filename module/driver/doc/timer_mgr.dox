@@ -1,0 +1,152 @@
+/// @page driver_timer_mgr_page Timer Manager
+/// @section driver_timer_mgr_overview Overview
+/// Almost every embedded platform has one or two timer peripherals. One such
+/// peripheral can be programmed to provide an interrupt after some period of
+/// time. However there may be a need to have multiple timers that can be
+/// activated at the same time. embxx::driver::TimerMgr class implements a 
+/// functionality to managing multiple timers while having a single timer 
+/// peripheral.
+///
+/// @section driver_timer_mgr_tutorial How to use
+/// Like any other driver in embxx::driver module embxx::driver::TimerMgr 
+/// depends on and uses an event loop (a variant of embxx::util::EventLoop) to
+/// schedule execution of timeout handlers. To be able to define a timer manager
+/// object it is needed to define and instantiate EventLoop one.
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// EventLoop el;
+/// @endcode
+///
+/// There is also a need to instantiate a timer device object that exposes
+/// the following interface:
+/// @code
+/// class TimerDevice
+/// {
+/// public:
+///     // Define type for wait time units.
+///     typedef unsigned WaitTimeType; 
+/// 
+///     //Function to enable timer interrupts.
+///     void enableInterrupts() { ... }
+///
+///     // Function to disable timer interrupts.
+///     void disableInterrupts() { ... }
+///
+///     // Function to inquire whether there are pending interrupts.
+///     bool hasPendingInterrupt() const { ... }
+///
+///     // Function to start timer countdown.
+///     void start() { ... }
+///
+///     // Function to stop timer countdown.
+///     void stop() { ... }
+///
+///     Function to configure next wait time.
+///     void configWait(WaitTimeType waitTime) { ... }
+///
+///     // Function to retrieve elapsed time since first call to start() after 
+///     // last call to configWait().
+///     WaitTimeType getElapsed() const { ... }
+///
+///     // Function to set timer interrupt callback handler.
+///     template <typename TFunc>
+///     void setHandler(TFunc&& func) { ... }
+///
+/// private:
+///     ...
+/// };
+/// 
+/// TimerDevice timerDevice;
+/// @endcode
+/// 
+/// Define and instantiate TimerMgr as following:
+/// @code
+/// #include "embxx/driver/TimerMgr.h"
+/// 
+/// static const std::size_t MaxNumOfTimers = 10;
+/// 
+/// // The fourth template parameter is the default one
+/// typedef embxx::driver::TimerMgr<EventLoop, TimerDevice, MaxNumOfTimers> TimeMgr;
+/// TimerMgr timerMgr(timerDevice, el);
+/// @endcode 
+///
+/// To allocate the actual timer object use allocTimer() member function of
+/// timer manager:
+/// @code
+/// auto timer = timerMgr.allocTimer();
+/// GASSERT(timer.isValid()); // make sure the timer is valid.
+/// @endcode
+/// 
+/// Create the new wait request as following:
+/// @code
+/// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
+///
+/// void timeoutFunc(embxx::driver::TimerStatus status)
+/// {
+///     if (status == embxx::driver::TimerStatus::Aborted) {
+///         // timer wait was canelled
+///         return;
+///     }
+///     ...
+/// }
+///
+/// int main()
+/// {
+///     ...
+///     timer.asyncWait(
+///         SomeWaitTime,
+///         std::bind(
+///             &timeoutFunc, 
+///             std::placeholders::_1));
+///     ...
+/// }
+/// @endcode
+///
+/// It is possible to initiate next wait from withing the timeout handler:
+/// @code
+/// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
+///
+/// void timeoutFunc(embxx::driver::TimerStatus status, Timer& timer)
+/// {
+///     if (status == embxx::driver::TimerStatus::Aborted) {
+///         // timer wait was canelled
+///         return;
+///     }
+///     ...
+///     // Repeat the same wait
+///     timer.asyncWait(
+///         SomeWaitTime,
+///         std::bind(
+///             &timeoutFunc, 
+///             std::placeholders::_1,
+///             std::ref(timer)));     
+/// }
+///
+/// int main()
+/// {
+///     ...
+///     timer.asyncWait(
+///         SomeWaitTime,
+///         std::bind(
+///             &timeoutFunc, 
+///             std::placeholders::_1,
+///             std::ref(timer)));
+///     ...
+/// }
+/// @endcode
+///
+/// If there is a need to cancel existing scheduled wait. Use cancel() member
+/// function of the timer object. If there is a wait in progress, the handler
+/// will be scheduled for execution and embxx::driver::TimerStatus::Aborted 
+/// will be passed to it as an argument.
+/// @code
+/// timer.cancel();
+/// @endcode
+///
+/// It is possible to schedule a new wait immediatelly after cancelling the
+/// previous one:
+/// @code
+/// timer.cancel();
+/// timer.asyncWait(...);
+/// @endcode
