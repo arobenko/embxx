@@ -8,6 +8,7 @@
 #include <thread>
 #include <condition_variable>
 #include "embxx/util/EventLoop.h"
+#include "embxx/util/StaticFunction.h"
 #include "cxxtest/TestSuite.h"
 
 class EventLoopTestSuite : public CxxTest::TestSuite
@@ -15,6 +16,8 @@ class EventLoopTestSuite : public CxxTest::TestSuite
 public:
     void test1();
     void test2();
+    void test3();
+    void test4();
 
     class LoopLock
     {
@@ -143,6 +146,70 @@ void EventLoopTestSuite::test2()
 
     th1.join();
     th2.join();
+}
+
+
+void EventLoopTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    unsigned count = 0;
+    static const unsigned MaxCount = 10;
+    for (unsigned i = 0; i < MaxCount; ++i) {
+        bool result = el.post(
+            [&count]()
+            {
+                ++count;
+            });
+
+        TS_ASSERT(result);
+    }
+
+    bool result = el.post(
+        [&el]()
+        {
+            el.stop();
+        });
+    TS_ASSERT(result);
+
+    el.run();
+
+    TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+void EventLoopTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    unsigned count = 0;
+    static const unsigned MaxCount = 10;
+    for (unsigned i = 0; i < MaxCount; ++i) {
+        typedef embxx::util::StaticFunction<void (unsigned&), 20> Function;
+        Function func([](unsigned& counter)
+            {
+                ++counter;
+            });
+        TS_ASSERT(func);
+
+        bool result = el.post(std::bind(std::move(func), std::ref(count)));
+        TS_ASSERT(result);
+        TS_ASSERT(!func);
+    }
+
+    bool result = el.post(
+        [&el]()
+        {
+            el.stop();
+        });
+    TS_ASSERT(result);
+
+    el.run();
+
+    TS_ASSERT_EQUALS(count, MaxCount);
 }
 
 

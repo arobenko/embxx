@@ -12,6 +12,7 @@
 #include <mutex>
 
 #include "embxx/container/StaticQueue.h"
+#include "embxx/util/ScopeGuard.h"
 
 namespace embxx
 {
@@ -146,7 +147,7 @@ private:
         virtual void exec();
 
         static const std::size_t Size =
-            ((sizeof(TaskBound<TTask>) - 1) / sizeof(Task)) + 1;
+            ((sizeof(TaskBound<typename std::decay<TTask>::type>) - 1) / sizeof(Task)) + 1;
 
     private:
         TTask task_;
@@ -253,6 +254,12 @@ void EventLoop<TSize, TLock, TCond>::run()
 {
     while (true) {
         lock_.lock();
+        auto lockGuard = embxx::util::makeScopeGuard(
+            [this]()
+            {
+                lock_.unlock();
+            });
+
         while (!stopped_) {
             volatile bool empty = queue_.isEmpty();
             if (empty) {
@@ -260,20 +267,19 @@ void EventLoop<TSize, TLock, TCond>::run()
             }
 
             auto taskPtr = reinterpret_cast<Task*>(&queue_.front());
+            auto sizeToRemove = taskPtr->getSize();
             lock_.unlock();
             taskPtr->exec();
-            auto sizeToRemove = taskPtr->getSize();
             taskPtr->~Task();
             lock_.lock();
             queue_.popFront(sizeToRemove);
         }
-        volatile bool stopped = stopped_;
-        lock_.unlock();
 
-        if (stopped) {
+        if (stopped_) {
             break;
         }
 
+        // Still locked prior to wait
         cond_.wait(lock_);
     }
 }
@@ -380,11 +386,13 @@ bool EventLoop<TSize, TLock, TCond>::postNoLock(TTask&& task)
     auto taskPtr = new (placePtr) TaskBoundType(std::forward<TTask>(task));
     static_cast<void>(taskPtr);
 
+    GASSERT(!queue_.isEmpty());
+    GASSERT(requiredQueueSize <= queue_.size());
+
     if (wasEmpty) {
         cond_.notify();
     }
 
-    GASSERT(!queue_.isEmpty());
     return true;
 }
 
