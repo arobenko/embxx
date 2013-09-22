@@ -202,6 +202,7 @@ template <std::size_t TSize,
 EventLoop<TSize, TLock, TCond>::EventLoop()
     : stopped_(false)
 {
+    GASSERT(queue_.isEmpty());
 }
 
 template <std::size_t TSize,
@@ -251,22 +252,29 @@ template <std::size_t TSize,
 void EventLoop<TSize, TLock, TCond>::run()
 {
     while (true) {
-        std::unique_lock<LockType> guard(lock_);
-        while ((!queue_.isEmpty()) && (!stopped_)) {
+        lock_.lock();
+        while (!stopped_) {
+            volatile bool empty = queue_.isEmpty();
+            if (empty) {
+                break;
+            }
+
             auto taskPtr = reinterpret_cast<Task*>(&queue_.front());
-            guard.unlock();
+            lock_.unlock();
             taskPtr->exec();
             auto sizeToRemove = taskPtr->getSize();
             taskPtr->~Task();
-            guard.lock();
+            lock_.lock();
             queue_.popFront(sizeToRemove);
         }
+        volatile bool stopped = stopped_;
+        lock_.unlock();
 
-        if (stopped_) {
+        if (stopped) {
             break;
         }
 
-        cond_.wait(guard);
+        cond_.wait(lock_);
     }
 }
 
@@ -375,6 +383,8 @@ bool EventLoop<TSize, TLock, TCond>::postNoLock(TTask&& task)
     if (wasEmpty) {
         cond_.notify();
     }
+
+    GASSERT(!queue_.isEmpty());
     return true;
 }
 
@@ -394,7 +404,9 @@ EventLoop<TSize, TLock, TCond>::getAllocPlace(
 
         auto curSize = queue_.size();
         if (queue_.isLinearised()) {
-            auto dist = std::distance(queue_.arrayTwo().second, invalidIter);
+            auto dist =
+                static_cast<std::size_t>(
+                    std::distance(queue_.arrayTwo().second, invalidIter));
             if ((0 < dist) && (dist < requiredQueueSize)) {
                 queue_.resize(curSize + 1);
                 auto placePtr = static_cast<void*>(&queue_.back());

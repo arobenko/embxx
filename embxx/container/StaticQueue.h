@@ -1076,8 +1076,7 @@ typename BasicStaticQueueBase<T, TSize>::ConstReference
 BasicStaticQueueBase<T, TSize>::at(std::size_t index) const
 {
     if (index >= size()) {
-        throw std::out_of_range(std::string("Index ") + std::to_string(index) +
-            " is out of range [0 - " + std::to_string(size() - 1) + "]");
+        throw std::out_of_range(std::string("Index is out of range "));
     }
     return (*this)[index];
 }
