@@ -781,6 +781,7 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postHandler(
             eventLoop_.post(
                 std::bind(std::move(info.handler_), status));
     }
+    static_cast<void>(postResult);
     GASSERT(postResult);
     GASSERT(!info.handler_);
     info.setWaitInProgress(false);
