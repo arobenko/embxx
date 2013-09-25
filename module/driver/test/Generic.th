@@ -1,0 +1,98 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/util/StaticFunction.h"
+#include "embxx/driver/Generic.h"
+#include "cxxtest/TestSuite.h"
+#include "CommonEventLoopDefs.h"
+
+class GenericDriverTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+
+    template <typename THandler>
+    class Device
+    {
+    public:
+        template <typename TFunc>
+        void setHandler(TFunc&& func)
+        {
+            handler_ = std::forward<TFunc>(func);
+        }
+
+        template <typename... TArgs>
+        void invoke(TArgs... args)
+        {
+            if (handler_) {
+                handler_(std::forward<TArgs>(args)...);
+            }
+        }
+
+    private:
+        THandler handler_;
+    };
+};
+
+void GenericDriverTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+    typedef Device<embxx::util::StaticFunction<void (), 20> > DummyDevice;
+    typedef embxx::driver::Generic<
+        DummyDevice,
+        EventLoop> Driver;
+
+    EventLoop el;
+    DummyDevice device;
+    Driver driver(device, el);
+
+    bool invoked = false;
+    driver.setHandler(
+        [&invoked, &el]()
+        {
+            invoked = true;
+            el.stop();
+        });
+
+    device.invoke();
+    TS_ASSERT(!invoked);
+    el.run();
+    TS_ASSERT(invoked);
+}
+
+
+void GenericDriverTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+    typedef Device<embxx::util::StaticFunction<void (char), 20> > DummyDevice;
+    typedef embxx::driver::Generic<
+        DummyDevice,
+        EventLoop,
+        void (char)> Driver;
+
+    EventLoop el;
+    DummyDevice device;
+    Driver driver(device, el);
+
+    bool invoked = false;
+    const char expectedChar = 'a';
+    driver.setHandler(
+        [&invoked, expectedChar, &el](char ch)
+        {
+            invoked = true;
+            TS_ASSERT_EQUALS(ch, expectedChar);
+            el.stop();
+        });
+
+    device.invoke(expectedChar);
+    TS_ASSERT(!invoked);
+    el.run();
+    TS_ASSERT(invoked);
+}
+
+
+
+

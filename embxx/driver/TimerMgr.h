@@ -2,6 +2,10 @@
 // Copyright 2013 (C). Alex Robenko. All rights reserved.
 //
 
+/// @file embxx/driver/TimerMgr.h
+/// Facilitates creation and measuing multiple timers using only single
+/// timer device in bare metal platform.
+
 #pragma once
 
 #include <array>

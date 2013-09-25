@@ -17,6 +17,7 @@
 /// platform specific peripheral.
 /// 
 /// Driver module contains following drivers:
+/// @li @ref driver_generic_page
 /// @li @ref driver_timer_mgr_page
 
 /// @namespace embxx::driver
