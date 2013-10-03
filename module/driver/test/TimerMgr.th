@@ -155,13 +155,13 @@ private:
 
         ++counter;
         timer.asyncWait(waitTime,
-            [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](embxx::driver::TimerStatus status)
+            [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](embxx::driver::ErrorStatus status)
             {
-                if (status == embxx::driver::TimerStatus::Aborted) {
+                if (status == embxx::driver::ErrorStatus::Aborted) {
                     return;
                 }
 
-                TS_ASSERT_EQUALS(status, embxx::driver::TimerStatus::Success);
+                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
                 incWaitFunc(el, timer, counter, maxCounter, waitTime, stopAtEnd);
             });
     }
@@ -183,15 +183,15 @@ private:
 
         ++counter;
         timer2.asyncWait(waitTime + 50,
-            [](embxx::driver::TimerStatus status)
+            [](embxx::driver::ErrorStatus status)
             {
-                TS_ASSERT_EQUALS(status, embxx::driver::TimerStatus::Aborted);
+                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
             });
 
         timer1.asyncWait(waitTime,
-            [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](embxx::driver::TimerStatus status)
+            [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](embxx::driver::ErrorStatus status)
             {
-                if (status == embxx::driver::TimerStatus::Aborted) {
+                if (status == embxx::driver::ErrorStatus::Aborted) {
                     return;
                 }
 
@@ -212,7 +212,7 @@ void TimerMgrTestSuite::test1()
         TimerDevice,
         EventLoop,
         1,
-        embxx::util::StaticFunction<void (embxx::driver::TimerStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
     auto timer = timerMgr.allocTimer();
     TS_ASSERT(timer.isValid());
@@ -237,7 +237,7 @@ void TimerMgrTestSuite::test2()
         TimerDevice,
         EventLoop,
         2,
-        embxx::util::StaticFunction<void (embxx::driver::TimerStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
 
 
@@ -265,7 +265,7 @@ void TimerMgrTestSuite::test3()
         TimerDevice,
         EventLoop,
         TotalTimers,
-        embxx::util::StaticFunction<void (embxx::driver::TimerStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
     typedef TimerMgr::Timer Timer;
 
     TimerMgr timerMgr(timerDevice, el);

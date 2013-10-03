@@ -82,9 +82,9 @@
 /// @code
 /// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
 ///
-/// void timeoutFunc(embxx::driver::TimerStatus status)
+/// void timeoutFunc(embxx::driver::ErrorStatus status)
 /// {
-///     if (status == embxx::driver::TimerStatus::Aborted) {
+///     if (status == embxx::driver::ErrorStatus::Aborted) {
 ///         // timer wait was canelled
 ///         return;
 ///     }
@@ -107,9 +107,9 @@
 /// @code
 /// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
 ///
-/// void timeoutFunc(embxx::driver::TimerStatus status, Timer& timer)
+/// void timeoutFunc(embxx::driver::ErrorStatus status, Timer& timer)
 /// {
-///     if (status == embxx::driver::TimerStatus::Aborted) {
+///     if (status == embxx::driver::ErrorStatus::Aborted) {
 ///         // timer wait was canelled
 ///         return;
 ///     }
@@ -138,7 +138,7 @@
 ///
 /// If there is a need to cancel existing scheduled wait. Use cancel() member
 /// function of the timer object. If there is a wait in progress, the handler
-/// will be scheduled for execution and embxx::driver::TimerStatus::Aborted 
+/// will be scheduled for execution and embxx::driver::ErrorStatus::Aborted 
 /// will be passed to it as an argument.
 /// @code
 /// timer.cancel();

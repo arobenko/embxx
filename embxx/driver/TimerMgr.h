@@ -17,6 +17,8 @@
 #include "embxx/util/Assert.h"
 #include "embxx/util/ScopeGuard.h"
 
+#include "ErrorStatus.h"
+
 namespace embxx
 {
 
@@ -25,16 +27,6 @@ namespace driver
 
 /// @addtogroup driver
 /// @{
-
-/// @brief Timer error status
-/// @brief Reported to the timeout handler provided with the wait request.
-enum class TimerStatus
-{
-    Success, ///< Successful wait completion
-    Aborted, ///< The wait was cancelled/aborted.
-    InternalError, ///< Unexpected internal error occurred
-    NumOfStatuses ///< Number of available statuses. Must be last
-};
 
 /// @brief Timer Manager.
 /// @details Manages allocated timers and their wait requests in a queue to
@@ -86,8 +78,8 @@ enum class TimerStatus
 /// @tparam TMaxTimers A number of timers this Timer Manager is supposed to
 ///         be able to allocate.
 /// @tparam TTimeoutHandler The handler type provided with every wait request.
-///         It must be either std::function<void (embxx::driver::TimerStatus)>
-///         or embxx::util::StaticFunction<void (embxx::driver::TimerStatus), ...>
+///         It must be either std::function<void (embxx::driver::ErrorStatus)>
+///         or embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), ...>
 ///         if no dynamic memory allocation is allowed. Every provided handler
 ///         function must have the following signature:
 ///         @code
@@ -98,7 +90,7 @@ enum class TimerStatus
 template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
-          typename TTimeoutHandler = embxx::util::StaticFunction<void (TimerStatus), 20> >
+          typename TTimeoutHandler = embxx::util::StaticFunction<void (ErrorStatus), 20> >
 class TimerMgr
 {
 
@@ -180,10 +172,12 @@ public:
         ///          doesn't have any effect. Otherwise it will cause the
         ///          call to a callback function, provided with recent asyncWait(),
         ///          to be posted for future processing in event loop with
-        ///          embxx::driver::TimerStatus::Aborted as value of "status"
+        ///          embxx::driver::ErrorStatus::Aborted as value of "status"
         ///          argument.
+        /// @return true in case the wait was really cancelled, false in case
+        ///         this operation had no effect.
         /// @pre Timer object is valid (isValid() return true).
-        void cancel();
+        bool cancel();
 
         /// @brief Request for asynchronous wait.
         /// @details Will forward the request to schedule the call to provided
@@ -312,7 +306,7 @@ private:
     // Functions to be invoked by Timer object
     void deleteTimer(unsigned idx);
 
-    void cancelWait(unsigned idx);
+    bool cancelWait(unsigned idx);
 
     void scheduleWait(
         unsigned idx,
@@ -324,7 +318,7 @@ private:
     void pushToWaitQueue(TimerInfo& info);
     void recreateWaitQueue();
     void programNewWait();
-    void postHandler(TimerStatus status, TimerInfo& info, bool interruptContext);
+    void postHandler(ErrorStatus status, TimerInfo& info, bool interruptContext);
     void interruptHandler();
     void postExpiredHandlers(bool interruptContext);
 
@@ -403,10 +397,10 @@ template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::cancel()
+bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::cancel()
 {
     GASSERT(isValid());
-    mgr_->cancelWait(idx_);
+    return mgr_->cancelWait(idx_);
 }
 
 template <typename TDevice,
@@ -594,7 +588,7 @@ template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
+bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
     unsigned idx)
 {
     GASSERT(idx < timersCount_);
@@ -612,10 +606,11 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
 
     if (!info.isWaitInProgress()) {
         // No wait scheduled or callback already posted
-        return;
+        return false;
     }
 
-    postHandler(TimerStatus::Aborted, info, false);
+    postHandler(ErrorStatus::Aborted, info, false);
+    return true;
 }
 
 template <typename TDevice,
@@ -766,7 +761,7 @@ template <typename TDevice,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
 void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postHandler(
-    TimerStatus status,
+    ErrorStatus status,
     TimerInfo& info,
     bool interruptContext)
 {
@@ -831,7 +826,7 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postExpiredHand
             (timerInfoPtr->engagementId_ == waitInfo.engagementId_)) {
             GASSERT(timerInfoPtr->handler_);
 
-            postHandler(TimerStatus::Success, *timerInfoPtr, interruptContext);
+            postHandler(ErrorStatus::Success, *timerInfoPtr, interruptContext);
         }
 
         std::pop_heap(

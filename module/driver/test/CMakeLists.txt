@@ -47,9 +47,32 @@ endfunction ()
 
 #################################################################
 
+function (test_character)
+    set (test_suite_name "Character")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link
+        "boost_system"
+        "pthread")
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 test_timer_mgr()
 test_generic()
+test_character()
 
 endif ()
