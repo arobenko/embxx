@@ -267,23 +267,10 @@ Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Character(
         std::bind(&Character::canReadInterruptHandler, this));
     device_.setCanWriteHandler(
         std::bind(&Character::canWriteInterruptHandler, this));
-}
 
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-template <typename TFunc>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::asyncRead(
-    CharType* buf,
-    std::size_t size,
-    TFunc&& func)
-{
     GASSERT(!readHandler_); // No read in progress
-    readHandler_ = std::forward<TFunc>(func);
-    initRead(buf, size, false, static_cast<CharType>(0));
+    GASSERT(!writeHandler_); // No write in progress
 }
-
 
 template <typename TDevice,
           typename TEventLoop,
@@ -305,6 +292,20 @@ Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::eventLoop()
     return el_;
 }
 
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
+template <typename TFunc>
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::asyncRead(
+    CharType* buf,
+    std::size_t size,
+    TFunc&& func)
+{
+    GASSERT(!readHandler_); // No read in progress
+    readHandler_ = std::forward<TFunc>(func);
+    initRead(buf, size, false, static_cast<CharType>(0));
+}
 
 template <typename TDevice,
           typename TEventLoop,
@@ -434,6 +435,7 @@ template <typename TDevice,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler()
 {
+    GASSERT(readHandler_);
     while(device_.canRead()) {
         GASSERT(readBufCurrent_ < (readBufStart_ + readBufSize_));
         auto ch = device_.read();
@@ -458,6 +460,7 @@ template <typename TDevice,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler()
 {
+    GASSERT(writeHandler_);
     while(device_.canWrite()) {
         GASSERT(writeBufCurrent_ < (writeBufStart_ + writeBufSize_));
         device_.write(*writeBufCurrent_);
