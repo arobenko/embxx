@@ -20,7 +20,7 @@ include_directories (
     "${CMAKE_SOURCE_DIR}"
     "${CMAKE_SOURCE_DIR}/external/cxxtest")
     
-if (NOT DEFINED CROSS_COMPILE AND NOT DEFINED NO_UNIT_TEST)
+if (NOT DEFINED CROSS_COMPILE AND "${NO_UNIT_TESTS}" STREQUAL "")
     set (CXXTEST_INCLUDE_DIR "${EXTERNALS_DIR}/cxxtest")
     find_package (CxxTest)
     if (CXXTEST_FOUND)

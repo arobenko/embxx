@@ -2,11 +2,24 @@
 // Copyright 2013 (C). Alex Robenko. All rights reserved.
 //
 
-#pragma once
+// This library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-/// @file util/Assert.h
+/// @file embxx/util/Assert.h
 /// This file contains classes required for generic custom assertion
 /// functionality
+
+#pragma once
 
 #include <cassert>
 #include <type_traits>
@@ -145,7 +158,7 @@ private:
 #ifndef NOSTDLIB
 #define GASSERT_FAIL_FUNC(expr) assert(expr)
 #else // #ifndef NOSTDLIB
-#define GASSERT_FAIL_FUNC(expr) util::AssertManager::instance().infiniteLoop()
+#define GASSERT_FAIL_FUNC(expr) embxx::util::AssertManager::instance().infiniteLoop()
 #endif // #ifndef NOSTDLIB
 
 /// @endcond

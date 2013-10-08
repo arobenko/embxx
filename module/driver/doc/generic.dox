@@ -1,0 +1,45 @@
+/// @page driver_generic_page Generic Forwarder
+/// @section driver_generic_overview Overview
+/// There can be simple devices such as "push button" that generate an event
+/// (interrupt) that needs to be handled in "regular" (non-interrupt) execution
+/// thread. embxx::driver::Generic class provides a generic driver interface
+/// that forwards the data reported by the device (peripheral) in the interrupt
+/// context to be processed in the "regular" thread context in the event loop.
+///
+/// @section driver_generic_tutorial How to use
+/// First of all the device object must have setHandler() member function to
+/// set the handler to be invoked in interrupt context:
+/// @code
+/// class Device
+/// {
+/// public:
+///     ...
+///     template <typename TFunc>
+///     void setHandler(TFunc&& func)
+///     {
+///         ...
+///     }
+///     ...
+/// };
+/// @endcode
+///
+/// Define the generic driver:
+/// @code
+/// typedef embxx::util::EventLoop<...> EventLoop
+/// typedef embxx::driver::Generic<Device, EventLoop, ...> Driver
+/// 
+/// EventLoop el;
+/// Device device
+/// Driver driver(device, el);
+/// ...
+/// // Set the handler to be executed in "regular" thread context:
+/// driver.setHandler(
+///     []()
+///     {
+///         ...// Event processing functionality
+///     });
+/// ...
+/// el.run(); // In case of interrupt the handler will be executed in the
+///           // event loop.
+/// @endcode
+

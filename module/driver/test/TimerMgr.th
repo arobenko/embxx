@@ -1,0 +1,304 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#include <thread>
+#include <memory>
+#include <functional>
+#include <boost/asio.hpp>
+#include <boost/date_time.hpp>
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/driver/TimerMgr.h"
+#include "cxxtest/TestSuite.h"
+
+#include "CommonEventLoopDefs.h"
+
+class TimerMgrTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+
+private:
+
+    class TimerDevice
+    {
+    public:
+        typedef unsigned WaitTimeType;
+
+        TimerDevice(LoopLock& lock)
+            : ioWork_(io_),
+              timer_(io_),
+              interruptsLock_(lock),
+              pending_(false),
+              waitTime_(0)
+        {
+            disableInterrupts();
+            thread_.reset(
+                new std::thread(
+                    [this]()
+                    {
+                        try {
+                            io_.run();
+                        }
+                        catch (const std::exception& e)
+                        {
+                            TS_FAIL(e.what());
+                            assert(!"Mustn't happen");
+                        }
+                    }));
+
+        }
+
+        void enableInterrupts()
+        {
+            interruptsLock_.unlock();
+        }
+
+        void disableInterrupts()
+        {
+            interruptsLock_.lock();
+        }
+
+        bool hasPendingInterrupt() const
+        {
+            return pending_;
+        }
+
+        void start()
+        {
+            startTime_ = boost::posix_time::microsec_clock::local_time();
+            stopTime_ = boost::posix_time::not_a_date_time;
+            TS_ASSERT(0 < waitTime_);
+            timer_.expires_from_now(boost::posix_time::milliseconds(waitTime_));
+            timer_.async_wait(
+                [this](const boost::system::error_code& ec)
+                {
+                    if (ec == boost::asio::error::operation_aborted) {
+                        return;
+                    }
+
+                    pending_ = true;
+                    interruptsLock_.lockInterruptCtx();
+                    pending_ = false;
+
+                    TS_ASSERT(handler_);
+                    handler_();
+                    interruptsLock_.unlockInterruptCtx();
+                });
+        }
+
+        void stop()
+        {
+            stopTime_ = boost::posix_time::microsec_clock::local_time();
+            timer_.cancel();
+        }
+
+        WaitTimeType getElapsed() const
+        {
+            TS_ASSERT(!startTime_.is_not_a_date_time());
+            TS_ASSERT(!stopTime_.is_not_a_date_time());
+            auto duration = stopTime_ - startTime_;
+            return duration.total_milliseconds();
+        }
+
+        void configWait(WaitTimeType milliseconds)
+        {
+            waitTime_ = milliseconds;
+        }
+
+        template <typename TFunc>
+        void setHandler(TFunc&& func)
+        {
+            handler_ = std::forward<TFunc>(func);
+        }
+
+        void exit()
+        {
+            io_.stop();
+            thread_->join();
+            thread_.reset();
+        }
+
+
+    private:
+        boost::asio::io_service io_;
+        boost::asio::io_service::work ioWork_;
+        boost::asio::deadline_timer timer_;
+        std::function<void ()> handler_;
+        LoopLock& interruptsLock_;
+        volatile bool pending_;
+        WaitTimeType waitTime_;
+        boost::posix_time::ptime startTime_;
+        boost::posix_time::ptime stopTime_;
+        std::unique_ptr<std::thread> thread_;
+    };
+
+    template <typename TEventLoop,
+              typename TTimer>
+    void incWaitFunc(
+        TEventLoop& el,
+        TTimer& timer,
+        unsigned& counter,
+        unsigned maxCounter,
+        unsigned waitTime,
+        bool stopAtEnd = true)
+    {
+        if (maxCounter <= counter) {
+            if (stopAtEnd) {
+                el.stop();
+            }
+            return;
+        }
+
+        ++counter;
+        timer.asyncWait(waitTime,
+            [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](embxx::driver::ErrorStatus status)
+            {
+                if (status == embxx::driver::ErrorStatus::Aborted) {
+                    return;
+                }
+
+                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+                incWaitFunc(el, timer, counter, maxCounter, waitTime, stopAtEnd);
+            });
+    }
+
+    template <typename TEventLoop,
+              typename TTimer>
+    void cancelOtherFunc(
+        TEventLoop& el,
+        TTimer& timer1,
+        TTimer& timer2,
+        unsigned& counter,
+        unsigned maxCounter,
+        unsigned waitTime)
+    {
+        if (maxCounter <= counter) {
+            el.stop();
+            return;
+        }
+
+        ++counter;
+        timer2.asyncWait(waitTime + 50,
+            [](embxx::driver::ErrorStatus status)
+            {
+                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+            });
+
+        timer1.asyncWait(waitTime,
+            [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](embxx::driver::ErrorStatus status)
+            {
+                if (status == embxx::driver::ErrorStatus::Aborted) {
+                    return;
+                }
+
+                timer2.cancel();
+                cancelOtherFunc(el, timer1, timer2, counter, maxCounter, waitTime);
+            });
+    }
+};
+
+void TimerMgrTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+    TimerDevice timerDevice(el.getLock());
+
+    typedef embxx::driver::TimerMgr<
+        TimerDevice,
+        EventLoop,
+        1,
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+    TimerMgr timerMgr(timerDevice, el);
+    auto timer = timerMgr.allocTimer();
+    TS_ASSERT(timer.isValid());
+    auto invalidTimer = timerMgr.allocTimer();
+    TS_ASSERT(!invalidTimer.isValid());
+    unsigned counter = 0;
+    const unsigned MaxCounter = 10;
+    const unsigned Delay = 200;
+    incWaitFunc(el, timer, counter, MaxCounter, Delay);
+    el.run();
+    timerDevice.exit();
+}
+
+void TimerMgrTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+    TimerDevice timerDevice(el.getLock());
+
+    typedef embxx::driver::TimerMgr<
+        TimerDevice,
+        EventLoop,
+        2,
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+    TimerMgr timerMgr(timerDevice, el);
+
+
+    auto timer1 = timerMgr.allocTimer();
+    TS_ASSERT(timer1.isValid());
+    auto timer2 = timerMgr.allocTimer();
+    TS_ASSERT(timer2.isValid());
+    unsigned counter = 0;
+    const unsigned MaxCounter = 20;
+    const unsigned Delay = 100;
+    cancelOtherFunc(el, timer1, timer2, counter, MaxCounter, Delay);
+    el.run();
+    timerDevice.exit();
+}
+
+void TimerMgrTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+    TimerDevice timerDevice(el.getLock());
+    static const unsigned TotalTimers = 10;
+
+    typedef embxx::driver::TimerMgr<
+        TimerDevice,
+        EventLoop,
+        TotalTimers,
+        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+    typedef TimerMgr::Timer Timer;
+
+    TimerMgr timerMgr(timerDevice, el);
+    std::array<Timer, TotalTimers> timers;
+    std::array<unsigned, TotalTimers> counters;
+
+    const unsigned MaxCounter = 20;
+    const unsigned Delay = 50;
+    for (unsigned i = 0; i < TotalTimers; ++i) {
+        timers[i] = timerMgr.allocTimer();
+        TS_ASSERT(timers[i].isValid());
+        counters[i] = 0;
+
+        bool stopAtEnd = (i == (TotalTimers - 1));
+        incWaitFunc(el, timers[i], counters[i], MaxCounter, Delay + (i * 10), stopAtEnd);
+    }
+    el.run();
+    timerDevice.exit();
+    for (unsigned i = 0; i < TotalTimers; ++i) {
+        TS_ASSERT(counters[i] == MaxCounter);
+    }
+
+}

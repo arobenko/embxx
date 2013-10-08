@@ -1,0 +1,28 @@
+/// @page util_static_function_page Static Function
+/// @section util_static_function_overview Overview
+/// std::function is a general-purpose polymorphic function wrapper. It
+/// is a very powerful tool. However it uses dynamic memory allocation and
+/// throws exceptions. It makes it not suitable for use in bare metal
+/// platforms with limited memory footprint.
+/// 
+/// embxx::util::StaticFunction is similar to std::function, but it doesn't
+/// use dynamic memory allocation and doesn't throw any exception, which makes
+/// it more suitable for bare metal platforms. However it requires one 
+/// additional template parameter to specify size of the space to store
+/// provided callable functor.
+///
+/// @section util_static_function_tutorial How to use
+/// Usage example:
+/// @code
+/// typedef embxx::util::StaticFunction<void (int&), 20> Func;
+///
+/// int value = 10;
+/// Func func(
+///     std::bind(
+///         &SomeClass::someMemberFunction,
+///         someObject,
+///         std::placeholders::_1));
+///
+/// // Execute call "someObject.someMemberFunction(value);"
+/// func(value);
+/// @endcode

@@ -1,0 +1,230 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#pragma once
+
+#include <functional>
+#include <thread>
+#include <condition_variable>
+#include "embxx/util/EventLoop.h"
+#include "embxx/util/StaticFunction.h"
+#include "cxxtest/TestSuite.h"
+
+class EventLoopTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+
+    class LoopLock
+    {
+    public:
+        void lock()
+        {
+            mutex_.lock();
+        }
+
+        void unlock()
+        {
+            mutex_.unlock();
+        }
+
+        void lockInterruptCtx()
+        {
+            lock();
+        }
+
+        void unlockInterruptCtx()
+        {
+            unlock();
+        }
+    private:
+        std::mutex mutex_;
+    };
+
+    class EventCondition
+    {
+    public:
+        EventCondition() : notified_(false) {}
+
+        template <typename TLock>
+        void wait(TLock& lock)
+        {
+            if (!notified_) {
+                cond_.wait(lock);
+            }
+            notified_ = false;
+        }
+
+        void notify()
+        {
+            notified_ = true;
+            cond_.notify_all();
+        }
+
+    private:
+        std::condition_variable_any cond_;
+        bool notified_;
+    };
+
+
+    template <typename TEventLoop>
+    static void countInc(TEventLoop& el, int& count, int maxCount)
+    {
+        if (count < maxCount) {
+                ++count;
+
+            auto postResult =
+                el.post(
+                    std::bind(
+                        &EventLoopTestSuite::countInc<TEventLoop>,
+                        std::ref(el),
+                        std::ref(count),
+                        maxCount));
+            TS_ASSERT(postResult);
+        }
+        else {
+            el.stop();
+        }
+    }
+
+    template <typename TEventLoop>
+    static void interruptThreadFunc(TEventLoop& el, int& count, int MaxCount, int postCount)
+    {
+        for (auto i = 0; i < postCount; ++i) {
+
+            while (true) {
+                bool result = el.postInterruptCtx(
+                    [&el, &count, MaxCount]()
+                    {
+                        ++count;
+                        if (MaxCount <= count) {
+                            el.stop();
+                        }
+                    });
+                if (result) {
+                    break;
+                }
+            }
+        }
+    }
+
+
+};
+
+void EventLoopTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    int count = 0;
+    static const int MaxCount = 100;
+
+    countInc(el, count, MaxCount);
+    el.run();
+    TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+void EventLoopTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    int count = 0;
+    static const int MaxCount = 200;
+
+    std::thread th1(&EventLoopTestSuite::interruptThreadFunc<EventLoop>, std::ref(el), std::ref(count), MaxCount, 100);
+    std::thread th2(&EventLoopTestSuite::interruptThreadFunc<EventLoop>, std::ref(el), std::ref(count), MaxCount, 100);
+    el.run();
+
+    TS_ASSERT_EQUALS(count, MaxCount);
+
+    th1.join();
+    th2.join();
+}
+
+
+void EventLoopTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    unsigned count = 0;
+    static const unsigned MaxCount = 10;
+    for (unsigned i = 0; i < MaxCount; ++i) {
+        bool result = el.post(
+            [&count]()
+            {
+                ++count;
+            });
+
+        TS_ASSERT(result);
+    }
+
+    bool result = el.post(
+        [&el]()
+        {
+            el.stop();
+        });
+    TS_ASSERT(result);
+
+    el.run();
+
+    TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+void EventLoopTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    unsigned count = 0;
+    static const unsigned MaxCount = 10;
+    for (unsigned i = 0; i < MaxCount; ++i) {
+        typedef embxx::util::StaticFunction<void (unsigned&), 20> Function;
+        Function func([](unsigned& counter)
+            {
+                ++counter;
+            });
+        TS_ASSERT(func);
+
+        bool result = el.post(std::bind(std::move(func), std::ref(count)));
+        TS_ASSERT(result);
+        TS_ASSERT(!func);
+    }
+
+    bool result = el.post(
+        [&el]()
+        {
+            el.stop();
+        });
+    TS_ASSERT(result);
+
+    el.run();
+
+    TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+
+
+
