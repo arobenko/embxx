@@ -1,0 +1,39 @@
+/// @page io_write_queue_page Queue for independent write operations
+/// @section io_write_queue_overview Overview
+/// embxx::io::WriteQueue is a wrapper class over a "driver" (such as
+/// embxx::driver::Character) to facilitate an ability to schedule multiple 
+/// independent write requests to the same physical device (periphiral). It 
+/// maintains a queue of write requests and forwards them to the driver one by 
+/// one.
+/// 
+/// @section io_write_queue_turorial How to use
+/// The usage is very similar to the driver class (See @ref driver_character_page
+/// for reference). For example:
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// #include "embxx/driver/Character.h"
+/// #include "embxx/io/WriteQueue.h"
+/// 
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// typedef ... Device;
+/// typedef embxx::driver::Character<Device, EventLoop> Driver;
+/// typedef embxx::io::WriteQueue<Driver, ...> Socket;
+/// EventLoop el;
+/// Driver driver(device, el);
+/// Socket socket(driver);
+/// ...
+/// auto handle = 
+///     socket.asyncWrite(buf, bufSize,
+///         [](embxx::driver::ErrorStatus status, std::size_t bytesWritten)
+///         {
+///             ... // Code to be executed when write is complete or cancelled.
+///         });
+/// ...
+/// // If there is a need to cancel write:
+/// if (!socket.cancelWrite(handle)) {
+///     ... // The cancel is unsuccessful. The callback has been either  
+///         // already executed or scheduled for execution in the event loop.
+/// }
+/// ...
+/// @endcode
+

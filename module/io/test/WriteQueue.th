@@ -96,7 +96,7 @@ void WriteQueueTestSuite::test2()
             el.stop();
         });
 
-    bool cancelResult = socket.cancel(handle);
+    bool cancelResult = socket.cancelWrite(handle);
     TS_ASSERT(cancelResult);
     el.run();
     TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
@@ -197,7 +197,7 @@ void WriteQueueTestSuite::test4()
 
     static_cast<void>(handle3);
 
-    socket.cancel(handle2);
+    socket.cancelWrite(handle2);
 
     el.run();
     device.stop();

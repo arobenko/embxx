@@ -35,38 +35,120 @@ namespace embxx
 namespace io
 {
 
+/// @addtogroup io
+/// @{
+
+/// @brief Queue for independent write operations.
+/// @details This class is designed to wrap a driver that supports only single
+///          write request at a time. It creates a queue for multiple
+///          independent write requests and forwards them into the driver
+///          when necessary.
+/// @tparam TDriver Driver class that provides the following interface:
+///         @code
+///         // Asynchronous write function. "func" callback function must have
+///         // "void (embxx::driver::ErrorStatus, std::size_t)" signature.
+///         template <typename TFunc>
+///         void asyncWrite(const CharType* buf, std::size_t size, TFunc&& func);
+///
+///         // Cancel current write operation
+///         bool cancelWrite();
+///         @endcode
+///         See embxx::driver::Character for reference.
+/// @tparam TSize Maximal size of the queue in terms of number of outstanding
+///         write requests.
+/// @tparam THandler Handler class. Must be either std::function of
+///         embxx::util::StaticFunction and have
+///         "void (embxx::driver::ErrorStatus, std::size_t)" signature.
 template <typename TDriver,
           std::size_t TSize,
           typename THandler = util::StaticFunction<void (embxx::driver::ErrorStatus, std::size_t)> >
 class WriteQueue
 {
 public:
+    /// @brief Driver type
     typedef TDriver Driver;
+
+    /// @brief Size of the queue
     static const std::size_t Size = TSize;
+
+    /// @brief Write request handler type
     typedef THandler Handler;
 
+    /// @brief Character type
     typedef typename Driver::CharType CharType;
+
+    /// @brief Handle type returned by call to asyncWrite()
     typedef unsigned WriteHandle;
 
+    /// @brief Definition of invalid handle returned by asyncWrite() in
+    ///        case of an error.
     static const WriteHandle InvalidWriteHandle =
         std::numeric_limits<WriteHandle>::max();
 
+
+    /// @brief Constructor
+    /// @param driver Reference to driver object
     WriteQueue(Driver& driver);
+
+    /// @brief Copy constructor is deleted
+    WriteQueue(const WriteQueue&) = delete;
+
+    /// @brief Move constructor is deleted
+    WriteQueue(WriteQueue&&) = delete;
+
+    /// @brief Destructor
     ~WriteQueue();
 
+    /// @brief Copy assignment is deleted
+    WriteQueue& operator=(const WriteQueue&) = delete;
+
+    /// @brief Move assignment is deleted
+    WriteQueue& operator=(WriteQueue&&) = delete;
+
+    /// @brief Get reference to driver object.
+    Driver& driver();
+
+    /// @brief Asynchronous write request
+    /// @details The function returns immediately. The callback will be called
+    ///          with operation results only when all the data from provided
+    ///          buffer has been sent or operation has been cancelled.
+    /// @param buf Pointer to the read-only buffer. The buffer mustn't be
+    ///            changed or destructed until the callback has been called.
+    /// @param size Size of the buffer.
+    /// @param func Callback functor that must have following signature:
+    ///        @code void callback(embxx::driver::ErrorStatus status, std::size_t bytesWritten); @endcode
+    /// @return Handle of the write operation which may be used to cancel the
+    ///         request in the future. If the queue is full prior to request
+    ///         InvalidWriteHandle will be returned and it is the responsibility
+    ///         of the caller to check whether the write operation was scheduled.
+    /// @pre The provided buffer must stay valid and unused until the provided
+    ///      callback function is called.
     template <typename TFunc>
     WriteHandle asyncWrite(
         const CharType* buf,
         std::size_t size,
         TFunc&& func);
 
+    /// @brief Asynchronous write request.
+    /// @details Similar to previous asyncWrite() but doesn't require callback
+    ///          function to be provided. It should be used when the caller
+    ///          has no interest in the notification when the write is complete.
+    ///          Must be used with care and preferably on constant static
+    ///          buffers because the same precondition of not changing the
+    ///          provided buffer until the write is complete holds.
     WriteHandle asyncWrite(
         const CharType* buf,
         std::size_t size);
 
-    bool cancel(WriteHandle handle);
+    /// @brief Cancel the write request.
+    /// @param handle Write request handle returned by asyncWrite().
+    /// @return true in case the request was successfully cancelled and the
+    ///         callback will be invoked with embxx::driver::ErrorStatus::Aborted
+    ///         as the status of operation completion, false otherwise.
+    bool cancelWrite(WriteHandle handle);
 
-    void cancelAll();
+    /// @brief Cancel all the outstanding write requests.
+    void cancelAllWrites();
 
 private:
     struct Node
@@ -105,6 +187,8 @@ private:
     WriteHandle nextHandleId_;
 };
 
+/// @}
+
 // Implementation
 template <typename TDriver,
           std::size_t TSize,
@@ -120,6 +204,15 @@ template <typename TDriver,
           typename THandler>
 WriteQueue<TDriver, TSize, THandler>::~WriteQueue()
 {
+}
+
+template <typename TDriver,
+          std::size_t TSize,
+          typename THandler>
+typename WriteQueue<TDriver, TSize, THandler>::Driver&
+WriteQueue<TDriver, TSize, THandler>::driver()
+{
+    return driver_;
 }
 
 template <typename TDriver,
@@ -169,7 +262,7 @@ WriteQueue<TDriver, TSize, THandler>::asyncWrite(
 template <typename TDriver,
           std::size_t TSize,
           typename THandler>
-bool WriteQueue<TDriver, TSize, THandler>::cancel(WriteHandle handle)
+bool WriteQueue<TDriver, TSize, THandler>::cancelWrite(WriteHandle handle)
 {
     if (queue_.isEmpty()) {
         return false;
@@ -208,7 +301,7 @@ bool WriteQueue<TDriver, TSize, THandler>::cancel(WriteHandle handle)
 template <typename TDriver,
           std::size_t TSize,
           typename THandler>
-void WriteQueue<TDriver, TSize, THandler>::cancelAll()
+void WriteQueue<TDriver, TSize, THandler>::cancelAllWrites()
 {
     if (queue_.isEmpty()) {
         return false;

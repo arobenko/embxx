@@ -2,6 +2,7 @@
 /// @brief I/O module provides an additional I/O functionality.
 /// io module contains following functionalities:
 /// @li @ref io_iosimple_page
+/// @li @ref io_write_queue_page
 
 /// @namespace embxx::io
 /// @ingroup io
