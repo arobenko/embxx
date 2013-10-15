@@ -1,0 +1,208 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/driver/Character.h"
+#include "embxx/io/WriteQueue.h"
+#include "cxxtest/TestSuite.h"
+
+#include "module/driver/test/CommonEventLoopDefs.h"
+#include "module/driver/test/CharDevice.h"
+
+class WriteQueueTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+};
+
+void WriteQueueTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::WriteQueue<Driver, 10> Socket;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    Socket socket(driver);
+
+    static const std::string WriteString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    device.setOpDelay(2);
+    device.start();
+
+    bool asyncWriteHandlerCalled = false;
+    auto handle = socket.asyncWrite(&WriteString[0], WriteString.size(),
+        [&el, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            asyncWriteHandlerCalled = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(size, WriteString.size());
+            el.stop();
+        });
+    static_cast<void>(handle);
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
+    device.stop();
+    TS_ASSERT_EQUALS(WriteString, device.getWriteString());
+}
+
+void WriteQueueTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::WriteQueue<Driver, 10> Socket;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    Socket socket(driver);
+
+    static const std::string WriteString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    device.setOpDelay(2);
+    device.start();
+
+    bool asyncWriteHandlerCalled = false;
+    auto handle = socket.asyncWrite(&WriteString[0], WriteString.size(),
+        [&el, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            asyncWriteHandlerCalled = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+            TS_ASSERT_EQUALS(size, 0);
+            el.stop();
+        });
+
+    bool cancelResult = socket.cancel(handle);
+    TS_ASSERT(cancelResult);
+    el.run();
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
+    device.stop();
+    TS_ASSERT_EQUALS(std::string(), device.getWriteString());
+}
+
+void WriteQueueTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::WriteQueue<Driver, 10> Socket;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    Socket socket(driver);
+
+    static const std::string String1("String1");
+    static const std::string String2("String2");
+    static const std::string String3("String3");
+    static const std::string WriteString(String1 + String2 + String3);
+
+    device.setOpDelay(2);
+    device.start();
+
+    auto handle = socket.asyncWrite(&String1[0], String1.size());
+    static_cast<void>(handle);
+
+    handle = socket.asyncWrite(&String2[0], String2.size());
+    static_cast<void>(handle);
+
+    bool lastAsyncWriteHandlerCalled = false;
+    handle = socket.asyncWrite(&String3[0], String3.size(),
+        [&el, &lastAsyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            lastAsyncWriteHandlerCalled = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(size, String3.size());
+            el.stop();
+        });
+
+    static_cast<void>(handle);
+
+    el.run();
+    TS_ASSERT_EQUALS(lastAsyncWriteHandlerCalled, true);
+    device.stop();
+    TS_ASSERT_EQUALS(WriteString, device.getWriteString());
+}
+
+void WriteQueueTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::WriteQueue<Driver, 10> Socket;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    Socket socket(driver);
+
+    static const std::string String1("String1");
+    static const std::string String2("String2");
+    static const std::string String3("String3");
+    static const std::string WriteString(String1 + String3);
+
+    device.setOpDelay(2);
+    device.start();
+
+    bool handler1called = false;
+    auto handle1 = socket.asyncWrite(&String1[0], String1.size(),
+        [&handler1called](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            handler1called = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(size, String3.size());
+        });
+    static_cast<void>(handle1);
+
+    bool handler2called = false;
+    auto handle2 = socket.asyncWrite(&String2[0], String2.size(),
+        [&handler2called](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            handler2called = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+            TS_ASSERT_EQUALS(size, 0);
+        });
+
+    bool handler3called = false;
+    auto handle3 = socket.asyncWrite(&String3[0], String3.size(),
+        [&el, &handler3called](embxx::driver::ErrorStatus status, std::size_t size)
+        {
+            handler3called = true;
+            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(size, String3.size());
+            el.stop();
+        });
+
+    static_cast<void>(handle3);
+
+    socket.cancel(handle2);
+
+    el.run();
+    device.stop();
+    TS_ASSERT(handler1called);
+    TS_ASSERT(handler2called);
+    TS_ASSERT(handler3called);
+    TS_ASSERT_EQUALS(WriteString, device.getWriteString());
+}

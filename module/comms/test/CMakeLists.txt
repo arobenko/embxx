@@ -121,6 +121,8 @@ endfunction ()
 
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
+ar_add_cxx_flags ("-Wno-overloaded-virtual")
+
 test_message()
 test_msg_data_layer()
 test_msg_id_layer()

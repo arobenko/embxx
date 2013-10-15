@@ -302,6 +302,8 @@ ErrorStatus BasicIntValue<T, TTraits, TLen, TOff>::write(
 #endif // #ifndef NDEBUG
 
     GASSERT(getLength() <= size);
+    static_cast<void>(size);
+
     io::putData<SerialisedLen>(getSerialisedValue(), buf, Endianness());
     return ErrorStatus::Success;
 }

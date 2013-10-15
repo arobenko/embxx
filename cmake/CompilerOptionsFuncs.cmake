@@ -52,9 +52,10 @@ macro (ar_set_default_compiler_options)
         ar_add_c_cxx_flags (${extra_c_cxx_flags})
         
         set (extra_cxx_flags
-            "-Woverloaded-virtual")
+            "-Woverloaded-virtual"
+            "-Wno-unused-local-typedefs")
        
-        ar_add_cxx_flags (${extra_c_cxx_flags})
+        ar_add_cxx_flags (${extra_cxx_flags})
     endif ()
 endmacro ()
 

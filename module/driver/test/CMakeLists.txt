@@ -11,7 +11,7 @@ function (test_timer_mgr)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
@@ -33,7 +33,7 @@ function (test_generic)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
@@ -53,7 +53,7 @@ function (test_character)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     

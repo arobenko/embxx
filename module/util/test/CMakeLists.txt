@@ -182,7 +182,10 @@ endfunction ()
 
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
+if (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release") 
 test_assert()
+endif ()
+
 test_scope_guard()
 test_size_to_type()
 test_allocators()
