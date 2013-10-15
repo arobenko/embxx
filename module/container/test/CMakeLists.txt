@@ -22,7 +22,7 @@ function (test_static_queue)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
@@ -43,7 +43,7 @@ function (test_static_queue_stl_adapter)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     

@@ -6,13 +6,14 @@ if (CXXTEST_FOUND)
 #################################################################
 
 function (test_message)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/Message.th")
+    set (test_suite_name "Message")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.Message")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "MessageRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -25,13 +26,14 @@ endfunction ()
 #################################################################
 
 function (test_msg_data_layer)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/MsgDataLayer.th")
+    set (test_suite_name "MsgDataLayer")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.MsgDataLayer")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "MsgDataLayerRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -44,13 +46,14 @@ endfunction ()
 #################################################################
 
 function (test_msg_id_layer)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/MsgIdLayer.th")
+    set (test_suite_name "MsgIdLayer")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.MsgIdLayer")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "MsgIdLayerRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -63,13 +66,14 @@ endfunction ()
 #################################################################
 
 function (test_msg_size_layer)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/MsgSizeLayer.th")
+    set (test_suite_name "MsgSizeLayer")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.MsgSizeLayer")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "MsgSizeLayerRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -82,13 +86,14 @@ endfunction ()
 #################################################################
 
 function (test_checksum_layer)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/ChecksumLayer.th")
+    set (test_suite_name "ChecksumLayer")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.ChecksumLayer")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "ChecksumLayerRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -101,13 +106,14 @@ endfunction ()
 #################################################################
 
 function (test_fields)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/Fields.th")
+    set (test_suite_name "Fields")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.Fields")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "FieldsRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 

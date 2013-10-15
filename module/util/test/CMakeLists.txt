@@ -6,13 +6,14 @@ if (CXXTEST_FOUND)
 #################################################################
 
 function (test_assert)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/Assert.th")
+    set (test_suite_name "Assert")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.Assert")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "AssertTestRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -25,13 +26,14 @@ endfunction ()
 #################################################################
 
 function (test_scope_guard)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/ScopeGuard.th")
+    set (test_suite_name "ScopeGuard")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.ScopeGuard")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "ScopeGuardTestRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -44,13 +46,14 @@ endfunction ()
 #################################################################
 
 function (test_size_to_type)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/SizeToType.th")
+    set (test_suite_name "SizeToType")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.SizeToType")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "SizeToTypeRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -63,13 +66,14 @@ endfunction ()
 #################################################################
 
 function (test_allocators)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/Allocators.th")
+    set (test_suite_name "Allocators")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.Allocators")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "AllocatorsRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -82,13 +86,14 @@ endfunction ()
 #################################################################
 
 function (test_aligned_union)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/AlignedUnion.th")
+    set (test_suite_name "AlignedUnion")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.AlignedUnion")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "AlignedUnionRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -101,13 +106,14 @@ endfunction ()
 #################################################################
 
 function (test_tuple)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/Tuple.th")
+    set (test_suite_name "Tuple")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.Tupple")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "TupleRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -120,13 +126,14 @@ endfunction ()
 #################################################################
 
 function (test_integral_promotion)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/IntegralPromotion.th")
+    set (test_suite_name "IntegralPromotion")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.IntegralPromotion")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "IntegralPromotionRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
 
@@ -144,7 +151,7 @@ function (test_event_loop)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
@@ -165,12 +172,11 @@ function (test_static_function)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
-    set (link
-        "pthread")
+    set (link)
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
