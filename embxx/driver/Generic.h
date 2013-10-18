@@ -22,6 +22,7 @@
 #pragma once
 
 #include "embxx/util/StaticFunction.h"
+#include "embxx/util/Assert.h"
 
 namespace embxx
 {
@@ -58,7 +59,7 @@ class Generic;
 ///         to be executed in interrupt context:
 ///         @code
 ///         template <typename TFunc>
-///         void setHandler(TFunc&& func);
+///         void setHandler(... /* up to 3 args */, TFunc&& func);
 ///         @endcode
 /// @tparam TEventLoop Event loop type - a variant of embxx::util::EventLoop.
 /// @tparam THandler Type to store handler to be executed in "regular" thread
@@ -99,6 +100,42 @@ public:
     template <typename TFunc>
     void setHandler(TFunc&& func);
 
+    /// @brief Set handler
+    /// @details The handler will be executed in the "regular" execution thread
+    ///          in the event loop processing.
+    /// @param[in] arg1 First argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] func Functor to be executed. Must receive the same parameters
+    ///            as reported by the device control object.
+    template <typename TArg1, typename TFunc>
+    void setHandler(TArg1&& arg1, TFunc&& func);
+
+    /// @brief Set handler
+    /// @details The handler will be executed in the "regular" execution thread
+    ///          in the event loop processing.
+    /// @param[in] arg1 First argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] arg2 Second argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] func Functor to be executed. Must receive the same parameters
+    ///            as reported by the device control object.
+    template <typename TArg1, typename TArg2, typename TFunc>
+    void setHandler(TArg1&& arg1, TArg2&&, TFunc&& func);
+
+    /// @brief Set handler
+    /// @details The handler will be executed in the "regular" execution thread
+    ///          in the event loop processing.
+    /// @param[in] arg1 First argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] arg2 Second argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] arg3 Third argument to be passed to setHandler of the device
+    ///            class.
+    /// @param[in] func Functor to be executed. Must receive the same parameters
+    ///            as reported by the device control object.
+    template <typename TArg1, typename TArg2, typename TArg3, typename TFunc>
+    void setHandler(TArg1&& arg1, TArg2&& arg2, TArg3&& arg3, TFunc&& func);
+
 private:
     Device& device_;
     EventLoop& el_;
@@ -118,14 +155,6 @@ Generic<TDevice, TEventLoop, void(TArgs...), THandler>::Generic(
     : device_(device),
       el_(el)
 {
-    device_.setHandler(
-        [this](TArgs... args)
-        {
-            if (handler_) {
-                el_.postInterruptCtx(
-                    std::bind(handler_, args...));
-            }
-        });
 }
 
 template <typename TDevice,
@@ -157,6 +186,91 @@ void Generic<TDevice, TEventLoop, void(TArgs...), THandler>::setHandler(
     TFunc&& func)
 {
     handler_ = std::forward<TFunc>(func);
+    device_.setHandler(
+        [this](TArgs... args)
+        {
+            if (handler_) {
+                auto result = el_.postInterruptCtx(
+                    std::bind(handler_, args...));
+                GASSERT(result);
+                static_cast<void>(result);
+            }
+        });
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename... TArgs>
+template <typename TArg1, typename TFunc>
+void Generic<TDevice, TEventLoop, void(TArgs...), THandler>::setHandler(
+    TArg1&& arg1,
+    TFunc&& func)
+{
+    handler_ = std::forward<TFunc>(func);
+    device_.setHandler(
+        std::forward<TArg1>(arg1),
+        [this](TArgs... args)
+        {
+            if (handler_) {
+                auto result = el_.postInterruptCtx(
+                    std::bind(handler_, args...));
+                GASSERT(result);
+                static_cast<void>(result);
+            }
+        });
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename... TArgs>
+template <typename TArg1, typename TArg2, typename TFunc>
+void Generic<TDevice, TEventLoop, void(TArgs...), THandler>::setHandler(
+    TArg1&& arg1,
+    TArg2&& arg2,
+    TFunc&& func)
+{
+    handler_ = std::forward<TFunc>(func);
+    device_.setHandler(
+        std::forward<TArg1>(arg1),
+        std::forward<TArg2>(arg2),
+        [this](TArgs... args)
+        {
+            if (handler_) {
+                auto result = el_.postInterruptCtx(
+                    std::bind(handler_, args...));
+                GASSERT(result);
+                static_cast<void>(result);
+            }
+        });
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename... TArgs>
+template <typename TArg1, typename TArg2, typename TArg3, typename TFunc>
+void Generic<TDevice, TEventLoop, void(TArgs...), THandler>::setHandler(
+    TArg1&& arg1,
+    TArg2&& arg2,
+    TArg3&& arg3,
+    TFunc&& func)
+{
+    handler_ = std::forward<TFunc>(func);
+    device_.setHandler(
+        std::forward<TArg1>(arg1),
+        std::forward<TArg2>(arg2),
+        std::forward<TArg3>(arg3),
+        [this](TArgs... args)
+        {
+            if (handler_) {
+                auto result = el_.postInterruptCtx(
+                    std::bind(handler_, args...));
+                GASSERT(result);
+                static_cast<void>(result);
+            }
+        });
 }
 
 }  // namespace driver
