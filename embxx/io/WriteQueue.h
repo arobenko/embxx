@@ -268,7 +268,7 @@ bool WriteQueue<TDriver, TSize, THandler>::cancelWrite(WriteHandle handle)
         return false;
     }
 
-    auto findNodeFunc = [handle](typename Queue::IteratorRange range) -> typename Queue::Iterator
+    auto findNodeFunc = [handle](typename Queue::LinearisedIteratorRange range) -> typename Queue::LinearisedIterator
         {
             return std::find_if(
                 range.first,
@@ -310,7 +310,7 @@ void WriteQueue<TDriver, TSize, THandler>::cancelAllWrites()
     return driver_.cancelWrite();
 
     auto cancelAllFunc =
-        [this](typename Queue::Iterator iterBegin, typename Queue::Iterator iterEnd)
+        [this](typename Queue::LinearisedIterator iterBegin, typename Queue::LinearisedIterator iterEnd)
         {
             std::for_each(iterBegin, iterEnd,
                 [this](Node& node)
@@ -366,7 +366,7 @@ template <typename TDriver,
           typename THandler>
 void WriteQueue<TDriver, TSize, THandler>::findAndCleanCancelledWrite()
 {
-    auto func = [this](typename Queue::IteratorRange range) -> bool
+    auto func = [this](typename Queue::LinearisedIteratorRange range) -> bool
         {
             for (auto iter = range.first; iter != range.second; ++iter) {
                 if (!iter->handler_) {

@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <array>
 #include <string>
 #include <stdexcept>
@@ -77,44 +78,44 @@ class BasicStaticQueueBase
 public:
     // Types
 
-    /// Type of the stored elements.
+    /// @brief Type of the stored elements.
     typedef T ValueType;
 
-    /// Size type.
+    /// @brief Size type.
     typedef std::size_t SizeType;
 
-    /// Reference type to the stored elements.
+    /// @brief Reference type to the stored elements.
     typedef ValueType& Reference;
 
-    /// Const reference type to the stored elements.
+    /// @brief Const reference type to the stored elements.
     typedef const ValueType& ConstReference;
 
-    /// Pointer type to the stored elements.
+    /// @brief Pointer type to the stored elements.
     typedef ValueType* Pointer;
 
-    /// Const pointer type to the stored elements.
+    /// @brief Const pointer type to the stored elements.
     typedef const ValueType* ConstPointer;
 
-    /// Internal array type to store the elements.
+    /// @brief Internal array type to store the elements.
     typedef std::array<ValueType, TSize> ValueTypeArray;
 
-    /// Iterator type
-    typedef typename ValueTypeArray::iterator Iterator;
+    /// @brief Linearised iterator type
+    typedef typename ValueTypeArray::iterator LinearisedIterator;
 
-    /// Const iterator type
-    typedef typename ValueTypeArray::const_iterator ConstIterator;
+    /// @brief Const linearised iterator type
+    typedef typename ValueTypeArray::const_iterator ConstLinearisedIterator;
 
-    /// Reverse iterator type
-    typedef typename ValueTypeArray::reverse_iterator ReverseIterator;
+    /// @brief Reverse linearised iterator type
+    typedef typename ValueTypeArray::reverse_iterator ReverseLinearisedIterator;
 
-    /// Const reverse iterator type
-    typedef typename ValueTypeArray::const_reverse_iterator ConstReverseIterator;
+    /// @brief Const reverse linearised iterator type
+    typedef typename ValueTypeArray::const_reverse_iterator ConstReverseLinearisedIterator;
 
-    /// Iterator range type - std::pair of (first, one-past-last) iterators.
-    typedef std::pair<Iterator, Iterator> IteratorRange;
+    /// @brief Linearised iterator range type - std::pair of (first, one-past-last) iterators.
+    typedef std::pair<LinearisedIterator, LinearisedIterator> LinearisedIteratorRange;
 
-    /// Const version of IteratorRange
-    typedef std::pair<ConstIterator, ConstIterator> ConstIteratorRange;
+    /// @brief Const version of IteratorRange
+    typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
 
     // Member functions
 
@@ -294,32 +295,33 @@ public:
     int indexOf(ConstReference element) const;
 
     /// @brief Invalid iterator
-    /// @details Returns value of invalid iterator.
+    /// @details Returns value of invalid iterator, always equal to the end
+    ///          of underlying array.
     /// @return Value of invalid iterator
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    Iterator invalidIter();
+    LinearisedIterator invalidIter();
 
     /// @brief Const version of invalidIter()
-    ConstIterator invalidIter() const;
+    ConstLinearisedIterator invalidIter() const;
 
     /// @brief Invalid reverse iterator
     /// @details Returns value of invalid reverse iterator.
     /// @return Value of invalid reverse iterator
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    ReverseIterator invalidReverseIter();
+    ReverseLinearisedIterator invalidReverseIter();
 
     /// @brief Const version of invalidReverseIter()
-    ConstReverseIterator invalidReverseIter() const;
+    ConstReverseLinearisedIterator invalidReverseIter() const;
 
-    /// @brief Returns iterator to the beginning.
+    /// @brief Returns iterator to the linearised beginning.
     /// @details In case the queue is not linearised
     ///          the returned iterator will be the same as one returned
     ///          by the invalidIter() member function. Like in most standard
-    ///          sequential containers the iterator may get invalidated in
+    ///          sequential containers the iterator may get invalid in
     ///          case the queue is updated in the middle of the iteration.
-    /// @return Iterator pointing to the first element in the queue.
+    /// @return Linearised iterator pointing to the first element in the queue.
     /// @pre The queue is linearised.
     /// @note Thread safety: Safe for multiple readers, unsafe if there is
     ///       a writer.
@@ -327,19 +329,19 @@ public:
     /// @see isLinearised()
     /// @see linearise()
     /// @see invalidIter()
-    Iterator begin();
+    LinearisedIterator lbegin();
 
-    /// @brief Same as cbegin().
-    ConstIterator begin() const;
+    /// @brief Same as clbegin().
+    ConstLinearisedIterator lbegin() const;
 
-    /// @brief Const version of begin().
-    ConstIterator cbegin() const;
+    /// @brief Const version of lbegin().
+    ConstLinearisedIterator clbegin() const;
 
-    /// @brief Returns reverse iterator to the reverse beginning.
+    /// @brief Returns reverse iterator to the reverse linearised beginning.
     /// @details In case the queue is not linearised
     ///          the returned iterator will be the same as one returned
     ///          by the invalidReverseIter() member function. Like in most
-    ///          standard sequential containers the iterator may get invalidated
+    ///          standard sequential containers the iterator may get invalid
     ///          in case the queue is updated in the middle of the iteration.
     /// @return Reverse iterator pointing to the last element in the queue.
     /// @pre The queue is linearised.
@@ -349,18 +351,19 @@ public:
     /// @see isLinearised()
     /// @see linearise()
     /// @see invalidReverseIter()
-    ReverseIterator rbegin();
+    ReverseLinearisedIterator rlbegin();
 
-    /// @brief Same as crbegin().
-    ConstReverseIterator rbegin() const;
+    /// @brief Same as crlbegin().
+    ConstReverseLinearisedIterator rlbegin() const;
 
-    /// @brief Const version of rbegin().
-    ConstReverseIterator crbegin() const;
+    /// @brief Const version of rlbegin().
+    ConstReverseLinearisedIterator crlbegin() const;
 
-    /// @brief Returns iterator to the end.
+    /// @brief Returns iterator to the linearised end.
     /// @details In case the queue is not linearised the returned iterator
     ///          will the same as returned by invalidIter().
-    /// @return Iterator referring to the past-the-end element in the queue
+    /// @return Linearised iterator referring to the past-the-end element in
+    ///         the queue.
     /// @pre The queue is linearised.
     /// @note Thread safety: Safe for multiple readers, unsafe if there is
     ///       a writer.
@@ -368,15 +371,15 @@ public:
     /// @see isLinearised()
     /// @see linearise()
     /// @see invalidIter()
-    Iterator end();
+    LinearisedIterator lend();
 
-    /// @brief Same as cend().
-    ConstIterator end() const;
+    /// @brief Same as clend().
+    ConstLinearisedIterator lend() const;
 
-    /// @brief Const version of end().
-    ConstIterator cend() const;
+    /// @brief Const version of lend().
+    ConstLinearisedIterator clend() const;
 
-    /// @brief Returns reverse iterator to the reverse end.
+    /// @brief Returns reverse iterator to the reverse linearised end.
     /// @details In case the queue is not linearised the returned iterator
     ///          will be the same as returned by invalidReverseIter().
     /// @return Reverse iterator pointing to the element right before the
@@ -388,24 +391,13 @@ public:
     /// @see isLinearised()
     /// @see linearise()
     /// @see invalidReverseIter()
-    ReverseIterator rend();
+    ReverseLinearisedIterator rlend();
 
-    /// @brief Same as crend().
-    ConstReverseIterator rend() const;
+    /// @brief Same as crlend().
+    ConstReverseLinearisedIterator rlend() const;
 
-    /// @brief Returns const reverse iterator to the reverse end.
-    /// @details In case the queue is not linearised the returned iterator
-    ///          will be the same as returned by invalidReverseIter().
-    /// @return Const reverse iterator pointing to the element right before the
-    ///         first element in the queue.
-    /// @pre The queue is linearised.
-    /// @note Thread safety: Safe for multiple readers, unsafe if there is
-    ///       a writer.
-    /// @note Exception guarantee: No throw.
-    /// @see isLinearised()
-    /// @see linearise()
-    /// @see invalidReverseIter()
-    ConstReverseIterator crend() const;
+    /// @brief Const version of rlend();
+    ConstReverseLinearisedIterator crlend() const;
 
     /// @brief Linearise internal elements.
     /// @details The elements of the queue are considered to be linearised
@@ -418,10 +410,10 @@ public:
     ///          it is not possible to safely iterate over the elements
     ///          without introducing a complexity of checking for this
     ///          particular case when the iterator is incremented or
-    ///          decremented. The design decision was to disallow
-    ///          the iteration in the  case described above. In order to
-    ///          properly iterate over the elements, they must be linearised
-    ///          using this function.
+    ///          decremented. The design decision was to create two types of
+    ///          iterators: LinearisedIterator and Iterator. LinearisedIterator
+    ///          may be safely used for iteration only when the queue is
+    ///          linearised.
     ///          When linearising elements of the queue, the move constructor
     ///          of the type T will be called twice: first time to move the
     ///          element into the temporary queue and the second time to
@@ -459,24 +451,23 @@ public:
     ///          be a case when the pointer to the first element will be
     ///          greater than the one to the last element. As a result
     ///          it is not possible to properly iterate over all the elements
-    ///          in a single loop. This function returns range of the iterators
-    ///          for the first continuous array of the internal buffer.
+    ///          in a single loop. This function returns range of the linearised
+    ///          iterators for the first continuous array of the internal buffer.
     /// @return Closed-open range (std::pair) of the iterators. Where the first
     ///         iterator refers to the front element of the queue while the
     ///         second iterator refers to either one-past-last or
     ///         one-past-some-middle element. In case the queue is empty,
-    ///         both iterators are equal to one returned by end() member
-    ///         function.
+    ///         both iterators are equal.
     /// @note Thread safety: Safe for multiple readers, unsafe if there is
     ///       a writer.
     /// @note Exception guarantee: No throw.
     /// @see linearise()
     /// @see isLinearised()
     /// @see arrayTwo()
-    IteratorRange arrayOne();
+    LinearisedIteratorRange arrayOne();
 
     /// @brief Const version of former arrayOne().
-    ConstIteratorRange arrayOne() const;
+    ConstLinearisedIteratorRange arrayOne() const;
 
     /// @brief Get the second continuous array of the internal buffer.
     /// @details This queue is implemented as a circular buffer over std::array.
@@ -501,10 +492,10 @@ public:
     /// @see linearise()
     /// @see isLinearised()
     /// @see arrayOne()
-    IteratorRange arrayTwo();
+    LinearisedIteratorRange arrayTwo();
 
     /// @brief Const version of former arrayTwo().
-    ConstIteratorRange arrayTwo() const;
+    ConstLinearisedIteratorRange arrayTwo() const;
 
     /// @brief Resize the queue.
     /// @details In case the new size is greater than the existing one,
@@ -523,8 +514,8 @@ public:
 
     /// @brief Erase element.
     /// @details Erases element from specified position
-    /// @param[in] pos Iterator to the element to be erased
-    /// @return Iterator pointing to new location of
+    /// @param[in] pos Linearised iterator to the element to be erased
+    /// @return Linearised iterator pointing to new location of
     ///         the next element after the erased one.
     /// @pre (pos != invalidIter())
     /// @pre pos is either in iterator range returned by arrayOne() or
@@ -532,7 +523,7 @@ public:
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: No throw in case copy assignment operator
     ///       of the internal elements do not throw, Basic otherwise.
-    Iterator erase(Iterator pos);
+    LinearisedIterator erase(LinearisedIterator pos);
 
 protected:
     // Types
@@ -548,7 +539,7 @@ protected:
     typedef std::array<ValueStorageType, TSize> Array;
 
     /// @cond DOCUMENT_STATIC_ASSERT
-    static_assert(sizeof(*(Iterator())) == sizeof(ValueType),
+    static_assert(sizeof(*(LinearisedIterator())) == sizeof(ValueType),
                                 "Proper iterator increment must be supported");
     /// @endcond
 
@@ -609,7 +600,7 @@ protected:
     void pushFrontNotFull(U&& value);
 
     template <typename U>
-    Iterator insertNotFull(Iterator pos, U&& value);
+    LinearisedIterator insertNotFull(LinearisedIterator pos, U&& value);
 
 private:
 
@@ -677,47 +668,47 @@ class BasicStaticQueue : public BasicStaticQueueBase<T, TSize>
     typedef BasicStaticQueueBase<T, TSize> Base;
 public:
     // Types
-    /// behaviour traits of the queue
+    /// @brief Behaviour traits of the queue
     typedef TTraits Traits;
 
-    /// Overflow behaviour defined in the traits.
+    /// @brief Overflow behaviour defined in the traits.
     typedef typename Traits::OverflowBehaviour OverflowBehaviour;
 
-    /// Type of the stored elements.
+    /// @brief Type of the stored elements.
     typedef typename Base::ValueType ValueType;
 
-    /// Size type.
+    /// @brief Size type.
     typedef typename Base::SizeType SizeType;
 
-    /// Reference type to the stored elements.
+    /// @brief Reference type to the stored elements.
     typedef typename Base::Reference Reference;
 
-    /// Const reference type to the stored elements.
+    /// @brief Const reference type to the stored elements.
     typedef typename Base::ConstReference ConstReference;
 
-    /// Pointer type to the stored elements.
+    /// @brief Pointer type to the stored elements.
     typedef typename Base::Pointer Pointer;
 
-    /// Const pointer type to the stored elements.
+    /// @brief Const pointer type to the stored elements.
     typedef typename Base::ConstPointer ConstPointer;
 
-    /// Iterator type
-    typedef typename Base::Iterator Iterator;
+    /// @brief Linearised iterator type
+    typedef typename Base::LinearisedIterator LinearisedIterator;
 
-    /// Const iterator type
-    typedef typename Base::ConstIterator ConstIterator;
+    /// @brief Const linearised iterator type
+    typedef typename Base::ConstLinearisedIterator ConstLinearisedIterator;
 
-    /// Reverse iterator type
-    typedef typename Base::ReverseIterator ReverseIterator;
+    /// @brief Reverse linearised iterator type
+    typedef typename Base::ReverseLinearisedIterator ReverseLinearisedIterator;
 
-    /// Const reverse iterator type
-    typedef typename Base::ConstReverseIterator ConstReverseIterator;
+    /// @brief Const reverse linearised iterator type
+    typedef typename Base::ConstReverseLinearisedIterator ConstReverseLinearisedIterator;
 
-    /// Iterator range type - std::pair of (first, one-past-last) iterators.
-    typedef typename Base::IteratorRange IteratorRange;
+    /// @brief Linearised iterator range type - std::pair of (first, one-past-last) iterators.
+    typedef typename Base::LinearisedIteratorRange LinearisedIteratorRange;
 
-    /// Const version of IteratorRange
-    typedef typename Base::ConstIteratorRange ConstIteratorRange;
+    /// @brief Const version of IteratorRange
+    typedef typename Base::ConstLinearisedIteratorRange ConstLinearisedIteratorRange;
 
     // Member functions
     /// @brief Default constructor.
@@ -818,9 +809,9 @@ public:
     ///          case the trait is of type static_queue_traits::Overwrite, the last element
     ///          in the queue will be popped and new element is inserted
     ///          in the specified position.
-    /// @param[in] pos Iterator to the insert position.
+    /// @param[in] pos Linearised iterator to the insert position.
     /// @param[in] value New value to insert.
-    /// @return Iterator to the newly inserted element.
+    /// @return Linearised iterator to the newly inserted element.
     /// @pre (pos != invalidIter())
     /// @pre pos is either in iterator range returned by arrayOne() or
     ///      returned by arrayTwo() or equal to arrayTwo().second.
@@ -830,10 +821,10 @@ public:
     /// @see invalidIter()
     /// @see arrayOne()
     /// @see arrayTwo()
-    Iterator insert(Iterator pos, ConstReference value);
+    LinearisedIterator insert(LinearisedIterator pos, ConstReference value);
 
     /// @brief R-value version of insert()
-    Iterator insert(Iterator pos, ValueType&& value);
+    LinearisedIterator insert(LinearisedIterator pos, ValueType&& value);
 
 private:
 
@@ -857,15 +848,15 @@ private:
 
     /// Insert. Pop the last element if the queue is full.
     template <typename U>
-    Iterator insert(
-        Iterator pos,
+    LinearisedIterator insert(
+        LinearisedIterator pos,
         U&& value,
         const static_queue_traits::IgnoreError& behaviour);
 
     /// Insert. Pop the first element if the queue is full.
     template <typename U>
-    Iterator insert(
-        Iterator pos,
+    LinearisedIterator insert(
+        LinearisedIterator pos,
         U&& value,
         const static_queue_traits::Overwrite& behaviour);
 };
@@ -973,6 +964,7 @@ void BasicStaticQueueBase<T, TSize>::popBack()
     if (isEmpty())
     {
         // Do nothing
+        GASSERT(!"popBack() on empty queue");
         return;
     }
 
@@ -998,6 +990,7 @@ void BasicStaticQueueBase<T, TSize>::popFront()
     if (isEmpty())
     {
         // Do nothing
+        GASSERT(!"popFront() on empty queue");
         return;
     }
 
@@ -1052,6 +1045,7 @@ BasicStaticQueueBase<T, TSize>::back() const
         return (*this)[count_ - 1];
     }
 
+    GASSERT(!"back() when queue is empty.");
     return (*this)[0];
 }
 
@@ -1089,7 +1083,7 @@ typename BasicStaticQueueBase<T, TSize>::ConstReference
 BasicStaticQueueBase<T, TSize>::at(std::size_t index) const
 {
     if (index >= size()) {
-        throw std::out_of_range(std::string("Index is out of range "));
+        throw std::out_of_range(std::string("Index is out of range"));
     }
     return (*this)[index];
 }
@@ -1125,7 +1119,7 @@ int BasicStaticQueueBase<T, TSize>::indexOf(ConstReference element) const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::Iterator
+typename BasicStaticQueueBase<T, TSize>::LinearisedIterator
 BasicStaticQueueBase<T, TSize>::invalidIter()
 {
     auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
@@ -1133,7 +1127,7 @@ BasicStaticQueueBase<T, TSize>::invalidIter()
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIterator
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIterator
 BasicStaticQueueBase<T, TSize>::invalidIter() const
 {
     auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&array_);
@@ -1141,7 +1135,7 @@ BasicStaticQueueBase<T, TSize>::invalidIter() const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ReverseIterator
+typename BasicStaticQueueBase<T, TSize>::ReverseLinearisedIterator
 BasicStaticQueueBase<T, TSize>::invalidReverseIter()
 {
     auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
@@ -1149,7 +1143,7 @@ BasicStaticQueueBase<T, TSize>::invalidReverseIter()
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstReverseIterator
+typename BasicStaticQueueBase<T, TSize>::ConstReverseLinearisedIterator
 BasicStaticQueueBase<T, TSize>::invalidReverseIter() const
 {
     auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&array_);
@@ -1157,10 +1151,10 @@ BasicStaticQueueBase<T, TSize>::invalidReverseIter() const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::Iterator
-BasicStaticQueueBase<T, TSize>::begin()
+typename BasicStaticQueueBase<T, TSize>::LinearisedIterator
+BasicStaticQueueBase<T, TSize>::lbegin()
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidIter();
     }
 
@@ -1169,17 +1163,17 @@ BasicStaticQueueBase<T, TSize>::begin()
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIterator
-BasicStaticQueueBase<T, TSize>::begin() const
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIterator
+BasicStaticQueueBase<T, TSize>::lbegin() const
 {
-    return cbegin();
+    return clbegin();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIterator
-BasicStaticQueueBase<T, TSize>::cbegin() const
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIterator
+BasicStaticQueueBase<T, TSize>::clbegin() const
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidIter();
     }
 
@@ -1189,10 +1183,10 @@ BasicStaticQueueBase<T, TSize>::cbegin() const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ReverseIterator
-BasicStaticQueueBase<T, TSize>::rbegin()
+typename BasicStaticQueueBase<T, TSize>::ReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::rlbegin()
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidReverseIter();
     }
 
@@ -1202,17 +1196,16 @@ BasicStaticQueueBase<T, TSize>::rbegin()
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstReverseIterator
-BasicStaticQueueBase<T, TSize>::rbegin() const
+typename BasicStaticQueueBase<T, TSize>::ConstReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::rlbegin() const
 {
-    return crbegin();
+    return crlbegin();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstReverseIterator
-BasicStaticQueueBase<T, TSize>::crbegin() const
+typename BasicStaticQueueBase<T, TSize>::ConstReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::crlbegin() const
 {
-
     if (!isLinearised()) {
         return invalidReverseIter();
     }
@@ -1224,67 +1217,61 @@ BasicStaticQueueBase<T, TSize>::crbegin() const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::Iterator
-BasicStaticQueueBase<T, TSize>::end()
+typename BasicStaticQueueBase<T, TSize>::LinearisedIterator
+BasicStaticQueueBase<T, TSize>::lend()
 {
     if (!isLinearised()) {
         return invalidIter();
     }
 
-    auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
-    return reinterpretArrayPtr->begin() + (startIdx_ + size());
+    return lbegin() + size();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIterator
-BasicStaticQueueBase<T, TSize>::end() const
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIterator
+BasicStaticQueueBase<T, TSize>::lend() const
 {
-    return cend();
+    return clend();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIterator
-BasicStaticQueueBase<T, TSize>::cend() const
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIterator
+BasicStaticQueueBase<T, TSize>::clend() const
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidIter();
     }
 
-    auto reinterpretArrayPtr =
-        reinterpret_cast<const ValueTypeArray*>(&array_);
-    return reinterpretArrayPtr->cbegin() + (startIdx_ + size());
+    return clbegin() + size();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ReverseIterator
-BasicStaticQueueBase<T, TSize>::rend()
+typename BasicStaticQueueBase<T, TSize>::ReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::rlend()
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidReverseIter();
     }
 
-    auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
-    return reinterpretArrayPtr->rbegin() + (capacity() - startIdx_);
+    return rlbegin() + size();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstReverseIterator
-BasicStaticQueueBase<T, TSize>::rend() const
+typename BasicStaticQueueBase<T, TSize>::ConstReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::rlend() const
 {
-    return crend();
+    return crlend();
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstReverseIterator
-BasicStaticQueueBase<T, TSize>::crend() const
+typename BasicStaticQueueBase<T, TSize>::ConstReverseLinearisedIterator
+BasicStaticQueueBase<T, TSize>::crlend() const
 {
-    if (!isLinearised() || isEmpty()) {
+    if (!isLinearised()) {
         return invalidReverseIter();
     }
 
-    auto reinterpretArrayPtr =
-        reinterpret_cast<const ValueTypeArray*>(&array_);
-    return reinterpretArrayPtr->crbegin() + (capacity() - startIdx_);
+    return rlbegin() + size();
 }
 
 template <typename T, std::size_t TSize>
@@ -1311,19 +1298,23 @@ bool BasicStaticQueueBase<T, TSize>::isLinearised() const
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::IteratorRange
+typename BasicStaticQueueBase<T, TSize>::LinearisedIteratorRange
 BasicStaticQueueBase<T, TSize>::arrayOne()
 {
+    auto reinterpretArrayPtr =
+        reinterpret_cast<ValueTypeArray*>(&array_);
 
     auto constThis = static_cast<const BasicStaticQueueBase*>(this);
     auto constRange = constThis->arrayOne();
-    auto beginIter = begin() + (constRange.first - constThis->begin());
-    auto endIter = begin() + (constRange.second - constThis->begin());
-    return IteratorRange(beginIter, endIter);
+    auto beginIter = reinterpretArrayPtr->begin() +
+        (constRange.first - reinterpretArrayPtr->cbegin());
+    auto endIter = reinterpretArrayPtr->begin() +
+        (constRange.second - reinterpretArrayPtr->cbegin());
+    return LinearisedIteratorRange(beginIter, endIter);
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIteratorRange
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIteratorRange
 BasicStaticQueueBase<T, TSize>::arrayOne() const
 {
     auto reinterpretArrayPtr =
@@ -1332,7 +1323,7 @@ BasicStaticQueueBase<T, TSize>::arrayOne() const
     auto beginIter = reinterpretArrayPtr->begin() + startIdx_;
     if (isEmpty()) {
         GASSERT(startIdx_ == 0);
-        return ConstIteratorRange(beginIter, beginIter);
+        return ConstLinearisedIteratorRange(beginIter, beginIter);
     }
 
     auto endIter = reinterpretArrayPtr->end();
@@ -1340,36 +1331,39 @@ BasicStaticQueueBase<T, TSize>::arrayOne() const
     if (rawEndIdx < capacity()) {
         endIter = beginIter + size();
     }
-    return ConstIteratorRange(beginIter, endIter);
+    return ConstLinearisedIteratorRange(beginIter, endIter);
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::IteratorRange
+typename BasicStaticQueueBase<T, TSize>::LinearisedIteratorRange
 BasicStaticQueueBase<T, TSize>::arrayTwo()
 {
-
+    auto reinterpretArrayPtr =
+        reinterpret_cast<ValueTypeArray*>(&array_);
     auto constThis = static_cast<const BasicStaticQueueBase*>(this);
     auto constRange = constThis->arrayTwo();
-    auto beginIter = begin() + (constRange.first - constThis->begin());
-    auto endIter = begin() + (constRange.second - constThis->begin());
-    return IteratorRange(beginIter, endIter);
+    auto beginIter = reinterpretArrayPtr->begin() +
+        (constRange.first - reinterpretArrayPtr->cbegin());
+    auto endIter = reinterpretArrayPtr->begin() +
+        (constRange.second - reinterpretArrayPtr->cbegin());
+    return LinearisedIteratorRange(beginIter, endIter);
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::ConstIteratorRange
+typename BasicStaticQueueBase<T, TSize>::ConstLinearisedIteratorRange
 BasicStaticQueueBase<T, TSize>::arrayTwo() const
 {
     auto reinterpretArrayPtr =
             reinterpret_cast<const ValueTypeArray*>(&array_);
 
     if (isLinearised()) {
-        auto rangeOne = arrayOne();
-        return ConstIteratorRange(rangeOne.second, rangeOne.second);
+        auto iter = arrayOne().second;
+        return ConstLinearisedIteratorRange(iter, iter);
     }
 
     auto beginIter = reinterpretArrayPtr->begin();
     auto endIter = beginIter + ((startIdx_ + size()) - capacity());
-    return ConstIteratorRange(beginIter, endIter);
+    return ConstLinearisedIteratorRange(beginIter, endIter);
 }
 
 template <typename T, std::size_t TSize>
@@ -1392,14 +1386,15 @@ void BasicStaticQueueBase<T, TSize>::resize(std::size_t newSize)
 }
 
 template <typename T, std::size_t TSize>
-typename BasicStaticQueueBase<T, TSize>::Iterator
-BasicStaticQueueBase<T, TSize>::erase(Iterator pos)
+typename BasicStaticQueueBase<T, TSize>::LinearisedIterator
+BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
 {
     GASSERT(pos != invalidIter());
+    GASSERT(!isEmpty());
     auto rangeOne = arrayOne();
     auto rangeTwo = arrayTwo();
 
-    auto isInRangeFunc = [](Iterator pos, const IteratorRange range) -> bool
+    auto isInRangeFunc = [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
         {
             return ((range.first <= pos) && (pos < range.second));
         };
@@ -1407,21 +1402,28 @@ BasicStaticQueueBase<T, TSize>::erase(Iterator pos)
     GASSERT(isInRangeFunc(pos, rangeOne) ||
            isInRangeFunc(pos, rangeTwo));
 
-    if ((isInRangeFunc(pos, rangeTwo)) ||
-        (isLinearised())) {
-        std::copy(pos + 1, rangeTwo.second, pos);
-        popBack();
-        return pos;
+    if (isInRangeFunc(pos, rangeOne)) {
+        for (auto toIter = pos; toIter != rangeOne.first; --toIter) {
+            *toIter = std::move(*(toIter - 1));
+        }
+
+        popFront();
+        if (!isEmpty()) {
+            return pos + 1;
+        }
+
+        return arrayOne().first;
     }
 
-    if (isInRangeFunc(pos, rangeOne)) {
-        std::copy_backward(rangeOne.first, pos, pos + 1);
-        auto retval = pos + 1;
-        if (retval == rangeOne.second) {
-            retval = rangeTwo.first;
+    if (isInRangeFunc(pos, rangeTwo)) {
+        for (auto toIter = pos; toIter != rangeTwo.second - 1; ++toIter) {
+            *toIter = std::move(*(toIter + 1));
         }
-        popFront();
-        return retval;
+        popBack();
+        if (!isLinearised()) {
+            return pos;
+        }
+        return arrayOne().second;
     }
 
     GASSERT(!"Invalid iterator is used");
@@ -1483,42 +1485,55 @@ void BasicStaticQueueBase<T, TSize>::pushFrontNotFull(U&& value)
 
 template <typename T, std::size_t TSize>
 template <typename U>
-typename BasicStaticQueueBase<T, TSize>::Iterator
-BasicStaticQueueBase<T, TSize>::insertNotFull(Iterator pos, U&& value)
+typename BasicStaticQueueBase<T, TSize>::LinearisedIterator
+BasicStaticQueueBase<T, TSize>::insertNotFull(LinearisedIterator pos, U&& value)
 {
     GASSERT(!isFull());
     GASSERT(pos != invalidIter());
     auto rangeOne = arrayOne();
     auto rangeTwo = arrayTwo();
 
-    Iterator curPos = pos;
-    ValueType curValue(std::forward<U>(value));
+    if (pos == rangeOne.first) {
+        pushFrontNotFull(std::forward<U>(value));
+        return arrayOne().first;
+    }
 
-    auto isInRangeFunc = [](Iterator pos, const IteratorRange range) -> bool
+    if (pos == rangeTwo.second) {
+        pushBackNotFull(std::forward<U>(value));
+        return arrayTwo().second - 1;
+    }
+
+    auto isInRangeFunc = [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
         {
             return ((range.first <= pos) && (pos < range.second));
         };
 
-    auto swapFunc = [&curPos, &curValue]()
-        {
-            std::swap(curValue, *curPos);
-            ++curPos;
-        };
+    GASSERT(isInRangeFunc(pos, rangeOne) ||
+            isInRangeFunc(pos, rangeTwo));
 
-    GASSERT(isInRangeFunc(curPos, rangeOne) ||
-           isInRangeFunc(curPos, rangeTwo) ||
-           (curPos == rangeTwo.second));
+    if (isInRangeFunc(pos, rangeOne)) {
+        auto firstElem = std::move(front());
 
-    while (isInRangeFunc(curPos, rangeOne)) {
-        swapFunc();
+        for (auto toIter = rangeOne.first; toIter != pos; ++toIter) {
+            *toIter = std::move(*(toIter + 1));
+        }
+        *pos = std::forward<U>(value);
+        pushFrontNotFull(std::move(firstElem));
+        return pos;
     }
 
-    while (isInRangeFunc(curPos, rangeTwo)) {
-        swapFunc();
+    if (isInRangeFunc(pos, rangeTwo)) {
+        auto lastElem = std::move(back());
+
+        for (auto toIter = rangeTwo.second - 1; toIter != pos; --toIter) {
+            *toIter = std::move(*(toIter - 1));
+        }
+        *pos = std::forward<U>(value);
+        pushBackNotFull(std::move(lastElem));
+        return pos;
     }
 
-    pushBackNotFull(std::move(curValue));
-    return pos;
+    return invalidIter();
 }
 
 template <typename T, std::size_t TSize>
@@ -1535,7 +1550,7 @@ void BasicStaticQueueBase<T, TSize>::assign(
     const BasicStaticQueueBase& queue)
 {
     clear();
-    auto pushBackFunc = [this](const ConstIteratorRange& range)
+    auto pushBackFunc = [this](const ConstLinearisedIteratorRange& range)
         {
             for (auto iter = range.first; iter != range.second; ++iter) {
                 this->pushBackNotFull(*iter);
@@ -1551,7 +1566,7 @@ void BasicStaticQueueBase<T, TSize>::assign(
     BasicStaticQueueBase&& queue)
 {
     clear();
-    auto pushBackFunc = [this](const IteratorRange& range)
+    auto pushBackFunc = [this](const LinearisedIteratorRange& range)
         {
             for (auto iter = range.first; iter != range.second; ++iter) {
                 this->pushBackNotFull(std::move(*iter));
@@ -1631,15 +1646,15 @@ void BasicStaticQueue<T, TSize, TTraits>::pushFront(ValueType&& value)
 }
 
 template <typename T, std::size_t TSize, typename TTraits>
-typename BasicStaticQueue<T, TSize, TTraits>::Iterator
-BasicStaticQueue<T, TSize, TTraits>::insert(Iterator pos, ConstReference value)
+typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
+BasicStaticQueue<T, TSize, TTraits>::insert(LinearisedIterator pos, ConstReference value)
 {
     return insert(pos, value, typename TTraits::OverflowBehaviour());
 }
 
 template <typename T, std::size_t TSize, typename TTraits>
-typename BasicStaticQueue<T, TSize, TTraits>::Iterator
-BasicStaticQueue<T, TSize, TTraits>::insert(Iterator pos, ValueType&& value)
+typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
+BasicStaticQueue<T, TSize, TTraits>::insert(LinearisedIterator pos, ValueType&& value)
 {
     return insert(pos, std::move(value), typename TTraits::OverflowBehaviour());
 }
@@ -1706,9 +1721,9 @@ void BasicStaticQueue<T, TSize, TTraits>::pushFront(
 
 template <typename T, std::size_t TSize, typename TTraits>
 template <typename U>
-typename BasicStaticQueue<T, TSize, TTraits>::Iterator
+typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
 BasicStaticQueue<T, TSize, TTraits>::insert(
-    Iterator pos,
+    LinearisedIterator pos,
     U&& value,
     const static_queue_traits::IgnoreError& behaviour)
 {
@@ -1723,9 +1738,9 @@ BasicStaticQueue<T, TSize, TTraits>::insert(
 
 template <typename T, std::size_t TSize, typename TTraits>
 template <typename U>
-typename BasicStaticQueue<T, TSize, TTraits>::Iterator
+typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
 BasicStaticQueue<T, TSize, TTraits>::insert(
-    Iterator pos,
+    LinearisedIterator pos,
     U&& value,
     const static_queue_traits::Overwrite& behaviour)
 {

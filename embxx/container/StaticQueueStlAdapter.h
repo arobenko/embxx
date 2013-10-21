@@ -65,16 +65,16 @@ public:
     typedef typename TContainer::ConstPointer const_pointer;
 
     /// @brief Iterator
-    typedef typename TContainer::Iterator iterator;
+    typedef typename TContainer::LinearisedIterator iterator;
 
     /// @brief Const iterator
-    typedef typename TContainer::ConstIterator const_iterator;
+    typedef typename TContainer::ConstLinearisedIterator const_iterator;
 
     /// @brief Reverse iterator
-    typedef typename TContainer::ReverseIterator reverse_iterator;
+    typedef typename TContainer::ReverseLinearisedIterator reverse_iterator;
 
     /// @brief Const reverse iterator
-    typedef typename TContainer::ConstReverseIterator const_reverse_iterator;
+    typedef typename TContainer::ConstReverseLinearisedIterator const_reverse_iterator;
 
     // Member functions
 
@@ -416,7 +416,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::iterator
 StaticQueueStlAdapter<TContainer>::begin()
 {
-    return container_.begin();
+    return container_.lbegin();
 }
 
 template <typename TContainer>
@@ -424,7 +424,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_iterator
 StaticQueueStlAdapter<TContainer>::begin() const
 {
-    return container_.begin();
+    return container_.lbegin();
 }
 
 template <typename TContainer>
@@ -432,7 +432,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_iterator
 StaticQueueStlAdapter<TContainer>::cbegin() const
 {
-    return container_.cbegin();
+    return container_.clbegin();
 }
 
 template <typename TContainer>
@@ -440,7 +440,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::reverse_iterator
 StaticQueueStlAdapter<TContainer>::rbegin()
 {
-    return container_.rbegin();
+    return container_.rlbegin();
 }
 
 template <typename TContainer>
@@ -448,7 +448,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_reverse_iterator
 StaticQueueStlAdapter<TContainer>::rbegin() const
 {
-    return container_.rbegin();
+    return container_.rlbegin();
 }
 
 template <typename TContainer>
@@ -456,7 +456,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_reverse_iterator
 StaticQueueStlAdapter<TContainer>::crbegin() const
 {
-    return container_.crbegin();
+    return container_.crlbegin();
 }
 
 
@@ -465,7 +465,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::iterator
 StaticQueueStlAdapter<TContainer>::end()
 {
-    return container_.end();
+    return container_.lend();
 }
 
 template <typename TContainer>
@@ -473,7 +473,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_iterator
 StaticQueueStlAdapter<TContainer>::end() const
 {
-    return container_.end();
+    return container_.lend();
 }
 
 template <typename TContainer>
@@ -481,7 +481,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_iterator
 StaticQueueStlAdapter<TContainer>::cend() const
 {
-    return container_.cend();
+    return container_.clend();
 }
 
 template <typename TContainer>
@@ -489,7 +489,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::reverse_iterator
 StaticQueueStlAdapter<TContainer>::rend()
 {
-    return container_.rend();
+    return container_.rlend();
 }
 
 template <typename TContainer>
@@ -497,7 +497,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_reverse_iterator
 StaticQueueStlAdapter<TContainer>::rend() const
 {
-    return container_.rend();
+    return container_.rlend();
 }
 
 template <typename TContainer>
@@ -505,7 +505,7 @@ inline
 typename StaticQueueStlAdapter<TContainer>::const_reverse_iterator
 StaticQueueStlAdapter<TContainer>::crend() const
 {
-    return container_.crend();
+    return container_.crlend();
 }
 
 }  // namespace container
