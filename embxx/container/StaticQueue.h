@@ -28,6 +28,7 @@
 #include <stdexcept>
 #include <utility>
 #include <type_traits>
+#include <iterator>
 
 #include "embxx/util/Assert.h"
 
@@ -116,6 +117,12 @@ public:
 
     /// @brief Const version of IteratorRange
     typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
+
+    // Const iterator class
+    class ConstIterator;
+
+    // Iterator class
+    class Iterator;
 
     // Member functions
 
@@ -525,6 +532,37 @@ public:
     ///       of the internal elements do not throw, Basic otherwise.
     LinearisedIterator erase(LinearisedIterator pos);
 
+    /// @brief Returns iterator to the beginning.
+    /// @details This iterator works on the non-linearised queue. It has extra
+    ///          overhead to check for wrap arounds.
+    /// @return Iterator pointing to the first element in the queue.
+    /// @note Thread safety: Safe for multiple readers, unsafe if there is
+    ///       a writer.
+    /// @note Exception guarantee: No throw.
+    Iterator begin();
+
+    /// @brief Same as cbegin();
+    ConstIterator begin() const;
+
+    /// @brief Const version of begin();
+    ConstIterator cbegin() const;
+
+    /// @brief Returns iterator to the end.
+    /// @details This iterator works on the non-linearised queue. It has extra
+    ///          overhead to check for wrap arounds.
+    /// @return Iterator referring to the past-the-end element in
+    ///         the queue.
+    /// @note Thread safety: Safe for multiple readers, unsafe if there is
+    ///       a writer.
+    /// @note Exception guarantee: No throw.
+    Iterator end();
+
+    /// @brief Same as cend();
+    ConstIterator end() const;
+
+    /// @brief Const version of end();
+    ConstIterator cend() const;
+
 protected:
     // Types
 
@@ -603,6 +641,13 @@ protected:
     LinearisedIterator insertNotFull(LinearisedIterator pos, U&& value);
 
 private:
+
+    // Base class for both Iterator and ConstIterator
+    template <typename TDerived, typename TQueueType>
+    class IteratorBase;
+
+    template <typename TDerived, typename TQueueType>
+    friend class BasicStaticQueueBase::IteratorBase;
 
     // Member functions
 
@@ -860,6 +905,214 @@ private:
         U&& value,
         const static_queue_traits::Overwrite& behaviour);
 };
+
+/// @brief Base class for both Iterator and ConstIterator classes of
+///        Static Queue.
+/// @details This class was created to eliminate code duplication between
+///          Iterator and ConstIterator classes.
+/// @tparam TDerived Actual derived class (either Iterator or ConstIterator).
+/// @tparam TQueueType Type of the queue (const or non-const).
+template <typename T,
+          std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+class BasicStaticQueueBase<T, TSize>::IteratorBase
+{
+public:
+
+    /// @brief Type of the queue
+    typedef TQueueType QueueType;
+
+    /// @brief Type of the array iterator
+    typedef decltype(QueueType().lbegin()) ArrayIterator;
+
+    /// @brief Type of iterator category
+    typedef typename std::iterator_traits<ArrayIterator>::iterator_category IteratorCategory;
+
+    /// @brief Same as IteratorCategory
+    typedef IteratorCategory iterator_category;
+
+    /// @brief Type of the value referenced by the iterator
+    typedef typename std::iterator_traits<ArrayIterator>::value_type ValueType;
+
+    /// @brief Same as ValueType
+    typedef ValueType value_type;
+
+    /// @brief Type of the difference between two iterators
+    typedef typename std::iterator_traits<ArrayIterator>::difference_type DifferenceType;
+
+    /// @brief Same as DifferenceType
+    typedef DifferenceType difference_type;
+
+    /// @brief Type of the pointer to the value referenced by the iterator
+    typedef typename std::iterator_traits<ArrayIterator>::pointer Pointer;
+
+    /// @brief Same as Pointer
+    typedef Pointer pointer;
+
+    /// @brief Const pointer type
+    typedef typename std::add_const<Pointer>::type ConstPointer;
+
+    /// @brief Type of the reference to the value referenced by the iterator
+    typedef typename std::iterator_traits<ArrayIterator>::reference Reference;
+
+    /// @brief Same as Reference
+    typedef Reference reference;
+
+    /// @brief Const reference type
+    typedef typename std::add_const<Reference>::type ConstReference;
+
+    /// @brief Copy constructor is default.
+    IteratorBase(const IteratorBase&) = default;
+
+    /// @brief Copy assignment operator.
+    /// @param other Other iterator
+    /// @pre Other iterator must be iterator of the same queue.
+    IteratorBase& operator=(const IteratorBase& other);
+
+    /// @brief Pre increment operator.
+    IteratorBase& operator++();
+
+    /// @brief Post increment operator.
+    IteratorBase operator++(int);
+
+    /// @brief Pre decrement operator.
+    IteratorBase& operator--();
+
+    /// @brief Post-decrement operator.
+    IteratorBase operator--(int);
+
+    /// @brief Operator of adding constant value to the iterator
+    /// @param value Value to be added
+    IteratorBase& operator+=(DifferenceType value);
+
+    /// @brief Operator of substructing constant value from the iterator
+    /// @param value Value to be substructed
+    IteratorBase& operator-=(DifferenceType value);
+
+    /// @brief Operator +
+    /// @details Creates new iterator object by adding constant to
+    ///          current operator without changing it.
+    /// @param value Value to be added
+    IteratorBase operator+(DifferenceType value) const;
+
+    /// @brief Operator -
+    /// @details Creates new iterator object by substructing constant from
+    ///          current operator without changing it.
+    /// @param value Value to be substructed
+    IteratorBase operator-(DifferenceType value) const;
+
+    /// @brief Computes the distance between two iterators
+    /// @param other Other iterator
+    /// @pre other iterator must be of the same queue.
+    DifferenceType operator-(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator==(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator!=(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator<(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator<=(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator>(const IteratorBase& other) const;
+
+    /// @brief Iterator comparison operator
+    /// @param other Other iterator
+    bool operator>=(const IteratorBase& other) const;
+
+    /// @brief Iterator dereference operator
+    Reference operator*();
+
+    /// @brief Const version of operator*
+    ConstReference operator*() const;
+
+    /// @brief Iterator dereference operator
+    Pointer operator->();
+
+    /// @brief Const version of operator->
+    ConstPointer operator->() const;
+
+protected:
+
+    /// @brief Constructor
+    /// @param queue Reference to queue
+    /// @param iterator Low level array iterator
+    IteratorBase(QueueType& queue, ArrayIterator iterator);
+
+    QueueType& queue_; ///< Queue
+    ArrayIterator iterator_; ///< Low level array iterator
+};
+
+/// @brief Proper const iterator class of the Static Queue
+/// @details This iterator may be used to iterate over all the elements of
+///          the Static Queue.
+/// @extends BasicStaticQueueBase::IteratorBase
+template <typename T,
+          std::size_t TSize>
+class BasicStaticQueueBase<T, TSize>::ConstIterator :
+            public BasicStaticQueueBase<T, TSize>::
+            template IteratorBase<Iterator, const BasicStaticQueueBase<T, TSize> >
+{
+    typedef typename BasicStaticQueueBase<T, TSize>::
+        template IteratorBase<Iterator, const BasicStaticQueueBase<T, TSize> > Base;
+
+public:
+
+    /// @brief Queue type
+    typedef typename Base::QueueType QueueType;
+
+    /// @brief Low level array iterator type
+    /// @details Equivalent to ConstLinearisedIterator
+    typedef typename Base::ArrayIterator ArrayIterator;
+
+    /// @brief Constructor
+    /// @param queue Reference to the queue object
+    /// @param iterator Low level iterator of type ConstLinearisedIterator
+    ConstIterator(QueueType& queue, ArrayIterator iterator);
+
+};
+
+/// @brief Proper iterator class of the Static Queue
+/// @details This iterator may be used to iterate over all the elements of
+///          the Static Queue.
+/// @extends BasicStaticQueueBase::IteratorBase
+template <typename T,
+          std::size_t TSize>
+class BasicStaticQueueBase<T, TSize>::Iterator :
+            public BasicStaticQueueBase<T, TSize>::
+            template IteratorBase<Iterator, BasicStaticQueueBase<T, TSize> >
+{
+    typedef typename BasicStaticQueueBase<T, TSize>::
+        template IteratorBase<Iterator, BasicStaticQueueBase<T, TSize> > Base;
+
+public:
+
+    /// @brief Queue type
+    typedef typename Base::QueueType QueueType;
+
+    /// @brief Low level array iterator type
+    /// @details Equivalent to LinearisedIterator
+    typedef typename Base::ArrayIterator ArrayIterator;
+
+    /// @brief Constructor
+    /// @param queue Reference to the queue object
+    /// @param iterator Low level iterator of type LinearisedIterator
+    Iterator(QueueType& queue, ArrayIterator iterator);
+
+    /// @brief Conversion operator to ConstInterator type
+    operator ConstIterator() const;
+};
+
 
 /// @brief behaviour traits to enforce double ended queue functionality
 /// for BasicStaticQueue.
@@ -1177,8 +1430,7 @@ BasicStaticQueueBase<T, TSize>::clbegin() const
         return invalidIter();
     }
 
-    auto reinterpretArrayPtr =
-        reinterpret_cast<const ValueTypeArray*>(&array_);
+    auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&array_);
     return reinterpretArrayPtr->cbegin() + startIdx_;
 }
 
@@ -1403,9 +1655,7 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
            isInRangeFunc(pos, rangeTwo));
 
     if (isInRangeFunc(pos, rangeOne)) {
-        for (auto toIter = pos; toIter != rangeOne.first; --toIter) {
-            *toIter = std::move(*(toIter - 1));
-        }
+        std::move_backward(rangeOne.first, pos, pos + 1);
 
         popFront();
         if (!isEmpty()) {
@@ -1416,9 +1666,7 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
     }
 
     if (isInRangeFunc(pos, rangeTwo)) {
-        for (auto toIter = pos; toIter != rangeTwo.second - 1; ++toIter) {
-            *toIter = std::move(*(toIter + 1));
-        }
+        std::move(pos + 1, rangeTwo.second, pos);
         popBack();
         if (!isLinearised()) {
             return pos;
@@ -1428,6 +1676,52 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
 
     GASSERT(!"Invalid iterator is used");
     return invalidIter();
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::Iterator
+BasicStaticQueueBase<T, TSize>::begin()
+{
+    auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
+    return Iterator(*this, reinterpretArrayPtr->begin());
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::ConstIterator
+BasicStaticQueueBase<T, TSize>::begin() const
+{
+    return cbegin();
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::ConstIterator
+BasicStaticQueueBase<T, TSize>::cbegin() const
+{
+    auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&array_);
+    return ConstIterator(*this, reinterpretArrayPtr->cbegin());
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::Iterator
+BasicStaticQueueBase<T, TSize>::end()
+{
+    auto reinterpretArrayPtr = reinterpret_cast<ValueTypeArray*>(&array_);
+    return Iterator(*this, reinterpretArrayPtr->begin() + size());
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::ConstIterator
+BasicStaticQueueBase<T, TSize>::end() const
+{
+    return cend();
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::ConstIterator
+BasicStaticQueueBase<T, TSize>::cend() const
+{
+    auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&array_);
+    return ConstIterator(*this, reinterpretArrayPtr->cbegin() + size());
 }
 
 template <typename T, std::size_t TSize>
@@ -1514,9 +1808,7 @@ BasicStaticQueueBase<T, TSize>::insertNotFull(LinearisedIterator pos, U&& value)
     if (isInRangeFunc(pos, rangeOne)) {
         auto firstElem = std::move(front());
 
-        for (auto toIter = rangeOne.first; toIter != pos; ++toIter) {
-            *toIter = std::move(*(toIter + 1));
-        }
+        std::move(rangeOne.first + 1, pos, rangeOne.first);
         *pos = std::forward<U>(value);
         pushFrontNotFull(std::move(firstElem));
         return pos;
@@ -1524,10 +1816,7 @@ BasicStaticQueueBase<T, TSize>::insertNotFull(LinearisedIterator pos, U&& value)
 
     if (isInRangeFunc(pos, rangeTwo)) {
         auto lastElem = std::move(back());
-
-        for (auto toIter = rangeTwo.second - 1; toIter != pos; --toIter) {
-            *toIter = std::move(*(toIter - 1));
-        }
+        std::move_backward(pos, rangeTwo.second - 1, rangeTwo.second);
         *pos = std::forward<U>(value);
         pushBackNotFull(std::move(lastElem));
         return pos;
@@ -1755,6 +2044,226 @@ BasicStaticQueue<T, TSize, TTraits>::insert(
 
     return Base::insertNotFull(pos, std::forward<U>(value));
 }
+
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>&
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator=(
+    const IteratorBase& other)
+{
+    GASSERT(&queue_ == &other.queue_);
+    iterator_ = other.iterator_; // No need to check for self assignment
+    return *this;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>&
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator++()
+{
+    ++iterator_;
+    return *this;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator++(int)
+{
+    IteratorBase copy(*this);
+    ++iterator_;
+    return std::move(copy);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>&
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator--()
+{
+    --iterator_;
+    return *this;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator--(int)
+{
+    IteratorBase copy(*this);
+    --iterator_;
+    return std::move(copy);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>&
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator+=(
+    DifferenceType value)
+{
+    iterator_ += value;
+    return *this;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>&
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator-=(
+    DifferenceType value)
+{
+    iterator_ -= value;
+    return *this;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator+(
+    DifferenceType value) const
+{
+    IteratorBase copy(*this);
+    copy += value;
+    return std::move(copy);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator-(
+    DifferenceType value) const
+{
+    IteratorBase copy(*this);
+    copy -= value;
+    return std::move(copy);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>::DifferenceType
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator-(
+    const IteratorBase& other) const
+{
+    return iterator_ - other.iterator_;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator==(
+    const IteratorBase& other) const
+{
+    return (iterator_ == other.iterator_);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator!=(
+    const IteratorBase& other) const
+{
+    return (iterator_ != other.iterator_);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator<(
+    const IteratorBase& other) const
+{
+    return iterator_ < other.iterator_;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator<=(
+    const IteratorBase& other) const
+{
+    return iterator_ <= other.iterator_;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator>(
+    const IteratorBase& other) const
+{
+    return iterator_ > other.iterator_;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+bool BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator>=(
+    const IteratorBase& other) const
+{
+    return iterator_ >= other.iterator_;
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>::Reference
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator*()
+{
+    auto& constThisRef = static_cast<const IteratorBase&>(*this);
+    auto& constRef = *constThisRef;
+    return const_cast<Reference>(constRef);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>::ConstReference
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator*() const
+{
+    auto reinterpretArrayPtr = reinterpret_cast<const ValueTypeArray*>(&queue_.array_);
+    auto queueArrayBegin = reinterpretArrayPtr->begin();
+    auto idx = iterator_ - queueArrayBegin;
+    GASSERT(0 <= idx);
+    return queue_[static_cast<std::size_t>(idx)];
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>::Pointer
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator->()
+{
+    return &(*(*this));
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+typename BasicStaticQueueBase<T, TSize>::template IteratorBase<TDerived, TQueueType>::ConstPointer
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator->() const
+{
+    return &(*(*this));
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::IteratorBase(
+    QueueType& queue,
+    ArrayIterator iterator)
+    : queue_(queue),
+      iterator_(iterator)
+{
+}
+
+template <typename T, std::size_t TSize>
+BasicStaticQueueBase<T, TSize>::ConstIterator::ConstIterator(
+    QueueType& queue,
+    ArrayIterator iterator)
+    : Base(queue, iterator)
+{
+}
+
+template <typename T, std::size_t TSize>
+BasicStaticQueueBase<T, TSize>::Iterator::Iterator(
+    QueueType& queue,
+    ArrayIterator iterator)
+    : Base(queue, iterator)
+{
+}
+
+template <typename T, std::size_t TSize>
+BasicStaticQueueBase<T, TSize>::Iterator::operator ConstIterator() const
+{
+    return ConstIterator(Base::queue_, Base::iterator_);
+}
+
 
 }  // namespace container
 

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
+#include <iterator>
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/assert/CxxTestAssert.h"
@@ -43,6 +44,7 @@ public:
     void testResize();
     void testInsert();
     void testErase();
+    void testNonLinearisedIteration();
 
 private:
 
@@ -125,6 +127,10 @@ private:
     template <typename TQueue>
     static
     void internalTestErase();
+
+    template <typename TQueue>
+    static
+    void internalTestNonLinearisedIteration();
 
 };
 
@@ -237,6 +243,16 @@ void StaticQueueTestSuite::testErase()
 
     typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
     internalTestErase<Buffer>();
+}
+
+void StaticQueueTestSuite::testNonLinearisedIteration()
+{
+    const std::size_t QueueSize = 13U;
+    typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
+    internalTestNonLinearisedIteration<Queue>();
+
+    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
+    internalTestNonLinearisedIteration<Buffer>();
 }
 
 template <typename TQueue>
@@ -933,7 +949,6 @@ void StaticQueueTestSuite::internalTestErase()
     eraseIter = eraseRange.second - 1;
     auto eraseCount = eraseRange.second - eraseRange.first;
     for (int i = 0; i < eraseCount; ++i) {
-        TS_TRACE(i);
         queue.erase(eraseIter);
     }
 
@@ -974,3 +989,97 @@ void StaticQueueTestSuite::internalTestErase()
     TS_ASSERT(std::equal(queue2.lbegin(), queue2.lend(), queue.arrayTwo().first));
 }
 
+template <typename TQueue>
+void StaticQueueTestSuite::internalTestNonLinearisedIteration()
+{
+    typedef TQueue Queue;
+    typedef typename Queue::ValueType ValueType;
+    typedef typename Queue::Reference Reference;
+    typedef typename Queue::ConstReference ConstReference;
+    TQueue queue;
+    TS_ASSERT(queue.isEmpty());
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    while ((queue.capacity() / 2) < queue.size()) {
+        queue.popFront();
+    }
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    TS_ASSERT(!queue.isLinearised());
+    auto beginIter = queue.begin();
+    auto endIter = queue.end();
+    auto distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    auto constBeginIter = queue.cbegin();
+    auto constEndIter = queue.cend();
+    auto constDistance = std::distance(constBeginIter, constEndIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(constDistance), queue.size());
+
+    queue.popFront();
+    queue.popBack();
+    beginIter = queue.begin();
+    endIter = queue.end();
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    decltype(beginIter) beginIter2(beginIter);
+    decltype(endIter) endIter2(endIter);
+    distance = std::distance(beginIter2, endIter2);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    ++beginIter;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 1);
+
+    beginIter++;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 2);
+
+    --beginIter;
+    beginIter--;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    endIter -= 3;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 3);
+
+    endIter += 3;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    auto beginIter3 = beginIter + 2;
+    auto endIter3 = endIter - 3;
+    distance = std::distance(beginIter3, endIter3);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 5);
+
+    std::for_each(beginIter, endIter,
+        [](ConstReference elem)
+        {
+            ValueType copy(elem);
+            static_cast<void>(copy);
+        });
+
+
+    for (auto iter = queue.begin(); iter != queue.end(); ++iter) {
+        TS_ASSERT(iter->isValid());
+    }
+
+    constBeginIter = queue.begin();
+    constEndIter = queue.end();
+
+    std::for_each(constBeginIter, constEndIter,
+        [](ConstReference elem)
+        {
+            ValueType copy(elem);
+            static_cast<void>(copy);
+        });
+
+}

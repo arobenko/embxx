@@ -37,15 +37,15 @@ TestObject::TestObject()
       floatPart_(new FloatPart)
 {
     ++objectCount_;
-    TS_TRACE((std::string("Created new object, count = ") +
-        std::to_string(objectCount_)).c_str());
+//    TS_TRACE((std::string("Created new object, count = ") +
+//        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::~TestObject()
 {
     --objectCount_;
-    TS_TRACE((std::string("Destructing object, count = ") +
-        std::to_string(objectCount_)).c_str());
+//    TS_TRACE((std::string("Destructing object, count = ") +
+//        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::TestObject(const TestObject& obj)
@@ -57,8 +57,8 @@ TestObject::TestObject(const TestObject& obj)
 {
     ++copyConstructCount_;
     ++objectCount_;
-    TS_TRACE((std::string("Copy constructing object, count = ") +
-        std::to_string(objectCount_)).c_str());
+//    TS_TRACE((std::string("Copy constructing object, count = ") +
+//        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::TestObject(TestObject&& obj)
@@ -70,8 +70,8 @@ TestObject::TestObject(TestObject&& obj)
 {
     ++moveConstructCount_;
     ++objectCount_;
-    TS_TRACE((std::string("Move constructing object, count = ") +
-        std::to_string(objectCount_)).c_str());
+//    TS_TRACE((std::string("Move constructing object, count = ") +
+//        std::to_string(objectCount_)).c_str());
 }
 
 TestObject&
