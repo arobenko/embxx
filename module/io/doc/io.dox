@@ -3,6 +3,7 @@
 /// io module contains following functionalities:
 /// @li @ref io_iosimple_page
 /// @li @ref io_write_queue_page
+/// @li @ref io_out_stream_buf_page
 
 /// @namespace embxx::io
 /// @ingroup io

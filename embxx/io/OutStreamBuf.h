@@ -30,82 +30,195 @@ namespace embxx
 namespace io
 {
 
+/// @addtogroup io
+/// @{
+
+/// @brief Output Stream Buffer
+/// @details This class implements functionality of output stream buffer
+///          without use of dynamic memory allocation, RTTI and/or exceptions.
+/// @tparam TDriver Class of the driver (such as embxx::driver::Character), it
+///         must provide the following API functions and types:
+///         @code
+///         // Character type
+///         typedef ... CharType;
+///
+///         // Asynchronous write request
+///         template <typename TFunc>
+///         void asyncWrite(const CharType* buf, std::size_t size, TFunc&& func);
+///
+///         // Get reference to event loop object
+///         EventLoop& eventLoop();
+///         @endcode
+/// @tparam TBufSize Size of the internal buffer in number of characters it
+///         may contain.
+/// @tparam TWaitHandler Callback functor class to be called when requested
+///         space becomes available. Must be either
+///         std::function or embxx::util::StaticFunction and have
+///         "void ()" signature. It is used to store callback handler provided
+///         in asyncWaitAvailableCapacity() request.
+/// @headerfile embxx/io/OutStreamBuf.h
 template <typename TDriver,
           std::size_t TBufSize,
           typename TWaitHandler = embxx::util::StaticFunction<void ()> >
 class OutStreamBuf
 {
 public:
+    /// @brief Type of the driver
     typedef TDriver Driver;
+
+    /// @brief Type of single character
     typedef typename Driver::CharType CharType;
+
+    /// @brief Size of the internal buffer
     static const std::size_t BufSize = TBufSize;
+
+    /// @brief Type of the wait handler
     typedef TWaitHandler WaitHandler;
 
+    /// @brief Type of the internal circular buffer
     typedef embxx::container::StaticQueue<CharType, BufSize> Buffer;
 
+    /// @brief Type of the iterator
     typedef typename Buffer::Iterator Iterator;
+
+    /// @brief Same as Iterator
     typedef Iterator iterator;
+
+    /// @brief Type of const Iterator
     typedef typename Buffer::ConstIterator ConstIterator;
+
+    /// @brief Same as ConstIterator
     typedef ConstIterator const_iterator;
+
+    /// @brief Type of values (characters) storred in internal buffer
     typedef typename Buffer::ValueType ValueType;
+
+    /// @brief Same as ValueType
     typedef ValueType value_type;
+
+    /// @brief Reference type
     typedef typename Buffer::Reference Reference;
+
+    /// @brief Same as Reference
     typedef Reference reference;
+
+    /// @brief Const reference type
     typedef typename Buffer::ConstReference ConstReference;
+
+    /// @brief Same as ConstReference
     typedef ConstReference const_reference;
 
+    /// @brief Constructor
+    /// @param driver Reference to driver object
+    explicit OutStreamBuf(Driver& driver);
 
-    OutStreamBuf(Driver& driver);
+    /// @brief Destructor
     ~OutStreamBuf();
 
+    /// @brief Copy constructor is default
     OutStreamBuf(const OutStreamBuf&) = default;
 
+    /// @brief Copy assignment operator is deleted
     OutStreamBuf& operator=(const OutStreamBuf&) = delete;
 
+    /// @brief Get reference to the driver object.
     Driver& driver();
 
+    /// @brief Const version of driver()
     const Driver& driver() const;
 
+    /// @brief Get size of modifiable section in the internal buffer
     std::size_t size() const;
 
+    /// @brief Get current available space in the buffer until it becomes full.
     std::size_t availableCapacity() const;
 
+    /// @brief Get full capacity of the buffer
+    /// @details Equals to TSizeBuf template parameter of the class
     constexpr std::size_t fullCapacity() const;
 
+    /// @brief Resize available for modification part of the buffer
     std::size_t resize(std::size_t newSize);
 
+    /// @brief Flush the contents of the buffer to be written to the device.
+    /// @param flushSize Number of characters from the "modifiable" part of the
+    ///        buffer to be flushed to the device.
+    /// @pre flushSize must be less or equal to the value returned by size()
+    ///      prior to this function call.
+    /// @post The "flushed" part of the buffer becomes unaccessible via
+    ///       operator[], begin(), end() functions.
+    /// @post The "flushed" part of the buffer mustn't be modified by any
+    ///       external means until the write is complete.
     void flush(std::size_t flushSize);
 
+    /// @brief Flush the whole buffer.
+    /// @details Equivalent to flash(size()).
     void flush();
 
+    /// @brief Push back "C" (0-terminated) string
+    /// @details The final 0 is not pushed.
+    /// @param str 0 terminated string
+    /// @return Number of characters written, may be less than length of the
+    ///         string (in case the internal buffer becomes full).
     std::size_t pushBack(const CharType* str);
 
+    /// @copydoc pushBack(const CharType*)
     std::size_t push_back(const CharType* str);
 
+    /// @brief Push back buffer of characters.
+    /// @param str Pointer to buffer of characters
+    /// @param strSize Size of the buffer
+    /// @return Number of characters written, may be less than strSize parameter
+    ///         (in case the internal buffer becomes full).
     std::size_t pushBack(const CharType* str, std::size_t strSize);
 
+    /// @copydoc pushBack(const CharType*, std::size_t)
     std::size_t push_back(const CharType* str, std::size_t strSize);
 
+    /// @brief Push back single character.
+    /// @param ch Character
+    /// @return 1 in case of success, 0 in case internal buffer is full
     std::size_t pushBack(CharType ch);
 
+    /// @copydoc pushBack(CharType)
     std::size_t push_back(CharType ch);
 
+    /// @brief Returns iterator to the beginning of "modifiable" (not flushed)
+    ///        section in the buffer.
     Iterator begin();
 
+    /// @brief Returns iterator to the end of "modifiable" (not flushed)
+    ///        section of the buffer
     Iterator end();
 
+    /// @brief Same as cbegin()
     ConstIterator begin() const;
 
+    /// @brief Same as cend()
     ConstIterator end() const;
 
+    /// @brief Const version of begin()
     ConstIterator cbegin() const;
 
+    /// @brief Const version of end()
     ConstIterator cend() const;
 
+    /// @brief Operator to access element in the "modifiable" (not flushed)
+    ///        section of the buffer.
+    /// @param idx Index of the element.
     Reference operator[](std::size_t idx);
 
+    /// @brief Const version of operator[]
     ConstReference operator[](std::size_t idx) const;
 
+    /// @brief Asynchronous wait until requested capacity of the internal
+    ///        buffer becomes available.
+    /// @details The function records copies the callback object to its internal
+    ///          data structures and returns immediatelly. The callback will
+    ///          be called in the context of the event loop when requested
+    ///          size becomes available.
+    /// @param capacity Requested capacity.
+    /// @param func Callback functor object, must have "void ()" signature.
     template <typename TFunc>
     void asyncWaitAvailableCapacity(
         std::size_t capacity,
@@ -121,6 +234,8 @@ private:
     std::size_t waitAvailableCapacity_;
     WaitHandler waitHandler_;
 };
+
+/// @}
 
 // Implementation
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>

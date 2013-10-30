@@ -56,7 +56,7 @@ namespace io
 ///         See embxx::driver::Character for reference.
 /// @tparam TSize Maximal size of the queue in terms of number of outstanding
 ///         write requests.
-/// @tparam THandler Handler class. Must be either std::function of
+/// @tparam THandler Handler class. Must be either std::function or
 ///         embxx::util::StaticFunction and have
 ///         "void (embxx::driver::ErrorStatus, std::size_t)" signature.
 template <typename TDriver,
