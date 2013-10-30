@@ -345,7 +345,7 @@ template <std::size_t TSize,
           typename TCond>
 template <typename TTask>
 EventLoop<TSize, TLock, TCond>::TaskBound<TTask>::TaskBound(TTask&& task)
-    : task_(task)
+    : task_(std::forward<TTask>(task))
 {
 }
 

@@ -178,7 +178,7 @@ public:
     /// @return Unsigned value, capacity of the queue.
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw.
-    inline std::size_t capacity() const;
+    inline constexpr std::size_t capacity() const;
 
     /// @brief Returns whether the queue is empty.
     /// @return Returns true if and only if (size() == 0U) is true,
@@ -919,6 +919,9 @@ class BasicStaticQueueBase<T, TSize>::IteratorBase
 {
 public:
 
+    /// @brief Actual iterator class
+    typedef TDerived Derived;
+
     /// @brief Type of the queue
     typedef TQueueType QueueType;
 
@@ -1041,6 +1044,12 @@ public:
 
     /// @brief Const version of operator->
     ConstPointer operator->() const;
+
+    /// @brief Downcasting operator
+    operator TDerived&();
+
+    /// @brief Const downcasting operator
+    operator const TDerived&() const;
 
 protected:
 
@@ -1184,7 +1193,7 @@ std::size_t BasicStaticQueueBase<T, TSize>::size() const
 
 template <typename T, std::size_t TSize>
 inline
-std::size_t BasicStaticQueueBase<T, TSize>::capacity() const
+constexpr std::size_t BasicStaticQueueBase<T, TSize>::capacity() const
 {
     return TSize;
 }
@@ -2223,6 +2232,21 @@ BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator->()
 {
     return &(*(*this));
 }
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator TDerived&()
+{
+    return static_cast<TDerived&>(*this);
+}
+
+template <typename T, std::size_t TSize>
+template <typename TDerived, typename TQueueType>
+BasicStaticQueueBase<T, TSize>::IteratorBase<TDerived, TQueueType>::operator const TDerived&() const
+{
+    return static_cast<const TDerived&>(*this);
+}
+
 
 template <typename T, std::size_t TSize>
 template <typename TDerived, typename TQueueType>

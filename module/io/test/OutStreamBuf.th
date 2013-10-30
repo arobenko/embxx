@@ -1,0 +1,177 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#include <algorithm>
+#include <iterator>
+#include <string>
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/driver/Character.h"
+#include "embxx/io/OutStreamBuf.h"
+#include "cxxtest/TestSuite.h"
+
+#include "module/driver/test/CommonEventLoopDefs.h"
+#include "module/driver/test/CharDevice.h"
+
+class OutStreamBufTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+
+private:
+    template <typename TBuf>
+    static void stringPushFunc(
+        TBuf& buf,
+        std::size_t count,
+        const std::size_t maxCount,
+        const std::string& str)
+    {
+        if (buf.availableCapacity() < str.size()) {
+            buf.asyncWaitAvailableCapacity(
+                str.size(),
+                std::bind(&stringPushFunc<TBuf>, std::ref(buf), count, maxCount, std::cref(str)));
+            return;
+        }
+
+        auto pushSize = buf.pushBack(str.c_str());
+        TS_ASSERT_EQUALS(pushSize, str.size());
+        buf.flush();
+        count += pushSize;
+
+        if (maxCount <= count) {
+            buf.asyncWaitAvailableCapacity(
+                buf.fullCapacity(),
+                [&buf]()
+                {
+                    buf.driver().eventLoop().stop();
+                });
+            return;
+        }
+
+        stringPushFunc<TBuf>(buf, count, maxCount, str);
+    }
+};
+
+void OutStreamBufTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+
+    device.setOpDelay(2);
+    device.start();
+
+    static const std::string WriteString1("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    std::copy(WriteString1.begin(), WriteString1.end(), std::back_inserter(buf));
+    buf.flush();
+
+    static const std::string WriteString2("abcdefghijklmnopqrstuvwxyz");
+    std::copy(WriteString2.begin(), WriteString2.end(), std::back_inserter(buf));
+    buf.flush();
+
+    TS_ASSERT_LESS_THAN(buf.availableCapacity(), buf.fullCapacity());
+
+    buf.asyncWaitAvailableCapacity(
+        buf.fullCapacity(),
+        [&el]()
+        {
+            el.stop();
+        });
+
+    el.run();
+    device.stop();
+    TS_ASSERT_EQUALS(WriteString1 + WriteString2, device.getWriteString());
+}
+
+void OutStreamBufTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+
+    device.setOpDelay(2);
+    device.start();
+
+    static const std::string WriteString1("String1");
+    std::copy(WriteString1.begin(), WriteString1.end(), std::back_inserter(buf));
+    buf.flush();
+
+    static const std::string WriteString2("String2");
+    std::copy(WriteString2.begin(), WriteString2.end(), std::back_inserter(buf));
+    TS_ASSERT_EQUALS(buf.size(), WriteString2.size());
+
+    static const std::string WriteString3("sTRING3");
+    TS_ASSERT_EQUALS(WriteString2.size(), WriteString3.size());
+    std::copy(WriteString3.begin(), WriteString3.end(), buf.begin()); // overwrite
+
+    buf.flush();
+
+    TS_ASSERT_EQUALS(buf.size(), 0U);
+    TS_ASSERT_LESS_THAN(buf.availableCapacity(), buf.fullCapacity());
+
+    buf.asyncWaitAvailableCapacity(
+        buf.fullCapacity(),
+        [&el]()
+        {
+            el.stop();
+        });
+
+    el.run();
+    device.stop();
+    TS_ASSERT_EQUALS(WriteString1 + WriteString3, device.getWriteString());
+}
+
+void OutStreamBufTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<
+        Driver,
+        501,
+        embxx::util::StaticFunction<void (), 24> > OutStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+
+    device.setOpDelay(2);
+    device.start();
+
+    std::string str;
+    for (auto i = 0U; i < ((buf.fullCapacity() / 3) - 1); ++i) {
+        str += 'a';
+    }
+
+    static const std::size_t MaxCount = buf.fullCapacity() * 1.5;
+    stringPushFunc(buf, 0, MaxCount, str);
+    el.run();
+    device.stop();
+    TS_ASSERT_EQUALS(((MaxCount / str.size()) + 1) * str.size(), device.getWriteString().size());
+}
