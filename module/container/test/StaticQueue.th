@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <iterator>
+#include <queue>
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/assert/CxxTestAssert.h"
@@ -45,6 +46,8 @@ public:
     void testInsert();
     void testErase();
     void testNonLinearisedIteration();
+    void testBackInserter();
+    void testPriorityQueue();
 
 private:
 
@@ -132,6 +135,9 @@ private:
     static
     void internalTestNonLinearisedIteration();
 
+    template <typename TQueue>
+    static
+    void internalTestBackInserter();
 };
 
 void StaticQueueTestSuite::testQueueCreation()
@@ -253,6 +259,66 @@ void StaticQueueTestSuite::testNonLinearisedIteration()
 
     typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
     internalTestNonLinearisedIteration<Buffer>();
+}
+
+void StaticQueueTestSuite::testBackInserter()
+{
+    const std::size_t QueueSize = 13U;
+    typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
+    internalTestNonLinearisedIteration<Queue>();
+
+    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
+    internalTestNonLinearisedIteration<Buffer>();
+}
+
+void StaticQueueTestSuite::testPriorityQueue()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef std::priority_queue<typename Queue::ValueType, Queue> PriorityQueue;
+
+    PriorityQueue queue;
+    for (unsigned i = MaxQueueSize; i > 0; --i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.top(), MaxQueueSize);
+    while (!queue.empty()) {
+        TS_ASSERT_EQUALS(queue.top(), queue.size());
+        queue.pop();
+    }
+
+    queue.push(10);
+    queue.push(100);
+    queue.push(1);
+    queue.push(5);
+    queue.push(3);
+
+    TS_ASSERT_EQUALS(queue.top(), 100);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 10);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 5);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 3);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 1);
+    queue.pop();
+    TS_ASSERT(queue.empty());
+
+    for (unsigned i = 0; i < MaxQueueSize; ++i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.size(), MaxQueueSize);
+
+    PriorityQueue queue2;
+    TS_ASSERT(queue2.empty());
+
+    queue2.swap(queue);
+    TS_ASSERT_EQUALS(queue2.size(), MaxQueueSize);
+    TS_ASSERT(queue.empty());
+
 }
 
 template <typename TQueue>
@@ -1082,4 +1148,31 @@ void StaticQueueTestSuite::internalTestNonLinearisedIteration()
             static_cast<void>(copy);
         });
 
+}
+
+template <typename TQueue>
+void StaticQueueTestSuite::internalTestBackInserter()
+{
+    typedef TQueue Queue;
+    typedef typename Queue::ValueType ValueType;
+    Queue queue;
+    TS_ASSERT(queue.isEmpty());
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    while ((queue.capacity() / 2) < queue.size()) {
+        queue.popFront();
+    }
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    Queue queue2;
+    std::copy(queue.begin(), queue.end(), std::back_inserter(queue2));
+    TS_ASSERT(queue2.isLinearised());
+    TS_ASSERT_EQUALS(queue.size(), queue2.size());
+    TS_ASSERT(std::equal(queue.begin(), queue.end(), queue2.begin()));
 }

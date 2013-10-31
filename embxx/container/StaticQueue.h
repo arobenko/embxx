@@ -82,20 +82,38 @@ public:
     /// @brief Type of the stored elements.
     typedef T ValueType;
 
+    /// @brief Same as ValueType
+    typedef ValueType value_type;
+
     /// @brief Size type.
     typedef std::size_t SizeType;
+
+    /// @brief Same as SizeType
+    typedef SizeType size_type;
 
     /// @brief Reference type to the stored elements.
     typedef ValueType& Reference;
 
+    /// @brief Same as Reference
+    typedef Reference reference;
+
     /// @brief Const reference type to the stored elements.
     typedef const ValueType& ConstReference;
+
+    /// @brief Same as ConstReference;
+    typedef ConstReference const_reference;
 
     /// @brief Pointer type to the stored elements.
     typedef ValueType* Pointer;
 
+    /// @brief Same as Pointer
+    typedef Pointer pointer;
+
     /// @brief Const pointer type to the stored elements.
     typedef const ValueType* ConstPointer;
+
+    /// @brief Same as ConstPointer
+    typedef ConstPointer const_pointer;
 
     /// @brief Internal array type to store the elements.
     typedef std::array<ValueType, TSize> ValueTypeArray;
@@ -121,8 +139,14 @@ public:
     // Const iterator class
     class ConstIterator;
 
+    /// @brief Same as ConstIterator
+    typedef ConstIterator const_iterator;
+
     // Iterator class
     class Iterator;
+
+    /// @brief Same as Iterator
+    typedef Iterator iterator;
 
     // Member functions
 
@@ -187,6 +211,9 @@ public:
     /// @note Exception guarantee: No throw.
     inline bool isEmpty() const;
 
+    /// @brief Same as isEmpty()
+    inline bool empty() const;
+
     /// @brief Returns whether the queue is full.
     /// @return Returns true if and only if (size() == capacity()) is true,
     ///         false otherwise.
@@ -210,6 +237,9 @@ public:
     ///       popped element doesn't throw. Basic guarantee otherwise.
     void popBack();
 
+    /// @brief Same as popBack()
+    inline void pop_back();
+
     /// @brief Pop number of the elements from the back of the queue.
     /// @details The destructors of the popped elements are called. In case the
     ///          queue is or gets empty in the process, no exception is
@@ -220,6 +250,9 @@ public:
     ///       popped element doesn't throw. Basic guarantee otherwise.
     void popBack(std::size_t count);
 
+    /// @brief Same as popBack(std::size_t)
+    inline void pop_back(std::size_t count);
+
     /// @brief Pop the element from the front of the queue.
     /// @details The destructor of the popped element is called. In case the
     ///          queue is empty, the request is ignored - no exception is
@@ -228,6 +261,9 @@ public:
     /// @note Exception guarantee: No throw in case the destructor of the
     ///       popped element doesn't throw. Basic guarantee otherwise.
     void popFront();
+
+    /// @brief Same as popFront()
+    inline void pop_front();
 
     /// @brief Pop number of the elements from the front of the queue.
     /// @details The destructors of the popped elements are called. In case the
@@ -238,6 +274,9 @@ public:
     /// @note Exception guarantee: No throw in case the destructor of the
     ///       popped element doesn't throw. Basic guarantee otherwise.
     void popFront(std::size_t count);
+
+    /// @brief Same as popFront(std::size_t)
+    inline void pop_front(std::size_t count);
 
     /// @brief Provides reference to the front element.
     /// @return Reference to the front element.
@@ -827,8 +866,14 @@ public:
     ///       of the stored elements doesn't throw. Basic guarantee otherwise.
     void pushBack(ConstReference value);
 
+    /// @brief Same as pushBack(ConstReference)
+    inline void push_back(ConstReference value);
+
     /// @brief R-value version of pushBack().
     void pushBack(ValueType&& value);
+
+    /// @brief Same as pushBack(ValueType&&)
+    inline void push_back(ValueType&& value);
 
     /// @brief Add new element to the front of the queue.
     /// @details Uses copy constructor to copy the provided element.
@@ -843,8 +888,14 @@ public:
     ///       of the stored elements doesn't throw. Basic guarantee otherwise.
     void pushFront(ConstReference value);
 
+    /// @brief Same as pushFront(ConstReference)
+    inline void push_front(ConstReference value);
+
     /// @brief R-value version of pushFront().
     void pushFront(ValueType&& value);
+
+    /// @brief Same as pushFront(ValueType&&)
+    inline void push_front(ValueType&& value);
 
     /// @brief Insert new element at specified position.
     /// @details In case the queue is full, the insertion behaviour depends
@@ -1207,6 +1258,13 @@ bool BasicStaticQueueBase<T, TSize>::isEmpty() const
 
 template <typename T, std::size_t TSize>
 inline
+bool BasicStaticQueueBase<T, TSize>::empty() const
+{
+    return isEmpty();
+}
+
+template <typename T, std::size_t TSize>
+inline
 bool BasicStaticQueueBase<T, TSize>::isFull() const
 {
     return (count_ >= capacity());
@@ -1237,6 +1295,13 @@ void BasicStaticQueueBase<T, TSize>::popBack()
 }
 
 template <typename T, std::size_t TSize>
+inline
+void BasicStaticQueueBase<T, TSize>::pop_back()
+{
+    popBack();
+}
+
+template <typename T, std::size_t TSize>
 void BasicStaticQueueBase<T, TSize>::popBack(std::size_t count)
 {
     std::size_t countTmp = count;
@@ -1244,6 +1309,13 @@ void BasicStaticQueueBase<T, TSize>::popBack(std::size_t count)
         popBack();
         --countTmp;
     }
+}
+
+template <typename T, std::size_t TSize>
+inline
+void BasicStaticQueueBase<T, TSize>::pop_back(std::size_t count)
+{
+    popBack(count);
 }
 
 template <typename T, std::size_t TSize>
@@ -1268,6 +1340,13 @@ void BasicStaticQueueBase<T, TSize>::popFront()
 }
 
 template <typename T, std::size_t TSize>
+inline
+void BasicStaticQueueBase<T, TSize>::pop_front()
+{
+    popFront();
+}
+
+template <typename T, std::size_t TSize>
 void BasicStaticQueueBase<T, TSize>::popFront(std::size_t count)
 {
     std::size_t countTmp = count;
@@ -1275,6 +1354,13 @@ void BasicStaticQueueBase<T, TSize>::popFront(std::size_t count)
         popFront();
         --countTmp;
     }
+}
+
+template <typename T, std::size_t TSize>
+inline
+void BasicStaticQueueBase<T, TSize>::pop_front(std::size_t count)
+{
+    popFront(count);
 }
 
 template <typename T, std::size_t TSize>
@@ -1926,9 +2012,23 @@ void BasicStaticQueue<T, TSize, TTraits>::pushBack(ConstReference value)
 }
 
 template <typename T, std::size_t TSize, typename TTraits>
+inline
+void BasicStaticQueue<T, TSize, TTraits>::push_back(ConstReference value)
+{
+    pushBack(value);
+}
+
+template <typename T, std::size_t TSize, typename TTraits>
 void BasicStaticQueue<T, TSize, TTraits>::pushBack(ValueType&& value)
 {
     pushBack(std::move(value), typename TTraits::OverflowBehaviour());
+}
+
+template <typename T, std::size_t TSize, typename TTraits>
+inline
+void BasicStaticQueue<T, TSize, TTraits>::push_back(ValueType&& value)
+{
+    pushBack(std::move(value));
 }
 
 template <typename T, std::size_t TSize, typename TTraits>
@@ -1938,9 +2038,23 @@ void BasicStaticQueue<T, TSize, TTraits>::pushFront(ConstReference value)
 }
 
 template <typename T, std::size_t TSize, typename TTraits>
+inline
+void BasicStaticQueue<T, TSize, TTraits>::push_front(ConstReference value)
+{
+    pushFront(value);
+}
+
+template <typename T, std::size_t TSize, typename TTraits>
 void BasicStaticQueue<T, TSize, TTraits>::pushFront(ValueType&& value)
 {
     pushFront(std::move(value), typename TTraits::OverflowBehaviour());
+}
+
+template <typename T, std::size_t TSize, typename TTraits>
+inline
+void BasicStaticQueue<T, TSize, TTraits>::push_front(ValueType&& value)
+{
+    pushFront(std::move(value));
 }
 
 template <typename T, std::size_t TSize, typename TTraits>

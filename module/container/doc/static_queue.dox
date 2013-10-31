@@ -26,15 +26,14 @@
 /// @section container_static_queue_stl STL interface.
 /// There are several existing container adapters, such as std::stack or
 /// std::priority_queue that require a container to define some
-/// member functions such as push_back() or pop_front(). StaticQueueStlAdapter 
-/// is a wrapper class that wraps the provided container and exposes API that
-/// is compatible with STL and can be used as any other STL container.
+/// member functions such as push_back() or pop_front(). 
+/// embxx::container::BasicStaticQueue also provides all the necessary typedefs
+/// and wrapper functions to be used with such adapters.
 ///
 /// Usage example:
 /// @code
 /// typedef embxx::container::StaticQueue<...> Queue;
-/// typedef embxx::container::StaticQueueStlAdapter<Queue> AdaptedQueue;
-/// typedef std::priority_queue<typename AdaptedQueue::value_type, AdaptedQueue> PriorityQueue;
+/// typedef std::priority_queue<typename Queue::value_type, Queue> PriorityQueue;
 /// PriorityQueue queue; // Priority queue that internally uses StaticQueue.
 /// @endcode
 ///
