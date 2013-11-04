@@ -60,6 +60,13 @@ public:
                 }));
     }
 
+    ~CharDevice()
+    {
+        if (thread_) {
+            stop();
+        }
+    }
+
     void start() {
         programWait();
     }

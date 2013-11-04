@@ -130,6 +130,14 @@ public:
     /// @brief Get size of modifiable section in the internal buffer
     std::size_t size() const;
 
+    /// @brief Check whether size of the modifiable section is 0.
+    /// @return true if and only if size() == 0.
+    bool empty() const;
+
+    /// @brief Clear modifiable section of the internal buffer
+    /// @post Call to size() returns 0;
+    void clear();
+
     /// @brief Get current available space in the buffer until it becomes full.
     std::size_t availableCapacity() const;
 
@@ -269,6 +277,18 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 std::size_t OutStreamBuf<TDriver, TBufSize, TWaitHandler>::size() const
 {
     return buf_.size() - flushedSize_;
+}
+
+template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
+bool OutStreamBuf<TDriver, TBufSize, TWaitHandler>::empty() const
+{
+    return (size() == 0U);
+}
+
+template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
+void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::clear()
+{
+    buf_.popBack(size());
 }
 
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
