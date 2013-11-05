@@ -15,7 +15,7 @@ int main(int argc, const char* argv[]) {
     static_cast<void>(argc);
     static_cast<void>(argv);
 
-    typedef embxx::util::StreamLogger<log::Warning> SimpleLogger;
+    typedef embxx::util::StreamLogger<log::Warning, std::ostream> SimpleLogger;
 
     SimpleLogger simpleLogger(std::cout);
 
@@ -25,8 +25,9 @@ int main(int argc, const char* argv[]) {
     typedef embxx::util::log::StreamFlushSuffixer<
         embxx::util::log::StreamableValueSuffixer<
             char,
+
             embxx::util::log::LevelStringPrefixer<
-                embxx::util::StreamLogger<log::Debug> > > > ComplexLogger;
+                embxx::util::StreamLogger<log::Debug, std::ostream> > > > ComplexLogger;
 
     ComplexLogger complexLogger('\n', std::cout);
     SLOG(complexLogger, log::Trace, "Not visible formatted string");

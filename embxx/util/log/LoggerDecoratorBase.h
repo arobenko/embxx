@@ -47,8 +47,11 @@ template <typename TNextLayer>
 class LoggerDecoratorBase
 {
 public:
-    /// Type of the next layer
+    /// @brief Type of the next layer
     typedef TNextLayer NextLayer;
+
+    /// @brief Type of the output stream object
+    typedef typename NextLayer::Stream Stream;
 
     /// MinLevel is the same as defined in the next layer
     static const Level MinLevel = TNextLayer::MinLevel;
@@ -64,7 +67,7 @@ public:
     /// @return reference to output stream
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    inline std::ostream& stream();
+    inline Stream& stream();
 
     /// @brief Calls "begin()" member function of the next layer.
     /// @param[in] level requested logging level
@@ -90,7 +93,8 @@ LoggerDecoratorBase<TNextLayer>::LoggerDecoratorBase(TParams&&... params)
 
 template <typename TNextLayer>
 inline
-std::ostream& LoggerDecoratorBase<TNextLayer>::stream()
+typename LoggerDecoratorBase<TNextLayer>::Stream&
+LoggerDecoratorBase<TNextLayer>::stream()
 {
     return nextLayer_.stream();
 }

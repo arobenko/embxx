@@ -19,7 +19,7 @@ typedef
             embxx::util::log::StreamableValueSuffixer<
                 char,
                 embxx::util::log::LevelStringPrefixer<
-                    embxx::util::StreamLogger<embxx::util::log::Debug>
+                    embxx::util::StreamLogger<embxx::util::log::Debug, std::ostream>
                 >
             >
         > NonLockedLogger;

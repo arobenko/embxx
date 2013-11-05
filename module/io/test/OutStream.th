@@ -22,6 +22,7 @@
 
 #include "embxx/util/EventLoop.h"
 #include "embxx/util/SizeToType.h"
+#include "embxx/util/StreamLogger.h"
 #include "embxx/driver/Character.h"
 #include "embxx/io/OutStreamBuf.h"
 #include "embxx/io/OutStream.h"
@@ -43,6 +44,7 @@ public:
     void test8();
     void test9();
     void test10();
+    void test11();
 
 private:
     template <typename T, typename TStream, typename TMod, typename TStdMod>
@@ -257,3 +259,28 @@ void OutStreamTestSuite::test10()
     typedef std::int64_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::dec, std::dec, 0x3fffffffffffL, sizeof(ValueType)*3, '0');
 }
+
+void OutStreamTestSuite::test11()
+{
+    namespace log = embxx::util::log;
+
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+    typedef embxx::util::StreamLogger<log::Trace, OutStream> Logger;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+    Logger logger(stream);
+
+    static const std::string WriteString1("Test string, bla, bla ,bla");
+    static const std::string WriteString2("aaabbbcccddd eeefffggg");
+    SLOG(logger, log::Debug, WriteString1.c_str() << WriteString2.c_str());
+
+    TS_ASSERT_EQUALS(WriteString1 + WriteString2, std::string(buf.begin(), buf.end()));
+}
+
