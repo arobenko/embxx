@@ -1,0 +1,35 @@
+/// @page io_out_stream_page Output Stream
+/// @section io_out_stream_buf_overview Overview
+/// Almost every embedded system requires some kind of logging facility, 
+/// especially during initial stages of the development. The 
+/// embxx::io::OutStream class provides a functionality similar to std::ostream.
+/// The output stream object performs output formatting and pushes all the
+/// characters to the output stream buffer (embxx::io::OutStreamBuf) it uses,
+/// which it turn will forward it to the actual character device.
+///  
+/// @section io_out_stream_tutorial How to use
+/// The output stream depends on the stream buffer ojbect it is going to use:
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// #include "embxx/driver/Character.h"
+/// #include "embxx/io/OutStreamBuf.h"
+/// #include "embxx/io/OutStream.h
+/// 
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// typedef ... Device;
+/// typedef embxx::driver::Character<Device, EventLoop> Driver;
+/// typedef embxx::io::OutStreamBuf<Driver, ...> Buffer;
+/// typedef embxx::io::OutStream<Buffer> LogStream;
+/// EventLoop el;
+/// Driver driver(device, el);
+/// Buffer buf(driver);
+/// LogStream stream(buf);
+/// @endcode
+///
+/// From now on, the usage is very similar to std::ostream object, such as
+/// std::cout:
+/// @code
+/// int counter = ...;
+/// stream << "Counter value is " << embxx::io::dec << counter;
+/// stream << embxx::io::endl; // Appends '\n' and flushes buffer contents to the device 
+/// @endcode
