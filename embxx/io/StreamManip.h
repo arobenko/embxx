@@ -24,24 +24,33 @@ namespace embxx
 namespace io
 {
 
+/// @addtogroup io
+/// @{
+
+/// @brief Type of embxx::io::endl stream manipulator;
 enum Endl
 {
-    endl
+    endl ///< End of line stream manipulator
 };
 
+/// @brief Type of embxx::io::ends stream manipulator;
 enum Ends
 {
-    ends
+    ends ///< End of string stream manipulator
 };
 
+/// @brief Type of numeric base stream manipulator;
 enum Base
 {
-    bin,
-    oct,
-    dec,
-    hex,
-    Base_NumOfBases
+    bin, ///< Binary numeric base stream manipulator
+    oct, ///< Octal numeric base stream manipulator
+    dec, ///< Decimal numeric base stream manipulator
+    hex, ///< Hexadecimal numeric base stream manipulator
+    Base_NumOfBases ///< Must be last
 };
+
+/// @}
+
 
 }  // namespace io
 

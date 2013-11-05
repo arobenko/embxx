@@ -54,7 +54,6 @@ private:
         std::size_t width = 0,
         typename TStream::CharType fill = ' ')
     {
-        typedef typename embxx::util::SizeToType<sizeof(std::uint64_t), std::is_signed<T>::value>::Type ExtType;
         for (T i = std::numeric_limits<T>::min(); i < std::numeric_limits<T>::max() - inc; i += inc) {
             std::stringstream strStream;
 
@@ -67,19 +66,11 @@ private:
             strStream << stdMod;
             stream << mod;
 
-            strStream << static_cast<ExtType>(i);
+            strStream << i;
             stream << i;
 
             auto str = strStream.str();
             auto& buf = stream.streamBuf();
-
-//            TS_TRACE("num=");
-//            TS_TRACE((unsigned)i);
-//            TS_TRACE("str=");
-//            TS_TRACE(str.c_str());
-//            TS_TRACE("buf=");
-//            TS_TRACE(std::string(buf.begin(), buf.end()).c_str());
-
 
             TS_ASSERT_EQUALS(buf.size(), str.size());
             TS_ASSERT_EQUALS(str, std::string(buf.begin(), buf.end()));
@@ -126,7 +117,7 @@ void OutStreamTestSuite::test2()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    typedef OutStream::UnsignedCharType ValueType;
+    typedef std::uint16_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::hex, std::hex);
 }
 
@@ -143,7 +134,7 @@ void OutStreamTestSuite::test3()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    typedef OutStream::UnsignedCharType ValueType;
+    typedef std::uint16_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::oct, std::oct);
 }
 
@@ -160,7 +151,7 @@ void OutStreamTestSuite::test4()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    typedef OutStream::UnsignedCharType ValueType;
+    typedef std::uint16_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::dec, std::dec);
 }
 
@@ -229,7 +220,7 @@ void OutStreamTestSuite::test8()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    typedef std::uint16_t ValueType;
+    typedef std::int16_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::hex, std::hex, 1, sizeof(ValueType) * 2, '0');
 }
 
@@ -246,7 +237,7 @@ void OutStreamTestSuite::test9()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    typedef std::uint16_t ValueType;
+    typedef std::int16_t ValueType;
     checkIteration<ValueType>(stream, embxx::io::dec, std::dec, 1, sizeof(ValueType)*4, '0');
 }
 

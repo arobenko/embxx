@@ -34,56 +34,165 @@ namespace embxx
 namespace io
 {
 
+/// @addtogroup io
+/// @{
+
+/// @brief Output Stream
+/// @details This class is similar to std::ostream, but implements only subset
+///          of standard stream functionality without usage of dynamic memory
+///          allocation, RTTI, or exceptions, which makes it suitable for use
+///          in bare metal platforms with limited amount of memory.
+/// @tparam TStreamBuf Output stream buffer (embxx::io::OutStreamBuf) type
 template <typename TStreamBuf>
 class OutStream
 {
 public:
+    /// @brief Type of stream buffer.
     typedef TStreamBuf StreamBuf;
 
+    /// @brief Character type, provided by the stream buffer.
     typedef typename StreamBuf::CharType CharType;
 
+    /// @brief Unsigned character type
     typedef typename std::make_unsigned<CharType>::type UnsignedCharType;
 
+    /// @brief Constructor
+    /// @param buf Reference to output stream buffer. The buffer must be destructed
+    ///        after the destruction of this stream object.
     explicit OutStream(StreamBuf& buf);
 
+    /// @brief Copy constructor is deleted
+    OutStream(OutStream&) = delete;
+
+    /// @brief Destructor is default
     ~OutStream() = default;
 
+    /// @brief Access the stream buffer object.
     StreamBuf& streamBuf();
 
+    /// @brief Const version of streamBuf().
     const StreamBuf& streamBuf() const;
 
-    void fill(CharType ch);
+    /// @brief Set fill character.
+    /// @param ch Fill character.
+    /// @return Previous fill character
+    CharType fill(CharType ch);
 
-    void width(std::size_t value);
+    /// @brief Returns current fill character.
+    CharType fill() const;
 
+    /// @brief Sets the minimum number of characters to generate on numeric
+    ///        output operations
+    /// @param value New width
+    /// @return The field width before the call to the function.
+    std::size_t width(std::size_t value);
+
+    /// @brief Get the current minimum number of characters to generate on
+    ///        numeric output operations.
+    std::size_t width() const;
+
+    /// @brief Flushes the contents of the stream buffer to the device.
+    /// @details Calls flush() member function of the output stream buffer.
     void flush();
 
+    /// @brief Insert "C" (0 terminated) string into the stream.
+    /// @param str 0-terminated string.
+    /// @return *this
     OutStream& operator<<(const CharType* str);
 
+    /// @brief Insert single character into the stream
+    /// @param ch Single character
+    /// @return *this
     OutStream& operator<<(CharType ch);
 
+    /// @brief Insert unsigned character into the stream.
+    /// @details The character is treated as unsigned number, it is converted
+    ///          to string representation based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
     OutStream& operator<<(UnsignedCharType value);
 
-    OutStream& operator<<(std::int16_t value);
+    /// @brief Insert signed short numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(short value);
 
-    OutStream& operator<<(std::uint16_t value);
+    /// @brief Insert unsigned short numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(unsigned short value);
 
-    OutStream& operator<<(std::int32_t value);
+    /// @brief Insert signed int numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(int value);
 
-    OutStream& operator<<(std::uint32_t value);
+    /// @brief Insert unsigned int numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(unsigned int value);
 
-    OutStream& operator<<(std::int64_t value);
+    /// @brief Insert signed long long numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(long long value);
 
-    OutStream& operator<<(std::uint64_t value);
+    /// @brief Insert unsigned long long numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param value Numeric value
+    /// @return *this
+    OutStream& operator<<(unsigned long long value);
 
+    /// @brief End of line manipulator.
+    /// @details embxx::io::endl is similar to std::endl, it is equivalent to
+    ///          @code
+    ///          stream << '\n';
+    ///          stream.flush();
+    ///          @endcode
+    /// @param manip Must be embxx::io::endl
+    /// @return *this
     OutStream& operator<<(Endl manip);
 
+    /// @brief End of string manipulator.
+    /// @details embxx::io::ends is similar to std::ends, it is equivalent to
+    ///          @code
+    ///          stream << '\0';
+    ///          stream.flush();
+    ///          @endcode
+    /// @param manip Must be embxx::io::ends
+    /// @return *this
     OutStream& operator<<(Ends manip);
 
+    /// @brief Numeric base manipulator.
+    /// @details The base manipulator contains the following values:
+    ///          @li embxx::io::bin - binary format
+    ///          @li embxx::io::oct - octal format, similar to std::oct
+    ///          @li embxx::io::dec - decimal format, similar to std::dec
+    ///          @li embxx::io::hex - hexadecimal format, similar to std::hex
+    /// @param manip Base manipulator
+    /// @return *this
     OutStream& operator<<(Base manip);
 
 private:
-    template <typename T>
+    template <typename T, typename TPromotedUnsigned = typename std::make_unsigned<T>::type>
     OutStream& signedToStream(T value);
 
     template <typename T>
@@ -100,6 +209,8 @@ private:
     std::size_t width_;
     CharType fill_;
 };
+
+/// @}
 
 // Implementation
 template <typename TStreamBuf>
@@ -126,16 +237,35 @@ OutStream<TStreamBuf>::streamBuf() const
 }
 
 template <typename TStreamBuf>
-void OutStream<TStreamBuf>::fill(CharType value)
+typename OutStream<TStreamBuf>::CharType
+OutStream<TStreamBuf>::fill(CharType value)
 {
+    auto cur = fill_;
     fill_ = value;
+    return cur;
 }
 
 template <typename TStreamBuf>
-void OutStream<TStreamBuf>::width(std::size_t value)
+typename OutStream<TStreamBuf>::CharType
+OutStream<TStreamBuf>::fill() const
 {
-    width_ = value;
+    return fill_;
 }
+
+template <typename TStreamBuf>
+std::size_t OutStream<TStreamBuf>::width(std::size_t value)
+{
+    auto cur = width_;
+    width_ = value;
+    return cur;
+}
+
+template <typename TStreamBuf>
+std::size_t OutStream<TStreamBuf>::width() const
+{
+    return width_;
+}
+
 
 template <typename TStreamBuf>
 void OutStream<TStreamBuf>::flush()
@@ -163,61 +293,62 @@ template <typename TStreamBuf>
 OutStream<TStreamBuf>&
 OutStream<TStreamBuf>::operator<<(UnsignedCharType value)
 {
-    return (*this << static_cast<std::uint32_t>(value));
+    return (*this << static_cast<unsigned>(value));
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::int16_t value)
+OutStream<TStreamBuf>::operator<<(short value)
 {
-    return (*this << static_cast<std::int32_t>(value));
+    return signedToStream<short, unsigned>(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::uint16_t value)
+OutStream<TStreamBuf>::operator<<(unsigned short value)
 {
-    return (*this << static_cast<std::uint32_t>(value));
+    return (*this << static_cast<unsigned>(value));
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::int32_t value)
-{
-    return signedToStream(value);
-}
-
-template <typename TStreamBuf>
-OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::uint32_t value)
-{
-    return unsignedToStream(value);
-}
-
-template <typename TStreamBuf>
-OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::int64_t value)
+OutStream<TStreamBuf>::operator<<(int value)
 {
     return signedToStream(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(std::uint64_t value)
+OutStream<TStreamBuf>::operator<<(unsigned int value)
 {
     return unsignedToStream(value);
 }
 
 template <typename TStreamBuf>
-template <typename T>
+OutStream<TStreamBuf>&
+OutStream<TStreamBuf>::operator<<(long long value)
+{
+    return signedToStream(value);
+}
+
+template <typename TStreamBuf>
+OutStream<TStreamBuf>&
+OutStream<TStreamBuf>::operator<<(unsigned long long value)
+{
+    return unsignedToStream(value);
+}
+
+template <typename TStreamBuf>
+template <typename T, typename TPromotedUnsigned>
 OutStream<TStreamBuf>&
 OutStream<TStreamBuf>::signedToStream(T value)
 {
+    typedef typename std::make_unsigned<T>::type UnsignedType;
     if ((0 <= value) || (base_ != dec)) {
-        return (*this << static_cast<std::uint64_t>(value));
+        return (*this << static_cast<UnsignedType>(value));
     }
 
-    itoaDec(static_cast<std::uint64_t>(-value), true);
+    itoaDec(static_cast<TPromotedUnsigned>(static_cast<UnsignedType>(-value)), true);
     return *this;
 }
 
