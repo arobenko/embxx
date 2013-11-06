@@ -1,0 +1,87 @@
+/// @page io_out_stream_buf_page Output Stream Buffer
+/// @section io_out_stream_buf_overview Overview
+/// The device driver, such as embxx::driver::Character, or embxx::io::WriteQueue 
+/// require the caller to preserve the buffer until the write operation is
+/// finished. However sometimes "send and forget" kind of functionality is
+/// required. In this case embxx::io::OutStreamBuf may be used. It maintains
+/// internal buffer of serialised data and forwards it to the device driver
+/// in chunks in the context of the event loop.
+///
+/// @section io_out_stream_buf_tutorial How to use
+/// The output stream buffer depends on the driver ojbect it is going to use:
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// #include "embxx/driver/Character.h"
+/// #include "embxx/io/OutStreamBuf.h"
+/// 
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// typedef ... Device;
+/// typedef embxx::driver::Character<Device, EventLoop> Driver;
+/// typedef embxx::io::OutStreamBuf<Driver, ...> Buffer;
+/// EventLoop el;
+/// Driver driver(device, el);
+/// Buffer buf(driver);
+/// @endcode
+///
+/// Add new data to the buffer using pushBack() member functions:
+/// @code
+/// const char* str = "Hello";
+/// buf.pushBack(str);
+/// @endcode
+///
+/// embxx::io::OutStreamBuf provides also STL like push_back() syntax of the
+/// pushBack() functions. This makes it possible to use STL algorithms with
+/// std::back_inserter() to add new characters into the buffer:
+/// @code
+/// std::array<char, 10> arr = {.....} ;
+/// std::copy(arr.begin(), arr.end(), std::back_inserter(buf)); 
+/// @endcode
+/// 
+/// All the data written to the buffer, but not yet flushed to the device
+/// is available for both read and write access:
+/// @code
+/// auto idx = ...;
+/// assert (idx < buf.size());
+/// auto ch = buf[idx];
+/// ...
+/// for (auto iter = buf.begin(); iter != buf.end(); ++iter) {
+///     ... // Access the characters in the buffer through iterator.
+/// }
+/// @endcode
+///
+/// Once the characters written to the buffer and should be flushed to
+/// actual device, use flush() member function. From this moment they become
+/// inaccessible to operator[] of the buffer. The member functions begin() and
+/// end() of the buffer will also return the new range that doesn't include
+/// flushed characters:
+/// @code
+/// buf.flush();
+/// @endcode
+///
+/// It is possible to flush only part of the buffer by providing size as an
+/// argument to the flush member function:
+/// @code
+/// buf.flush(size);
+/// @endcode
+///
+/// To check current available capacity of the buffer use availableCapacity()
+/// member function. 
+/// @code
+/// // Size of the buffer that can be written/modified:
+/// auto capacity = buf.availableCapacity();
+/// 
+/// // Number of characters that can be pushed to the buffer:
+/// auto pushSize = buf.availableCapacity() - buf.size();
+/// @endcode
+///
+/// If more space is required than currently available in the buffer it is
+/// possible to perform asynchronous wait until such space becomes avilable:
+/// @code
+/// buf.asyncWaitAvailableCapacity(
+///     capacity,
+///     [&buf]()
+///     {
+///         buf.pushBack(...) // Perform write here
+///         buf.flush();
+///     });
+/// @endcode

@@ -353,7 +353,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
     auto result = el_.post(
         std::bind(
             std::move(readHandler_),
-            ErrorStatus::Success,
+            ErrorStatus::Aborted,
             static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
     static_cast<void>(result);
 
@@ -392,7 +392,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
     auto result = el_.post(
         std::bind(
             std::move(writeHandler_),
-            ErrorStatus::Success,
+            ErrorStatus::Aborted,
             static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_)));
     static_cast<void>(result);
 

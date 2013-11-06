@@ -6,15 +6,87 @@ if (CXXTEST_FOUND)
 #################################################################
 
 function (test_iosimple)
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/iosimple.th")
+    set (test_suite_name "iosimple")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.IoSimple")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
-    set (runner "testRunner.cpp")
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link)
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
+function (test_write_queue)
+    set (test_suite_name "WriteQueue")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link
+        "boost_system"
+        "pthread")
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
+function (test_out_stream_buf)
+    set (test_suite_name "OutStreamBuf")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link
+        "boost_system"
+        "pthread")
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
+function (test_out_stream)
+    set (test_suite_name "OutStream")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link
+        "boost_system"
+        "pthread")
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
 endfunction ()
 
 #################################################################
@@ -22,5 +94,8 @@ endfunction ()
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 test_iosimple()
+test_write_queue()
+test_out_stream_buf()
+test_out_stream()
 
 endif ()

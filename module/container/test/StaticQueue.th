@@ -19,9 +19,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
+#include <iterator>
+#include <queue>
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/util/assert/DoNothingAssert.h"
 
 #include "TestObject.h"
 
@@ -42,6 +45,9 @@ public:
     void testResize();
     void testInsert();
     void testErase();
+    void testNonLinearisedIteration();
+    void testBackInserter();
+    void testPriorityQueue();
 
 private:
 
@@ -125,8 +131,13 @@ private:
     static
     void internalTestErase();
 
+    template <typename TQueue>
+    static
+    void internalTestNonLinearisedIteration();
 
-
+    template <typename TQueue>
+    static
+    void internalTestBackInserter();
 };
 
 void StaticQueueTestSuite::testQueueCreation()
@@ -238,6 +249,76 @@ void StaticQueueTestSuite::testErase()
 
     typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
     internalTestErase<Buffer>();
+}
+
+void StaticQueueTestSuite::testNonLinearisedIteration()
+{
+    const std::size_t QueueSize = 13U;
+    typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
+    internalTestNonLinearisedIteration<Queue>();
+
+    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
+    internalTestNonLinearisedIteration<Buffer>();
+}
+
+void StaticQueueTestSuite::testBackInserter()
+{
+    const std::size_t QueueSize = 13U;
+    typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
+    internalTestNonLinearisedIteration<Queue>();
+
+    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
+    internalTestNonLinearisedIteration<Buffer>();
+}
+
+void StaticQueueTestSuite::testPriorityQueue()
+{
+    const std::size_t MaxQueueSize = 10;
+    typedef embxx::container::StaticQueue<int, MaxQueueSize> Queue;
+    typedef std::priority_queue<typename Queue::ValueType, Queue> PriorityQueue;
+
+    PriorityQueue queue;
+    for (unsigned i = MaxQueueSize; i > 0; --i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.top(), MaxQueueSize);
+    while (!queue.empty()) {
+        TS_ASSERT_EQUALS(queue.top(), queue.size());
+        queue.pop();
+    }
+
+    queue.push(10);
+    queue.push(100);
+    queue.push(1);
+    queue.push(5);
+    queue.push(3);
+
+    TS_ASSERT_EQUALS(queue.top(), 100);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 10);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 5);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 3);
+    queue.pop();
+    TS_ASSERT_EQUALS(queue.top(), 1);
+    queue.pop();
+    TS_ASSERT(queue.empty());
+
+    for (unsigned i = 0; i < MaxQueueSize; ++i) {
+        queue.push(i);
+    }
+
+    TS_ASSERT_EQUALS(queue.size(), MaxQueueSize);
+
+    PriorityQueue queue2;
+    TS_ASSERT(queue2.empty());
+
+    queue2.swap(queue);
+    TS_ASSERT_EQUALS(queue2.size(), MaxQueueSize);
+    TS_ASSERT(queue.empty());
+
 }
 
 template <typename TQueue>
@@ -462,6 +543,8 @@ void StaticQueueTestSuite::internalTestOverAndUnderflow()
     typedef typename TQueue::ValueType ValueType;
     typedef typename TQueue::OverflowBehaviour OverflowBehaviour;
     {
+        embxx::util::EnableAssert<embxx::util::assert::DoNothingAssert> doNothingAssertEnabled;
+
         TQueue queue;
         const TQueue& constQueue = queue;
         checkQueueEmpty(queue);
@@ -562,71 +645,71 @@ void StaticQueueTestSuite::internalTestIteration()
         checkQueueFull(queue);
 
         std::size_t count = 0;
-        auto beginIter = queue.begin();
-        auto endIter = queue.end();
+        auto beginIter = queue.lbegin();
+        auto endIter = queue.lend();
         TS_ASSERT(beginIter != endIter);
         for (auto iter = beginIter; iter != endIter; ++iter) {
             auto& value = *iter;
-            TS_ASSERT_EQUALS(queue.indexOf(value), iter - queue.begin());
+            TS_ASSERT_EQUALS(queue.indexOf(value), iter - queue.lbegin());
             ++count;
         }
         TS_ASSERT_EQUALS(count, queue.size());
 
         count = 0;
-        auto cBeginIter = constQueue.begin();
-        auto cEndIter = constQueue.end();
+        auto cBeginIter = constQueue.lbegin();
+        auto cEndIter = constQueue.lend();
         TS_ASSERT(cBeginIter != cEndIter);
         for (auto iter = cBeginIter; iter != cEndIter; ++iter) {
             auto& value = *iter;
             TS_ASSERT_EQUALS(constQueue.indexOf(value),
-                iter - constQueue.begin());
+                iter - constQueue.lbegin());
             ++count;
         }
         TS_ASSERT_EQUALS(count, queue.size());
 
         count = 0;
-        cBeginIter = queue.cbegin();
-        cEndIter = queue.cend();
+        cBeginIter = queue.clbegin();
+        cEndIter = queue.clend();
         TS_ASSERT(cBeginIter != cEndIter);
         for (auto iter = cBeginIter; iter != cEndIter; ++iter) {
             auto& value = *iter;
-            TS_ASSERT_EQUALS(queue.indexOf(value), iter - queue.cbegin());
+            TS_ASSERT_EQUALS(queue.indexOf(value), iter - queue.clbegin());
             ++count;
         }
         TS_ASSERT_EQUALS(count, queue.size());
 
         count = 0;
-        auto rBeginIter = queue.rbegin();
-        auto rEndIter = queue.rend();
+        auto rBeginIter = queue.rlbegin();
+        auto rEndIter = queue.rlend();
         TS_ASSERT(rBeginIter != rEndIter);
         for (auto iter = rBeginIter; iter != rEndIter; ++iter) {
             auto& value = *iter;
             TS_ASSERT_EQUALS(queue.indexOf(value),
-                             (queue.capacity() - 1) - (iter - queue.rbegin()));
+                             (queue.capacity() - 1) - (iter - queue.rlbegin()));
             ++count;
         }
         TS_ASSERT_EQUALS(count, queue.size());
 
         count = 0;
-        auto crBeginIter = constQueue.rbegin();
-        auto crEndIter = constQueue.rend();
+        auto crBeginIter = constQueue.rlbegin();
+        auto crEndIter = constQueue.rlend();
         TS_ASSERT(crBeginIter != crEndIter);
         for (auto iter = crBeginIter; iter != crEndIter; ++iter) {
             auto& value = *iter;
             TS_ASSERT_EQUALS(constQueue.indexOf(value),
-                 (constQueue.capacity() - 1) - (iter - constQueue.rbegin()));
+                 (constQueue.capacity() - 1) - (iter - constQueue.rlbegin()));
             ++count;
         }
         TS_ASSERT_EQUALS(count, constQueue.size());
 
         count = 0;
-        crBeginIter = constQueue.rbegin();
-        crEndIter = constQueue.rend();
+        crBeginIter = constQueue.rlbegin();
+        crEndIter = constQueue.rlend();
         TS_ASSERT(crBeginIter != crEndIter);
-        for (auto iter = queue.crbegin(); iter != queue.crend(); ++iter) {
+        for (auto iter = queue.crlbegin(); iter != queue.crlend(); ++iter) {
             auto& value = *iter;
             TS_ASSERT_EQUALS(queue.indexOf(value),
-                         (queue.capacity() - 1) - (iter - queue.crbegin()));
+                         (queue.capacity() - 1) - (iter - queue.crlbegin()));
             ++count;
         }
         TS_ASSERT_EQUALS(count, queue.size());
@@ -649,7 +732,7 @@ void StaticQueueTestSuite::internalTestEquality()
 
         TQueue secondQueue(queue);
         static_cast<void>(secondQueue);
-        TS_ASSERT(std::equal(queue.begin(), queue.end(), secondQueue.begin()));
+        TS_ASSERT(std::equal(queue.lbegin(), queue.lend(), secondQueue.lbegin()));
 
         auto arrayOne = queue.arrayOne();
         TS_ASSERT(arrayOne.first != arrayOne.second);
@@ -667,20 +750,20 @@ void StaticQueueTestSuite::internalTestEquality()
         TS_ASSERT(arrayTwo.first != arrayTwo.second); // array two must exist
 
         // Iterators are invalid before linearisation
-        TS_ASSERT_EQUALS(queue.begin(), queue.end());
-        TS_ASSERT_EQUALS(queue.cbegin(), queue.cend());
-        TS_ASSERT_EQUALS(queue.rbegin(), queue.rend());
-        TS_ASSERT_EQUALS(queue.crbegin(), queue.crend());
+        TS_ASSERT_EQUALS(queue.lbegin(), queue.lend());
+        TS_ASSERT_EQUALS(queue.clbegin(), queue.clend());
+        TS_ASSERT_EQUALS(queue.rlbegin(), queue.rlend());
+        TS_ASSERT_EQUALS(queue.crlbegin(), queue.crlend());
 
         TS_ASSERT(!queue.isLinearised());
         queue.linearise();
         TS_ASSERT(queue.isLinearised());
 
         // Iterators are valid before linearisation
-        TS_ASSERT(queue.begin() != queue.end());
-        TS_ASSERT(queue.cbegin() != queue.cend());
-        TS_ASSERT(queue.rbegin() != queue.rend());
-        TS_ASSERT(queue.crbegin() != queue.crend());
+        TS_ASSERT(queue.lbegin() != queue.lend());
+        TS_ASSERT(queue.clbegin() != queue.clend());
+        TS_ASSERT(queue.rlbegin() != queue.rlend());
+        TS_ASSERT(queue.crlbegin() != queue.crlend());
 
         arrayOne = queue.arrayOne();
         TS_ASSERT(arrayOne.first != arrayOne.second);
@@ -688,15 +771,18 @@ void StaticQueueTestSuite::internalTestEquality()
         TS_ASSERT(arrayTwo.first == arrayTwo.second); // no array two
 
         // Not equal now
-        TS_ASSERT(!std::equal(queue.begin(), queue.end(),
-            secondQueue.begin()));
+        TS_ASSERT(!std::equal(queue.lbegin(), queue.lend(),
+            secondQueue.lbegin()));
 
         // middle is equal
-        TS_ASSERT(std::equal(queue.begin(),
-                             queue.end() - 1,
-                             secondQueue.begin() + 1));
+        TS_ASSERT(std::equal(queue.lbegin(),
+                             queue.lend() - 1,
+                             secondQueue.lbegin() + 1));
 
         while (!queue.isEmpty()) {
+            // Ignore assertions of pop on Empty queue.
+            embxx::util::EnableAssert<embxx::util::assert::DoNothingAssert> doNothingAssertEnabled;
+
             queue.popFront();
             TS_ASSERT(queue.isLinearised());
             queue.popBack();
@@ -705,20 +791,20 @@ void StaticQueueTestSuite::internalTestEquality()
 
         // Copy assignment
         queue = secondQueue;
-        TS_ASSERT(std::equal(queue.begin(), queue.end(), secondQueue.begin()));
+        TS_ASSERT(std::equal(queue.lbegin(), queue.lend(), secondQueue.lbegin()));
 
         // Move construction
         decltype(queue) thirdQueue(std::move(queue));
-        TS_ASSERT(std::equal(thirdQueue.begin(), thirdQueue.end(),
-            secondQueue.begin()));
+        TS_ASSERT(std::equal(thirdQueue.lbegin(), thirdQueue.lend(),
+            secondQueue.lbegin()));
         TS_ASSERT(!TQueue::ValueType::supportsMoveSemantics() ||
-              !std::equal(thirdQueue.begin(), thirdQueue.end(), queue.begin()));
+              !std::equal(thirdQueue.lbegin(), thirdQueue.lend(), queue.lbegin()));
 
         // Move assignment
         queue = std::move(thirdQueue);
-        TS_ASSERT(std::equal(queue.begin(), queue.end(), secondQueue.begin()));
+        TS_ASSERT(std::equal(queue.lbegin(), queue.lend(), secondQueue.lbegin()));
         TS_ASSERT(!TQueue::ValueType::supportsMoveSemantics() ||
-                  !std::equal(queue.begin(), queue.end(), thirdQueue.begin()));
+                  !std::equal(queue.lbegin(), queue.lend(), thirdQueue.lbegin()));
     }
     TS_ASSERT(ValueType::getObjectCount() == 0U);
 }
@@ -873,7 +959,7 @@ void StaticQueueTestSuite::internalTestInsert()
     while (!queue.isFull()) {
         auto pos = queue.arrayTwo().second;
         auto newPos = queue.insert(pos, ValueType());
-        TS_ASSERT_EQUALS(pos, newPos);
+        TS_ASSERT_EQUALS(queue.back(), *newPos);
         TS_ASSERT(newPos != queue.arrayTwo().second); // second range was increased
     }
 
@@ -929,7 +1015,6 @@ void StaticQueueTestSuite::internalTestErase()
     eraseIter = eraseRange.second - 1;
     auto eraseCount = eraseRange.second - eraseRange.first;
     for (int i = 0; i < eraseCount; ++i) {
-        TS_TRACE(i);
         queue.erase(eraseIter);
     }
 
@@ -952,7 +1037,7 @@ void StaticQueueTestSuite::internalTestErase()
     }
     TS_ASSERT(queue1.isLinearised());
     queue.erase(eraseIter);
-    TS_ASSERT(std::equal(queue1.begin(), queue1.end(), queue.arrayOne().first));
+    TS_ASSERT(std::equal(queue1.lbegin(), queue1.lend(), queue.arrayOne().first));
 
     TQueue queue2;
     auto range2 = queue.arrayTwo();
@@ -967,6 +1052,127 @@ void StaticQueueTestSuite::internalTestErase()
     }
     TS_ASSERT(queue2.isLinearised());
     queue.erase(eraseIter);
-    TS_ASSERT(std::equal(queue2.begin(), queue2.end(), queue.arrayTwo().first));
+    TS_ASSERT(std::equal(queue2.lbegin(), queue2.lend(), queue.arrayTwo().first));
 }
 
+template <typename TQueue>
+void StaticQueueTestSuite::internalTestNonLinearisedIteration()
+{
+    typedef TQueue Queue;
+    typedef typename Queue::ValueType ValueType;
+    typedef typename Queue::Reference Reference;
+    typedef typename Queue::ConstReference ConstReference;
+    TQueue queue;
+    TS_ASSERT(queue.isEmpty());
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    while ((queue.capacity() / 2) < queue.size()) {
+        queue.popFront();
+    }
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    TS_ASSERT(!queue.isLinearised());
+    auto beginIter = queue.begin();
+    auto endIter = queue.end();
+    auto distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    auto constBeginIter = queue.cbegin();
+    auto constEndIter = queue.cend();
+    auto constDistance = std::distance(constBeginIter, constEndIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(constDistance), queue.size());
+
+    queue.popFront();
+    queue.popBack();
+    beginIter = queue.begin();
+    endIter = queue.end();
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    decltype(beginIter) beginIter2(beginIter);
+    decltype(endIter) endIter2(endIter);
+    distance = std::distance(beginIter2, endIter2);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    ++beginIter;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 1);
+
+    beginIter++;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 2);
+
+    --beginIter;
+    beginIter--;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    endIter -= 3;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 3);
+
+    endIter += 3;
+    distance = std::distance(beginIter, endIter);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size());
+
+    auto beginIter3 = beginIter + 2;
+    auto endIter3 = endIter - 3;
+    distance = std::distance(beginIter3, endIter3);
+    TS_ASSERT_EQUALS(static_cast<unsigned>(distance), queue.size() - 5);
+
+    std::for_each(beginIter, endIter,
+        [](ConstReference elem)
+        {
+            ValueType copy(elem);
+            static_cast<void>(copy);
+        });
+
+
+    for (auto iter = queue.begin(); iter != queue.end(); ++iter) {
+        TS_ASSERT(iter->isValid());
+    }
+
+    constBeginIter = queue.begin();
+    constEndIter = queue.end();
+
+    std::for_each(constBeginIter, constEndIter,
+        [](ConstReference elem)
+        {
+            ValueType copy(elem);
+            static_cast<void>(copy);
+        });
+
+}
+
+template <typename TQueue>
+void StaticQueueTestSuite::internalTestBackInserter()
+{
+    typedef TQueue Queue;
+    typedef typename Queue::ValueType ValueType;
+    Queue queue;
+    TS_ASSERT(queue.isEmpty());
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    while ((queue.capacity() / 2) < queue.size()) {
+        queue.popFront();
+    }
+
+    while (!queue.isFull()) {
+        queue.pushBack(ValueType());
+    }
+
+    Queue queue2;
+    std::copy(queue.begin(), queue.end(), std::back_inserter(queue2));
+    TS_ASSERT(queue2.isLinearised());
+    TS_ASSERT_EQUALS(queue.size(), queue2.size());
+    TS_ASSERT(std::equal(queue.begin(), queue.end(), queue2.begin()));
+}

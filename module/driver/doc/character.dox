@@ -11,7 +11,7 @@
 /// @li Cancel current "read" operation.
 /// @li Cancel current "write" operation.
 ///
-/// @section driver_character_overview How to use
+/// @section driver_character_tutorial How to use
 /// Like any other driver in embxx::driver module embxx::driver::Character 
 /// depends on and uses an event loop (a variant of embxx::util::EventLoop) to
 /// schedule execution of "read/write complete" handlers. To be able to define 

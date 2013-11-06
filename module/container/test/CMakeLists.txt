@@ -22,7 +22,7 @@ function (test_static_queue)
 
     set (extra_sources)
 
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
@@ -37,30 +37,9 @@ endfunction ()
 
 #################################################################
 
-function (test_static_queue_stl_adapter)
-    set (test_suite_name "StaticQueueStlAdapter")
-    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
-
-    set (extra_sources)
-
-    set (name "${COMPONENT_NAME}.${test_suite_name}")
-
-    set (runner "${test_suite_name}TestRunner.cpp")
-    
-    set (link)
-
-    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
-    
-    target_link_libraries (${name} ${link})
-    
-endfunction ()
-
-#################################################################
-
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 lib_test_object()
 test_static_queue()
-test_static_queue_stl_adapter()
 
 endif ()

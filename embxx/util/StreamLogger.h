@@ -20,8 +20,6 @@
 
 #pragma once
 
-#include <iosfwd>
-
 #include "log/LogLevel.h"
 
 namespace embxx
@@ -36,20 +34,27 @@ namespace util
 /// @brief Base class for Stream Logger
 /// @details The logger object just wraps reference to output stream object
 ///          and returns it upon request.
+/// @tparam TStream Type of the output stream object. May be either std::ostream
+///         or embxx::io::OutStream
 /// @headerfile embxx/util/StreamLogger.h
+template <typename TStream>
 class StreamLoggerBase
 {
 public:
+
+    /// @brief Type of the output stream.
+    typedef TStream Stream;
+
     /// @brief Constructor
     /// @param[in] outStream referenct to output stream
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    inline StreamLoggerBase(std::ostream& outStream);
+    inline StreamLoggerBase(Stream& outStream);
 
     /// @brief Ger reference to output stream
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    inline std::ostream& stream();
+    inline Stream& stream();
 
     /// @brief Begin output.
     /// @details This function is called before requested output is redirected
@@ -66,20 +71,26 @@ public:
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
     inline void end(log::Level level);
+
 private:
-    std::ostream& outStream_;
+    Stream& outStream_;
 };
 
 /// @brief Stream Logger class
 /// @brief The only thing is adds to its base class (StreamLoggerBase) is
 ///        the compile time information of minimal log level.
 /// @headerfile embxx/util/StreamLogger.h
-template <log::Level TLevel>
-class StreamLogger : public StreamLoggerBase
+template <log::Level TLevel, typename TStream>
+class StreamLogger : public StreamLoggerBase<TStream>
 {
-    typedef StreamLoggerBase Base;
+    typedef StreamLoggerBase<TStream> Base;
 public:
-    /// Minimal log level. The output will be redirected to the stream
+
+    /// @brief Type of the output stream object.
+    typedef typename Base::Stream Stream;
+
+    /// @brief Minimal log level.
+    /// @details The output will be redirected to the stream
     /// if and only if requested level is greater or equal to MinLevel.
     static const log::Level MinLevel = TLevel;
 
@@ -87,7 +98,7 @@ public:
     /// @param[in] outStream Reference to output stream
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    inline StreamLogger(std::ostream& outStream);
+    inline StreamLogger(Stream& outStream);
 };
 
 /// @brief Logging macro
@@ -106,35 +117,41 @@ public:
 /// @}
 
 // Implementation area
+
+template <typename TStream>
 inline
-StreamLoggerBase::StreamLoggerBase(std::ostream& outStream)
+StreamLoggerBase<TStream>::StreamLoggerBase(Stream& outStream)
     : outStream_(outStream)
 {
 }
 
+template <typename TStream>
 inline
-std::ostream& StreamLoggerBase::stream()
+typename StreamLoggerBase<TStream>::Stream&
+StreamLoggerBase<TStream>::stream()
 {
     return outStream_;
 }
 
+template <typename TStream>
 inline
-void StreamLoggerBase::begin(log::Level level)
+void StreamLoggerBase<TStream>::begin(log::Level level)
 {
     // Do nothing
     static_cast<void>(level);
 }
 
+template <typename TStream>
 inline
-void StreamLoggerBase::end(log::Level level)
+void StreamLoggerBase<TStream>::end(log::Level level)
 {
     // Do nothing
     static_cast<void>(level);
 }
 
-template <log::Level TLevel>
+template <log::Level TLevel, typename TStream>
 inline
-StreamLogger<TLevel>::StreamLogger(std::ostream& outStream)
+StreamLogger<TLevel, TStream>::StreamLogger(Stream& outStream)
     : Base(outStream)
 {
 }

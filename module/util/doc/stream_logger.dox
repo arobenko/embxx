@@ -4,12 +4,13 @@
 /// pure software or embedded electronic product. Stream Logger provides a
 /// convenient way to use various log streams and different logging levels,
 /// while providing an ability to use various output formats and locking
-/// policies.
+/// policies. It may use either std::ostream or embxx::io::OutStream as its
+/// output stream.
 /// @section util_stream_logger_tutorial How to use
 /// Define the logger object(s) your are going to use:
 /// @code
 /// // Choose minimal log levels, defined in embxx::util::log::Level.
-/// using embxx::util::log;
+/// namespace log = embxx::util::log;
 /// #ifndef DEBUG_LOG_LEVEL
 /// #define DEBUG_LOG_LEVEL log::Debug
 /// #endif // #ifndef DEBUG_LOG_LEVEL
@@ -18,8 +19,8 @@
 /// #define ERROR_LOG_LEVEL log::Warning
 /// #endif // #ifndef ERROR_LOG_LEVEL
 ///
-/// typedef embxx::util::StreamLogger<DEBUG_LOG_LEVEL> DebugLog;
-/// typedef embxx::util::StreamLogger<ERROR_LOG_LEVEL> ErrorLog;
+/// typedef embxx::util::StreamLogger<DEBUG_LOG_LEVEL, std::ostream> DebugLog;
+/// typedef embxx::util::StreamLogger<ERROR_LOG_LEVEL, std::ostream> ErrorLog;
 ///
 /// DebugLog& debugLog()
 /// {
@@ -130,10 +131,10 @@
 ///     
 ///     ...
 ///     // From within thread one:
-///     SLOG(logger3, log::Info, "Thread " << 1 << "ontput\n");
+///     SLOG(logger3, log::Info, "Thread " << 1 << " output\n");
 ///     ...
 ///     // From within thread two
-///     SLOG(logger3, log::Info, "Thread " << 2 << "output\n");
+///     SLOG(logger3, log::Info, "Thread " << 2 << " output\n");
 ///     return 0;
 /// }
 /// @endcode

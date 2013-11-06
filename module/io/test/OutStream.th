@@ -1,0 +1,286 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#include <string>
+#include <algorithm>
+#include <sstream>
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/util/SizeToType.h"
+#include "embxx/util/StreamLogger.h"
+#include "embxx/driver/Character.h"
+#include "embxx/io/OutStreamBuf.h"
+#include "embxx/io/OutStream.h"
+#include "cxxtest/TestSuite.h"
+
+#include "module/driver/test/CommonEventLoopDefs.h"
+#include "module/driver/test/CharDevice.h"
+
+class OutStreamTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+    void test8();
+    void test9();
+    void test10();
+    void test11();
+
+private:
+    template <typename T, typename TStream, typename TMod, typename TStdMod>
+    void checkIteration(
+        TStream& stream,
+        TMod mod,
+        TStdMod stdMod,
+        T inc = 1U,
+        std::size_t width = 0,
+        typename TStream::CharType fill = ' ')
+    {
+        for (T i = std::numeric_limits<T>::min(); i < std::numeric_limits<T>::max() - inc; i += inc) {
+            std::stringstream strStream;
+
+            strStream.width(width);
+            stream.width(width);
+
+            strStream.fill(fill);
+            stream.fill(fill);
+
+            strStream << stdMod;
+            stream << mod;
+
+            strStream << i;
+            stream << i;
+
+            auto str = strStream.str();
+            auto& buf = stream.streamBuf();
+
+            TS_ASSERT_EQUALS(buf.size(), str.size());
+            TS_ASSERT_EQUALS(str, std::string(buf.begin(), buf.end()));
+            buf.clear();
+            TS_ASSERT(buf.empty());
+        }
+    }
+};
+
+void OutStreamTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    static const std::string WriteString("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    static const char WriteChar = '0';
+    static const std::string CombString(WriteString + WriteChar);
+    stream << WriteString.c_str();
+    stream << WriteChar;
+
+    TS_ASSERT(std::equal(CombString.begin(), CombString.end(), buf.begin()));
+    stream << embxx::io::endl;
+    TS_ASSERT_EQUALS(buf.size(), 0U);
+}
+
+void OutStreamTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::uint16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::hex, std::hex);
+}
+
+void OutStreamTestSuite::test3()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::uint16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::oct, std::oct);
+}
+
+void OutStreamTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::uint16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::dec, std::dec);
+}
+
+
+void OutStreamTestSuite::test5()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::hex, std::hex);
+}
+
+void OutStreamTestSuite::test6()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::oct, std::oct);
+}
+
+void OutStreamTestSuite::test7()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::dec, std::dec);
+}
+
+void OutStreamTestSuite::test8()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::hex, std::hex, 1, sizeof(ValueType) * 2, '0');
+}
+
+void OutStreamTestSuite::test9()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int16_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::dec, std::dec, 1, sizeof(ValueType)*4, '0');
+}
+
+void OutStreamTestSuite::test10()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    typedef std::int64_t ValueType;
+    checkIteration<ValueType>(stream, embxx::io::dec, std::dec, 0x3fffffffffffL, sizeof(ValueType)*3, '0');
+}
+
+void OutStreamTestSuite::test11()
+{
+    namespace log = embxx::util::log;
+
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+    typedef embxx::util::StreamLogger<log::Trace, OutStream> Logger;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+    Logger logger(stream);
+
+    static const std::string WriteString1("Test string, bla, bla ,bla");
+    static const std::string WriteString2("aaabbbcccddd eeefffggg");
+    SLOG(logger, log::Debug, WriteString1.c_str() << WriteString2.c_str());
+
+    TS_ASSERT_EQUALS(WriteString1 + WriteString2, std::string(buf.begin(), buf.end()));
+}
+
