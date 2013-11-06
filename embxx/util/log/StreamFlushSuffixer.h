@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include <iostream>
 #include "LoggerDecoratorBase.h"
 
 namespace embxx

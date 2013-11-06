@@ -426,7 +426,8 @@ void OutStream<TStreamBuf>::itoaDec(T value, bool sign)
         GASSERT(!sign);
     }
 
-    auto strSize = std::distance(tmpBuf.begin(), iter);
+    auto strSize =
+        static_cast<std::size_t>(std::distance(tmpBuf.begin(), iter));
     if (sign) {
         ++strSize;
     }
@@ -491,7 +492,8 @@ void OutStream<TStreamBuf>::itoa(T value)
         ++iter;
     }
 
-    auto strSize = std::distance(tmpBuf.begin(), iter);
+    auto strSize =
+        static_cast<std::size_t>(std::distance(tmpBuf.begin(), iter));
     if (strSize < width_) {
         auto fillLen = width_ - strSize;
         std::fill_n(std::back_inserter(buf_), fillLen, fill_);
