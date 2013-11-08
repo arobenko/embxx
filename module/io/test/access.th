@@ -1,5 +1,5 @@
 //
-// Copyright 2012 (C). Alex Robenko. All rights reserved.
+// Copyright 2012 - 2013 (C). Alex Robenko. All rights reserved.
 //
 
 // This file is free software: you can redistribute it and/or modify
@@ -19,14 +19,14 @@
 #include <algorithm>
 #include <numeric>
 #include <array>
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream_buffer.hpp>
+#include <vector>
+#include <iterator>
 
-#include "embxx/io/iosimple.h"
+#include "embxx/io/access.h"
 
 #include "cxxtest/TestSuite.h"
 
-class IoSimpleTestSuite : public CxxTest::TestSuite
+class AccessTestSuite : public CxxTest::TestSuite
 {
 public:
     void testBigUint8();
@@ -46,26 +46,18 @@ public:
     void testLittleUint64();
     void testLittleInt64();
     void testPutGetData();
+    void testBackInserter();
 
 private:
-    typedef boost::iostreams::array_sink Sink;
-    typedef boost::iostreams::array_source Source;
-    typedef boost::iostreams::stream_buffer<Sink> OutputBuf;
-    typedef boost::iostreams::stream_buffer<Source> InputBuf;
-
     template <typename T>
     void checkSinglePutGetBig(
         T outValue,
-        const char* arr,
-        OutputBuf& outBuf,
-        InputBuf& inBuf);
+        std::uint8_t* const arr);
 
     template <typename T, std::size_t TSize>
     void checkSinglePutGetBigPartial(
         T outValue,
-        const char* arr,
-        OutputBuf& outBuf,
-        InputBuf& inBuf);
+        std::uint8_t* const arr);
 
     template <typename T>
     void internalTestPutGetBig(
@@ -78,16 +70,12 @@ private:
     template <typename T>
     void checkSinglePutGetLittle(
         T outValue,
-        const char* arr,
-        OutputBuf& outBuf,
-        InputBuf& inBuf);
+        std::uint8_t* const arr);
 
     template <typename T, std::size_t TSize>
     void checkSinglePutGetLittlePartial(
         T outValue,
-        const char* arr,
-        OutputBuf& outBuf,
-        InputBuf& inBuf);
+        std::uint8_t* const arr);
 
     template <typename T>
     void internalTestPutGetLittle(
@@ -99,53 +87,56 @@ private:
 
     template <typename TEndian, typename T>
     void internalPutGetData(T value);
+
+    template <typename TEndian, typename T>
+    void internalBackInserterTest(T value);
 };
 
-void IoSimpleTestSuite::testBigUint8()
+void AccessTestSuite::testBigUint8()
 {
     internalTestPutGetBig<std::uint8_t>();
 }
 
-void IoSimpleTestSuite::testBigInt8()
+void AccessTestSuite::testBigInt8()
 {
     internalTestPutGetBig<std::int8_t>();
 }
 
-void IoSimpleTestSuite::testLittleUint8()
+void AccessTestSuite::testLittleUint8()
 {
     internalTestPutGetLittle<std::uint8_t>();
 }
 
-void IoSimpleTestSuite::testLittleInt8()
+void AccessTestSuite::testLittleInt8()
 {
     internalTestPutGetLittle<std::int8_t>();
 }
 
-void IoSimpleTestSuite::testBigUint16()
+void AccessTestSuite::testBigUint16()
 {
     internalTestPutGetBig<std::uint16_t>();
     internalTestPutGetBig<std::uint16_t, 1>();
 }
 
-void IoSimpleTestSuite::testBigInt16()
+void AccessTestSuite::testBigInt16()
 {
     internalTestPutGetBig<std::int16_t>();
     internalTestPutGetBig<std::int16_t, 1>();
 }
 
-void IoSimpleTestSuite::testLittleUint16()
+void AccessTestSuite::testLittleUint16()
 {
     internalTestPutGetLittle<std::uint16_t>();
     internalTestPutGetLittle<std::uint16_t, 1>();
 }
 
-void IoSimpleTestSuite::testLittleInt16()
+void AccessTestSuite::testLittleInt16()
 {
     internalTestPutGetLittle<std::int16_t>();
     internalTestPutGetLittle<std::int16_t, 1>();
 }
 
-void IoSimpleTestSuite::testBigUint32()
+void AccessTestSuite::testBigUint32()
 {
     internalTestPutGetBig<std::uint32_t>(0xffff);
     internalTestPutGetBig<std::uint32_t, 1>(0xffff);
@@ -153,7 +144,7 @@ void IoSimpleTestSuite::testBigUint32()
     internalTestPutGetBig<std::uint32_t, 3>(0xffff);
 }
 
-void IoSimpleTestSuite::testBigInt32()
+void AccessTestSuite::testBigInt32()
 {
     internalTestPutGetBig<std::int32_t>(0xffff);
     internalTestPutGetBig<std::int32_t, 1>();
@@ -161,7 +152,7 @@ void IoSimpleTestSuite::testBigInt32()
     internalTestPutGetBig<std::int32_t, 3>(0xffff);
 }
 
-void IoSimpleTestSuite::testLittleUint32()
+void AccessTestSuite::testLittleUint32()
 {
     internalTestPutGetLittle<std::uint32_t>(0xffff);
     internalTestPutGetLittle<std::uint32_t, 1>(0xffff);
@@ -169,7 +160,7 @@ void IoSimpleTestSuite::testLittleUint32()
     internalTestPutGetLittle<std::uint32_t, 3>(0xffff);
 }
 
-void IoSimpleTestSuite::testLittleInt32()
+void AccessTestSuite::testLittleInt32()
 {
     internalTestPutGetLittle<std::int32_t>(0xffff);
     internalTestPutGetLittle<std::int32_t, 1>();
@@ -177,7 +168,7 @@ void IoSimpleTestSuite::testLittleInt32()
     internalTestPutGetLittle<std::int32_t, 3>(0xffff);
 }
 
-void IoSimpleTestSuite::testBigUint64()
+void AccessTestSuite::testBigUint64()
 {
     internalTestPutGetBig<std::uint64_t>(0xffffffffffffL);
     internalTestPutGetBig<std::uint64_t, 1>(0xffffffffffffL);
@@ -189,7 +180,7 @@ void IoSimpleTestSuite::testBigUint64()
     internalTestPutGetBig<std::uint64_t, 7>(0xffffffffffffL);
 }
 
-void IoSimpleTestSuite::testBigInt64()
+void AccessTestSuite::testBigInt64()
 {
     internalTestPutGetBig<std::int64_t>(0xffffffffffffL);
     internalTestPutGetBig<std::int64_t, 1>();
@@ -202,7 +193,7 @@ void IoSimpleTestSuite::testBigInt64()
 
 }
 
-void IoSimpleTestSuite::testLittleUint64()
+void AccessTestSuite::testLittleUint64()
 {
     internalTestPutGetLittle<std::uint64_t>(0xffffffffffffL);
     internalTestPutGetLittle<std::uint64_t, 1>(0xffffffffffffL);
@@ -214,7 +205,7 @@ void IoSimpleTestSuite::testLittleUint64()
     internalTestPutGetLittle<std::uint64_t, 7>(0xffffffffffffL);
 }
 
-void IoSimpleTestSuite::testLittleInt64()
+void AccessTestSuite::testLittleInt64()
 {
     internalTestPutGetLittle<std::int64_t>(0xffffffffffffL);
     internalTestPutGetLittle<std::int64_t, 1>();
@@ -226,7 +217,7 @@ void IoSimpleTestSuite::testLittleInt64()
     internalTestPutGetLittle<std::int64_t, 7>(0xffffffffffffL);
 }
 
-void IoSimpleTestSuite::testPutGetData()
+void AccessTestSuite::testPutGetData()
 {
     internalPutGetData<embxx::io::traits::endian::Big>((std::uint8_t)0x3f);
     internalPutGetData<embxx::io::traits::endian::Little>((std::uint8_t)0x4a);
@@ -238,57 +229,57 @@ void IoSimpleTestSuite::testPutGetData()
     internalPutGetData<embxx::io::traits::endian::Little>((std::uint32_t)0xbeefdeadbbccbbcc);
 }
 
-template <typename T>
-void IoSimpleTestSuite::checkSinglePutGetBig(
-    T outValue,
-    const char* arr,
-    OutputBuf& outBuf,
-    InputBuf& inBuf)
+void AccessTestSuite::testBackInserter()
 {
-    checkSinglePutGetBigPartial<T, sizeof(T)>(outValue, arr, outBuf, inBuf);
+    internalBackInserterTest<embxx::io::traits::endian::Big>((std::uint32_t)0xdeadbeef);
+    internalBackInserterTest<embxx::io::traits::endian::Little>((std::uint32_t)0xbeefdeadbbccbbcc);
+}
+
+template <typename T>
+void AccessTestSuite::checkSinglePutGetBig(
+    T outValue,
+    std::uint8_t* const arr)
+{
+    checkSinglePutGetBigPartial<T, sizeof(T)>(outValue, arr);
 }
 
 template <typename T, std::size_t TSize>
-void IoSimpleTestSuite::checkSinglePutGetBigPartial(
+void AccessTestSuite::checkSinglePutGetBigPartial(
     T outValue,
-    const char* arr,
-    OutputBuf& outBuf,
-    InputBuf& inBuf)
+    std::uint8_t* const arr)
 {
-    auto count = embxx::io::putBig<TSize>(outValue, outBuf);
-    TS_ASSERT_EQUALS(count, TSize);
+    auto writeIter = arr;
+    embxx::io::writeBig<TSize>(outValue, writeIter);
+    auto diff = static_cast<unsigned>(std::distance(arr, writeIter));
+    TS_ASSERT_EQUALS(diff, TSize);
 
     for (unsigned i = 0; i < TSize; ++i) {
         std::size_t valueShift = (TSize - (i + 1)) * 8;
-        char expectedByte = static_cast<char>(outValue >> valueShift);
+        auto expectedByte = static_cast<std::uint8_t>(outValue >> valueShift);
         TS_ASSERT_EQUALS(arr[i], expectedByte);
     }
 
-    T inValue = embxx::io::getBig<T, TSize>(inBuf);
+    auto readIter = arr;
+    T inValue = embxx::io::readBig<T, TSize>(readIter);
     TS_ASSERT_EQUALS(outValue & inValue, inValue);
     TS_ASSERT_EQUALS((~outValue) & (~inValue), ~outValue);
-    outBuf.pubseekpos(0);
-    inBuf.pubseekpos(0);
+    diff = static_cast<unsigned>(std::distance(arr, readIter));
+    TS_ASSERT_EQUALS(diff, TSize);
 }
 
 template <typename T>
-void IoSimpleTestSuite::internalTestPutGetBig(
+void AccessTestSuite::internalTestPutGetBig(
     typename std::make_unsigned<T>::type increment)
 {
     internalTestPutGetBig<T, sizeof(T)>(increment);
 }
 
 template <typename T, std::size_t TSize>
-void IoSimpleTestSuite::internalTestPutGetBig(
+void AccessTestSuite::internalTestPutGetBig(
     typename std::make_unsigned<T>::type increment)
 {
-    char arr[sizeof(T) + 1] = {0};
-    typedef boost::iostreams::array_sink Sink;
-    typedef boost::iostreams::array_source Source;
-    Sink sink(arr);
-    Source source(arr);
-    OutputBuf outBuf(sink);
-    InputBuf inBuf(source);
+    std::array<std::uint8_t, sizeof(T) + 1> arr;
+    std::fill_n(&arr[0], arr.size(), 0U);
 
     T min = std::numeric_limits<T>::min();
     T max = std::numeric_limits<T>::max();
@@ -306,64 +297,57 @@ void IoSimpleTestSuite::internalTestPutGetBig(
     TS_ASSERT(increment < (static_cast<UnsignedType>(max) - min));
 
     for (T outValue = min; outValue <= limit; outValue += increment) {
-        checkSinglePutGetBigPartial<T, TSize>(outValue, arr, outBuf, inBuf);
+        checkSinglePutGetBigPartial<T, TSize>(outValue, &arr[0]);
     }
-    checkSinglePutGetBigPartial<T, TSize>(max, arr, outBuf, inBuf);
-
+    checkSinglePutGetBigPartial<T, TSize>(max, &arr[0]);
     TS_ASSERT_EQUALS(arr[sizeof(T)], 0);
 }
 
 template <typename T>
-void IoSimpleTestSuite::checkSinglePutGetLittle(
+void AccessTestSuite::checkSinglePutGetLittle(
     T outValue,
-    const char* arr,
-    OutputBuf& outBuf,
-    InputBuf& inBuf)
+    std::uint8_t* const arr)
 {
-    checkSinglePutGetLittlePartial<T, sizeof(T)>(outValue, arr, outBuf, inBuf);
+    checkSinglePutGetLittlePartial<T, sizeof(T)>(outValue, arr);
 }
 
 template <typename T, std::size_t TSize>
-void IoSimpleTestSuite::checkSinglePutGetLittlePartial(
+void AccessTestSuite::checkSinglePutGetLittlePartial(
     T outValue,
-    const char* arr,
-    OutputBuf& outBuf,
-    InputBuf& inBuf)
+    std::uint8_t* const arr)
 {
-    auto count = embxx::io::putLittle<TSize>(outValue, outBuf);
-    TS_ASSERT_EQUALS(count, TSize);
+    auto writeIter = arr;
+    embxx::io::writeLittle<TSize>(outValue, writeIter);
+    auto diff = static_cast<unsigned>(std::distance(arr, writeIter));
+    TS_ASSERT_EQUALS(diff, TSize);
 
     for (unsigned i = 0; i < TSize; ++i) {
         std::size_t valueShift = i * 8;
-        char expectedByte = static_cast<char>(outValue >> valueShift);
+        auto expectedByte = static_cast<std::uint8_t>(outValue >> valueShift);
         TS_ASSERT_EQUALS(arr[i], expectedByte);
     }
 
-    T inValue = embxx::io::getLittle<T, TSize>(inBuf);
+    auto readIter = arr;
+    T inValue = embxx::io::readLittle<T, TSize>(readIter);
     TS_ASSERT_EQUALS(outValue & inValue, inValue);
     TS_ASSERT_EQUALS((~outValue) & (~inValue), ~outValue);
-    outBuf.pubseekpos(0);
-    inBuf.pubseekpos(0);
+    diff = static_cast<unsigned>(std::distance(arr, readIter));
+    TS_ASSERT_EQUALS(diff, TSize);
 }
 
 template <typename T>
-void IoSimpleTestSuite::internalTestPutGetLittle(
+void AccessTestSuite::internalTestPutGetLittle(
     typename std::make_unsigned<T>::type increment)
 {
     internalTestPutGetLittle<T, sizeof(T)>(increment);
 }
 
 template <typename T, std::size_t TSize>
-void IoSimpleTestSuite::internalTestPutGetLittle(
+void AccessTestSuite::internalTestPutGetLittle(
     typename std::make_unsigned<T>::type increment)
 {
-    char arr[sizeof(T) + 1] = {0};
-    typedef boost::iostreams::array_sink Sink;
-    typedef boost::iostreams::array_source Source;
-    Sink sink(arr);
-    Source source(arr);
-    OutputBuf outBuf(sink);
-    InputBuf inBuf(source);
+    std::array<std::uint8_t, sizeof(T) + 1> arr;
+    std::fill_n(&arr[0], arr.size(), 0U);
 
     T min = std::numeric_limits<T>::min();
     T max = std::numeric_limits<T>::max();
@@ -381,25 +365,33 @@ void IoSimpleTestSuite::internalTestPutGetLittle(
     TS_ASSERT(increment < (static_cast<UnsignedType>(max) - min));
 
     for (T outValue = min; outValue <= limit; outValue += increment) {
-        checkSinglePutGetLittlePartial<T, TSize>(outValue, arr, outBuf, inBuf);
+        checkSinglePutGetLittlePartial<T, TSize>(outValue, &arr[0]);
     }
-    checkSinglePutGetLittlePartial<T, TSize>(max, arr, outBuf, inBuf);
-
+    checkSinglePutGetLittlePartial<T, TSize>(max, &arr[0]);
     TS_ASSERT_EQUALS(arr[sizeof(T)], 0);
 }
 
 template <typename TEndian, typename T>
-void IoSimpleTestSuite::internalPutGetData(T value)
+void AccessTestSuite::internalPutGetData(T value)
 {
-    char arr[sizeof(T)] = {0};
-    OutputBuf outBuf(&arr[0], sizeof(T));
-    outBuf.pubseekpos(0, std::ios_base::out);
-    embxx::io::putData(value, outBuf, TEndian());
+    std::uint8_t arr[sizeof(T)] = {0};
+    auto writeIter = &arr[0];
+    embxx::io::writeData(value, writeIter, TEndian());
 
-    InputBuf inBuf(&arr[0], sizeof(T));
-    inBuf.pubseekpos(0, std::ios_base::in);
-    T readValue = 0;
-    readValue = embxx::io::getData<T>(inBuf, TEndian());
+    auto readIter = &arr[0];
+    T readValue = embxx::io::readData<T>(readIter, TEndian());
     TS_ASSERT_EQUALS(value, readValue);
+}
 
+template <typename TEndian, typename T>
+void AccessTestSuite::internalBackInserterTest(T value)
+{
+    std::vector<std::uint8_t> vec;
+    auto writeIter = std::back_inserter(vec);
+    embxx::io::writeData(value, writeIter, TEndian());
+    TS_ASSERT_EQUALS(vec.size(), sizeof(value));
+
+    auto readIter = &vec[0];
+    T readValue = embxx::io::readData<T>(readIter, TEndian());
+    TS_ASSERT_EQUALS(value, readValue);
 }

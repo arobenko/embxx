@@ -1,0 +1,405 @@
+//
+// Copyright 2012 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#include <cstdint>
+#include <algorithm>
+#include <numeric>
+#include <array>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream_buffer.hpp>
+
+#include "embxx/io/std_streambuf_access.h"
+
+#include "cxxtest/TestSuite.h"
+
+class StdStreambufAccessTestSuite : public CxxTest::TestSuite
+{
+public:
+    void testBigUint8();
+    void testBigInt8();
+    void testLittleUint8();
+    void testLittleInt8();
+    void testBigUint16();
+    void testBigInt16();
+    void testLittleUint16();
+    void testLittleInt16();
+    void testBigUint32();
+    void testBigInt32();
+    void testLittleUint32();
+    void testLittleInt32();
+    void testBigUint64();
+    void testBigInt64();
+    void testLittleUint64();
+    void testLittleInt64();
+    void testPutGetData();
+
+private:
+    typedef boost::iostreams::array_sink Sink;
+    typedef boost::iostreams::array_source Source;
+    typedef boost::iostreams::stream_buffer<Sink> OutputBuf;
+    typedef boost::iostreams::stream_buffer<Source> InputBuf;
+
+    template <typename T>
+    void checkSinglePutGetBig(
+        T outValue,
+        const char* arr,
+        OutputBuf& outBuf,
+        InputBuf& inBuf);
+
+    template <typename T, std::size_t TSize>
+    void checkSinglePutGetBigPartial(
+        T outValue,
+        const char* arr,
+        OutputBuf& outBuf,
+        InputBuf& inBuf);
+
+    template <typename T>
+    void internalTestPutGetBig(
+        typename std::make_unsigned<T>::type increment = 1);
+
+    template <typename T, std::size_t TSize>
+    void internalTestPutGetBig(
+        typename std::make_unsigned<T>::type increment = 1);
+
+    template <typename T>
+    void checkSinglePutGetLittle(
+        T outValue,
+        const char* arr,
+        OutputBuf& outBuf,
+        InputBuf& inBuf);
+
+    template <typename T, std::size_t TSize>
+    void checkSinglePutGetLittlePartial(
+        T outValue,
+        const char* arr,
+        OutputBuf& outBuf,
+        InputBuf& inBuf);
+
+    template <typename T>
+    void internalTestPutGetLittle(
+        typename std::make_unsigned<T>::type increment = 1);
+
+    template <typename T, std::size_t TSize>
+    void internalTestPutGetLittle(
+        typename std::make_unsigned<T>::type increment = 1);
+
+    template <typename TEndian, typename T>
+    void internalPutGetData(T value);
+};
+
+void StdStreambufAccessTestSuite::testBigUint8()
+{
+    internalTestPutGetBig<std::uint8_t>();
+}
+
+void StdStreambufAccessTestSuite::testBigInt8()
+{
+    internalTestPutGetBig<std::int8_t>();
+}
+
+void StdStreambufAccessTestSuite::testLittleUint8()
+{
+    internalTestPutGetLittle<std::uint8_t>();
+}
+
+void StdStreambufAccessTestSuite::testLittleInt8()
+{
+    internalTestPutGetLittle<std::int8_t>();
+}
+
+void StdStreambufAccessTestSuite::testBigUint16()
+{
+    internalTestPutGetBig<std::uint16_t>();
+    internalTestPutGetBig<std::uint16_t, 1>();
+}
+
+void StdStreambufAccessTestSuite::testBigInt16()
+{
+    internalTestPutGetBig<std::int16_t>();
+    internalTestPutGetBig<std::int16_t, 1>();
+}
+
+void StdStreambufAccessTestSuite::testLittleUint16()
+{
+    internalTestPutGetLittle<std::uint16_t>();
+    internalTestPutGetLittle<std::uint16_t, 1>();
+}
+
+void StdStreambufAccessTestSuite::testLittleInt16()
+{
+    internalTestPutGetLittle<std::int16_t>();
+    internalTestPutGetLittle<std::int16_t, 1>();
+}
+
+void StdStreambufAccessTestSuite::testBigUint32()
+{
+    internalTestPutGetBig<std::uint32_t>(0xffff);
+    internalTestPutGetBig<std::uint32_t, 1>(0xffff);
+    internalTestPutGetBig<std::uint32_t, 2>(0xffff);
+    internalTestPutGetBig<std::uint32_t, 3>(0xffff);
+}
+
+void StdStreambufAccessTestSuite::testBigInt32()
+{
+    internalTestPutGetBig<std::int32_t>(0xffff);
+    internalTestPutGetBig<std::int32_t, 1>();
+    internalTestPutGetBig<std::int32_t, 2>(0xff);
+    internalTestPutGetBig<std::int32_t, 3>(0xffff);
+}
+
+void StdStreambufAccessTestSuite::testLittleUint32()
+{
+    internalTestPutGetLittle<std::uint32_t>(0xffff);
+    internalTestPutGetLittle<std::uint32_t, 1>(0xffff);
+    internalTestPutGetLittle<std::uint32_t, 2>(0xffff);
+    internalTestPutGetLittle<std::uint32_t, 3>(0xffff);
+}
+
+void StdStreambufAccessTestSuite::testLittleInt32()
+{
+    internalTestPutGetLittle<std::int32_t>(0xffff);
+    internalTestPutGetLittle<std::int32_t, 1>();
+    internalTestPutGetLittle<std::int32_t, 2>(0xff);
+    internalTestPutGetLittle<std::int32_t, 3>(0xffff);
+}
+
+void StdStreambufAccessTestSuite::testBigUint64()
+{
+    internalTestPutGetBig<std::uint64_t>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 1>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 2>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 3>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 4>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 5>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 6>(0xffffffffffffL);
+    internalTestPutGetBig<std::uint64_t, 7>(0xffffffffffffL);
+}
+
+void StdStreambufAccessTestSuite::testBigInt64()
+{
+    internalTestPutGetBig<std::int64_t>(0xffffffffffffL);
+    internalTestPutGetBig<std::int64_t, 1>();
+    internalTestPutGetBig<std::int64_t, 2>(0xff);
+    internalTestPutGetBig<std::int64_t, 3>(0xffff);
+    internalTestPutGetBig<std::int64_t, 4>(0xffffff);
+    internalTestPutGetBig<std::int64_t, 5>(0xffffffffL);
+    internalTestPutGetBig<std::int64_t, 6>(0xffffffffffL);
+    internalTestPutGetBig<std::int64_t, 7>(0xffffffffffffL);
+
+}
+
+void StdStreambufAccessTestSuite::testLittleUint64()
+{
+    internalTestPutGetLittle<std::uint64_t>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 1>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 2>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 3>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 4>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 5>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 6>(0xffffffffffffL);
+    internalTestPutGetLittle<std::uint64_t, 7>(0xffffffffffffL);
+}
+
+void StdStreambufAccessTestSuite::testLittleInt64()
+{
+    internalTestPutGetLittle<std::int64_t>(0xffffffffffffL);
+    internalTestPutGetLittle<std::int64_t, 1>();
+    internalTestPutGetLittle<std::int64_t, 2>(0xff);
+    internalTestPutGetLittle<std::int64_t, 3>(0xffff);
+    internalTestPutGetLittle<std::int64_t, 4>(0xffffff);
+    internalTestPutGetLittle<std::int64_t, 5>(0xffffffffL);
+    internalTestPutGetLittle<std::int64_t, 6>(0xffffffffffL);
+    internalTestPutGetLittle<std::int64_t, 7>(0xffffffffffffL);
+}
+
+void StdStreambufAccessTestSuite::testPutGetData()
+{
+    internalPutGetData<embxx::io::traits::endian::Big>((std::uint8_t)0x3f);
+    internalPutGetData<embxx::io::traits::endian::Little>((std::uint8_t)0x4a);
+    internalPutGetData<embxx::io::traits::endian::Big>((std::uint16_t)0x1afc);
+    internalPutGetData<embxx::io::traits::endian::Little>((std::uint16_t)0xdbea);
+    internalPutGetData<embxx::io::traits::endian::Big>((std::uint32_t)0xdeadbeef);
+    internalPutGetData<embxx::io::traits::endian::Little>((std::uint32_t)0xbeefdead);
+    internalPutGetData<embxx::io::traits::endian::Big>((std::uint64_t)0xdeadbeefaaaabbbb);
+    internalPutGetData<embxx::io::traits::endian::Little>((std::uint32_t)0xbeefdeadbbccbbcc);
+}
+
+template <typename T>
+void StdStreambufAccessTestSuite::checkSinglePutGetBig(
+    T outValue,
+    const char* arr,
+    OutputBuf& outBuf,
+    InputBuf& inBuf)
+{
+    checkSinglePutGetBigPartial<T, sizeof(T)>(outValue, arr, outBuf, inBuf);
+}
+
+template <typename T, std::size_t TSize>
+void StdStreambufAccessTestSuite::checkSinglePutGetBigPartial(
+    T outValue,
+    const char* arr,
+    OutputBuf& outBuf,
+    InputBuf& inBuf)
+{
+    auto count = embxx::io::putBig<TSize>(outValue, outBuf);
+    TS_ASSERT_EQUALS(count, TSize);
+
+    for (unsigned i = 0; i < TSize; ++i) {
+        std::size_t valueShift = (TSize - (i + 1)) * 8;
+        char expectedByte = static_cast<char>(outValue >> valueShift);
+        TS_ASSERT_EQUALS(arr[i], expectedByte);
+    }
+
+    T inValue = embxx::io::getBig<T, TSize>(inBuf);
+    TS_ASSERT_EQUALS(outValue & inValue, inValue);
+    TS_ASSERT_EQUALS((~outValue) & (~inValue), ~outValue);
+    outBuf.pubseekpos(0);
+    inBuf.pubseekpos(0);
+}
+
+template <typename T>
+void StdStreambufAccessTestSuite::internalTestPutGetBig(
+    typename std::make_unsigned<T>::type increment)
+{
+    internalTestPutGetBig<T, sizeof(T)>(increment);
+}
+
+template <typename T, std::size_t TSize>
+void StdStreambufAccessTestSuite::internalTestPutGetBig(
+    typename std::make_unsigned<T>::type increment)
+{
+    char arr[sizeof(T) + 1] = {0};
+    typedef boost::iostreams::array_sink Sink;
+    typedef boost::iostreams::array_source Source;
+    Sink sink(arr);
+    Source source(arr);
+    OutputBuf outBuf(sink);
+    InputBuf inBuf(source);
+
+    T min = std::numeric_limits<T>::min();
+    T max = std::numeric_limits<T>::max();
+    if (std::is_signed<T>::value && (TSize < sizeof(T))) {
+        typedef typename std::make_unsigned<T>::type UnsignedType;
+        auto shift = (TSize * 8) - 1;
+        auto mask = (static_cast<UnsignedType>(1) << shift) - 1;
+        min = static_cast<T>(~mask);
+        max = mask;
+    }
+    T limit = (max - increment);
+
+    TS_ASSERT(increment > 0);
+    typedef typename std::make_unsigned<T>::type UnsignedType;
+    TS_ASSERT(increment < (static_cast<UnsignedType>(max) - min));
+
+    for (T outValue = min; outValue <= limit; outValue += increment) {
+        checkSinglePutGetBigPartial<T, TSize>(outValue, arr, outBuf, inBuf);
+    }
+    checkSinglePutGetBigPartial<T, TSize>(max, arr, outBuf, inBuf);
+
+    TS_ASSERT_EQUALS(arr[sizeof(T)], 0);
+}
+
+template <typename T>
+void StdStreambufAccessTestSuite::checkSinglePutGetLittle(
+    T outValue,
+    const char* arr,
+    OutputBuf& outBuf,
+    InputBuf& inBuf)
+{
+    checkSinglePutGetLittlePartial<T, sizeof(T)>(outValue, arr, outBuf, inBuf);
+}
+
+template <typename T, std::size_t TSize>
+void StdStreambufAccessTestSuite::checkSinglePutGetLittlePartial(
+    T outValue,
+    const char* arr,
+    OutputBuf& outBuf,
+    InputBuf& inBuf)
+{
+    auto count = embxx::io::putLittle<TSize>(outValue, outBuf);
+    TS_ASSERT_EQUALS(count, TSize);
+
+    for (unsigned i = 0; i < TSize; ++i) {
+        std::size_t valueShift = i * 8;
+        char expectedByte = static_cast<char>(outValue >> valueShift);
+        TS_ASSERT_EQUALS(arr[i], expectedByte);
+    }
+
+    T inValue = embxx::io::getLittle<T, TSize>(inBuf);
+    TS_ASSERT_EQUALS(outValue & inValue, inValue);
+    TS_ASSERT_EQUALS((~outValue) & (~inValue), ~outValue);
+    outBuf.pubseekpos(0);
+    inBuf.pubseekpos(0);
+}
+
+template <typename T>
+void StdStreambufAccessTestSuite::internalTestPutGetLittle(
+    typename std::make_unsigned<T>::type increment)
+{
+    internalTestPutGetLittle<T, sizeof(T)>(increment);
+}
+
+template <typename T, std::size_t TSize>
+void StdStreambufAccessTestSuite::internalTestPutGetLittle(
+    typename std::make_unsigned<T>::type increment)
+{
+    char arr[sizeof(T) + 1] = {0};
+    typedef boost::iostreams::array_sink Sink;
+    typedef boost::iostreams::array_source Source;
+    Sink sink(arr);
+    Source source(arr);
+    OutputBuf outBuf(sink);
+    InputBuf inBuf(source);
+
+    T min = std::numeric_limits<T>::min();
+    T max = std::numeric_limits<T>::max();
+    if (std::is_signed<T>::value && (TSize < sizeof(T))) {
+        typedef typename std::make_unsigned<T>::type UnsignedType;
+        auto shift = (TSize * 8) - 1;
+        auto mask = (static_cast<UnsignedType>(1) << shift) - 1;
+        min = static_cast<T>(~mask);
+        max = mask;
+    }
+    T limit = (max - increment);
+
+    TS_ASSERT(increment > 0);
+    typedef typename std::make_unsigned<T>::type UnsignedType;
+    TS_ASSERT(increment < (static_cast<UnsignedType>(max) - min));
+
+    for (T outValue = min; outValue <= limit; outValue += increment) {
+        checkSinglePutGetLittlePartial<T, TSize>(outValue, arr, outBuf, inBuf);
+    }
+    checkSinglePutGetLittlePartial<T, TSize>(max, arr, outBuf, inBuf);
+
+    TS_ASSERT_EQUALS(arr[sizeof(T)], 0);
+}
+
+template <typename TEndian, typename T>
+void StdStreambufAccessTestSuite::internalPutGetData(T value)
+{
+    char arr[sizeof(T)] = {0};
+    OutputBuf outBuf(&arr[0], sizeof(T));
+    outBuf.pubseekpos(0, std::ios_base::out);
+    embxx::io::putData(value, outBuf, TEndian());
+
+    InputBuf inBuf(&arr[0], sizeof(T));
+    inBuf.pubseekpos(0, std::ios_base::in);
+    T readValue = 0;
+    readValue = embxx::io::getData<T>(inBuf, TEndian());
+    TS_ASSERT_EQUALS(value, readValue);
+
+}

@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-/// @file embxx/io/iosimple.h
+/// @file embxx/io/std_streambuf_access.h
 /// Simple io module.
 /// Provides an ability to put and get integral types into and from
 /// steam buffer.

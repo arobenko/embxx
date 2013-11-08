@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "embxx/io/iosimple.h"
+#include "embxx/io/std_streambuf_access.h"
 #include "embxx/comms/traits.h"
 
 namespace embxx

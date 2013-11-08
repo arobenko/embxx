@@ -26,7 +26,7 @@
 #include "embxx/util/Assert.h"
 #include "embxx/util/SizeToType.h"
 #include "embxx/util/IntegralPromotion.h"
-#include "embxx/io/iosimple.h"
+#include "embxx/io/std_streambuf_access.h"
 #include "embxx/comms/ErrorStatus.h"
 
 namespace embxx

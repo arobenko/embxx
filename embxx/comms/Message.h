@@ -28,7 +28,7 @@
 
 #include "embxx/util/Assert.h"
 #include "embxx/util/Tuple.h"
-#include "embxx/io/iosimple.h"
+#include "embxx/io/std_streambuf_access.h"
 
 #include "traits.h"
 #include "ErrorStatus.h"

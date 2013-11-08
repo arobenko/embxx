@@ -1,0 +1,21 @@
+/// @page io_access_page Read/Write functionality for integral types
+/// @section iosimple Overview
+/// There are many cases when it is needed to communicate some data
+/// between two nodes, such as over the network or serial connection.
+///
+/// The communication protocol must establish how the data is going
+/// to be transferred: the order and size of fields, big or little endian.
+///
+/// This module provides a simple functionality to read/write (deserialise/serialise)
+/// integral data types using any type of iterator.
+///
+/// Currently supported functions:
+/// @li embxx::io::writeBig() - serialise data using big endian representation
+/// @li embxx::io::readBig() - deserialise data using big endian representation
+/// @li embxx::io::writeLittle() - serialise data using little endian representation
+/// @li embxx::io::readLittle() - desrialise data using little endian representation
+/// @li embxx::io::writeData() - serialise data with endianness specified as a parameter
+/// @li embxx::io::readData() - deserialise data with endianness specified as a parameter
+///
+/// To include definition of the functions above use:
+/// @code #include <embxx/io/access.h> @endcode
