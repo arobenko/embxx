@@ -21,14 +21,13 @@
 
 #pragma once
 
-#include <streambuf>
 #include <cstdint>
 #include <algorithm>
 #include <type_traits>
 
 #include "embxx/util/Assert.h"
 #include "embxx/util/Tuple.h"
-#include "embxx/io/std_streambuf_access.h"
+#include "embxx/io/access.h"
 
 #include "traits.h"
 #include "ErrorStatus.h"
@@ -43,137 +42,24 @@ namespace comms
 /// @{
 
 /// @brief Abstract base class for all the messages.
-/// @details This class is used to avoid multiple instantiations of the same
-///          template arguments independent code.
-/// @headerfile embxx/comms/Message.h
-template <typename T = void>
-class CommonMessageBase
-{
-public:
-
-    /// @brief Type used for message ID
-    typedef traits::MsgIdType MsgIdType;
-
-    /// @brief Destructor
-    virtual ~CommonMessageBase();
-
-    /// @brief Retrieve ID of the message
-    /// @note Thread safety: Safe
-    /// @note Exception guarantee: Strong
-    MsgIdType getId() const;
-
-    /// @brief Read body of the message from stream buffer
-    /// @details Calls to pure virtual function readImpl() which must
-    ///          be implemented in one of the derived classes. Prior to call
-    ///          to readImpl(), call to getDataSize() is performed to
-    ///          verify that buffer contains enough data to create a message.
-    ///          If the amount of data in the buffer is not enough
-    ///          ErrorStatus::NotEnoughData will be returned.
-    /// @param[in, out] buf Input stream buffer.
-    /// @param[in] size Size of the data in the stream buffer.
-    /// @return Status of the read operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
-    /// @post There is no guarantee about state of the message object after
-    ///       the read operation is not successful. It may be only partially
-    ///       updated.
-    /// @note Thread safety: Depends on thread safety of the implementation of
-    ///       readImpl() provided by the derived class(es).
-    /// @note Exception guarantee: Basic
-    ErrorStatus read(std::streambuf& buf, std::size_t size);
-
-    /// @brief Write body of the message to the stream buffer
-    /// @details This function checks whether required buffer size returned
-    ///          by getDataSize() is less or equal to the "size" parameter
-    ///          value. In case there is not enough space this function will
-    ///          return ErrorStatus::BufferOverflow. It there is enough space
-    ///          to successfully write the message, pure virtual function
-    ///          writeImpl() will be called. It must
-    ///          be implemented in one of the derived classes.
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size Size of the buffer, message data must fit it.
-    /// @return Status of the write operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available space in the buffer.
-    /// @post The internal (std::ios_base::out) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually written.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
-    /// @note Thread safety: Depends on thread safety of the implementation of
-    ///       writeImpl() provided by the derived class(es).
-    /// @note Exception guarantee: Basic
-    ErrorStatus write(std::streambuf& buf, std::size_t size) const;
-
-    /// @brief Get size required to serialise a message.
-    /// @details This function will call getDataSizeImpl() pure virtual
-    ///          function. It is a responsibility of the actual message
-    ///          to implement it to provide the information.
-    /// @return Number of bytes required to serialise a message.
-    /// @post Returned value is less than std::numeric_limits<std::size_t>::max();
-    /// @note Thread safety: Depends on thread safety of the implementation of
-    ///       getDataSizeImpl() provided by the derived class(es).
-    /// @note Exception guarantee: No throw.
-    std::size_t getDataSize() const;
-
-protected:
-
-    /// @brief Pure virtual function to be called to update contents of the
-    ///        message based on the data in the stream buffer.
-    /// @details Must be implemented in the derived class
-    /// @param[in, out] buf Input stream buffer.
-    /// @param[in] size Size of the data in the stream buffer.
-    /// @return Status of the read operation.
-    /// @note Must comply with all the preconditions, postconditions,
-    ///       Thread safety and Exception guarantee specified in read().
-    virtual ErrorStatus readImpl(std::streambuf& buf, std::size_t size) = 0;
-
-    /// @brief Pure virtual function to be called to write contents of the
-    ///        message to the stream buffer.
-    /// @details Must be implemented in the derived class
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size Maximal size the message data must fit it.
-    /// @return Status of the write operation.
-    /// @pre getDataSizeImpl() <= size. This check is performed in write()
-    ///      prior to call to this function.
-    /// @note Must comply with all the preconditions, postconditions,
-    ///       Thread safety and Exception guarantee specified in write().
-    virtual ErrorStatus writeImpl(std::streambuf& buf, std::size_t size) const = 0;
-
-    /// @brief Pure virtual function to be called to retrieve
-    ///        number of bytes required to serialise current message.
-    /// @details Must be implemented in the derived class.
-    /// @return Number of bytes required to serialise a message.
-    /// @note Must comply with all the preconditions, postconditions,
-    ///       Thread safety and Exception guarantee specified in getDataSize().
-    virtual std::size_t getDataSizeImpl() const = 0;
-
-private:
-
-    /// @brief Implemented in MessageBase
-    virtual MsgIdType getIdImpl() const = 0;
-};
-
-
-/// @brief Abstract base class for all the messages.
 /// @details This class provides basic API to allow retrieval of message ID,
 ///          reading and writing of the message contents, as well as dispatching
 ///          message to its handler.
 /// @tparam THandler Handler class that must provide
 ///         "handleMessage(<message_type>& msg)" member functions to handle
 ///         all types of defined messages.
-/// @tparam TTraits Various behavioural traits relevant for the message.
-///         Currently the only trait that is required for this class is
-///         Endianness. The traits class/struct must typedef either
-///         traits::endian::Big or traits::endian::Little to Endianness.
+/// @tparam TTraits Various behavioural traits relevant for the message. Must
+///         define:
+///         @li Type Endianness. Must be either embxx::comms::traits::endian::Big
+///             or embxx::comms::traits::endian::Little.
+///         @li Type ReadIterator. Can be any type of input iterator. It will
+///             be used to read message contents from serialised data sequence.
+///         @li Type WriteIterator. Can be any type of output iterator. It will
+///             be used to serialise message contents to provided data sequence.
 /// @headerfile embxx/comms/Message.h
 template <typename THandler, typename TTraits>
-class Message : public CommonMessageBase<>
+class Message
 {
-    typedef CommonMessageBase<> Base;
 public:
 
     /// @brief Handler class.
@@ -184,10 +70,75 @@ public:
     typedef TTraits Traits;
 
     /// @brief Type used for message ID
-    typedef Base::MsgIdType MsgIdType;
+    typedef typename traits::MsgIdType MsgIdType;
+
+    /// Actual Endianness defined in provided Traits class
+    typedef typename Traits::Endianness Endianness;
+
+    /// @brief Type of read iterator
+    typedef typename Traits::ReadIterator ReadIterator;
+
+    /// @brief Type of write iterator
+    typedef typename Traits::WriteIterator WriteIterator;
 
     /// @brief Destructor
     virtual ~Message();
+
+    /// @brief Retrieve ID of the message
+    /// @note Thread safety: Safe
+    /// @note Exception guarantee: Strong
+    MsgIdType getId() const;
+
+    /// @brief Read body of the message from stream buffer
+    /// @details Calls to pure virtual function readImpl() which must
+    ///          be implemented in one of the derived classes. Prior to call
+    ///          to readImpl(), call to length() is performed to
+    ///          verify that buffer contains enough data to create a message.
+    ///          If the amount of data in the buffer is not enough
+    ///          ErrorStatus::NotEnoughData will be returned.
+    /// @param[in, out] iter Input iterator.
+    /// @param[in] size Size of the data in iterated data structure.
+    /// @return Status of the read operation.
+    /// @pre Input iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least size times.
+    /// @post The input iterator is advanced.
+    /// @post There is no guarantee about state of the message object after
+    ///       the read operation is not successful. It may be only partially
+    ///       updated.
+    /// @note Thread safety: Depends on thread safety of the implementation of
+    ///       readImpl() provided by the derived class(es).
+    /// @note Exception guarantee: Basic
+    ErrorStatus read(ReadIterator& iter, std::size_t size);
+
+    /// @brief Write body of the message to the stream buffer
+    /// @details This function checks whether required buffer size returned
+    ///          by length() is less or equal to the "size" parameter
+    ///          value. In case there is not enough space this function will
+    ///          return ErrorStatus::BufferOverflow. It there is enough space
+    ///          to successfully write the message, pure virtual function
+    ///          writeImpl() will be called. It must
+    ///          be implemented in one of the derived classes.
+    /// @param[in, out] iter Output iterator.
+    /// @param[in] size Size of the buffer, message data must fit it.
+    /// @return Status of the write operation.
+    /// @pre Input iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least size times.
+    /// @post The output iterator is advanced.
+    /// @note Thread safety: Depends on thread safety of the implementation of
+    ///       writeImpl() provided by the derived class(es).
+    /// @note Exception guarantee: Basic
+    ErrorStatus write(WriteIterator& iter, std::size_t size) const;
+
+    /// @brief Get size required to serialise a message.
+    /// @details This function will call lengthImpl() pure virtual
+    ///          function. It is a responsibility of the actual message
+    ///          to implement it to provide the information.
+    /// @return Number of bytes required to serialise a message.
+    /// @post Returned value is less than std::numeric_limits<std::size_t>::max();
+    /// @note Thread safety: Depends on thread safety of the implementation of
+    ///       lengthImpl() provided by the derived class(es).
+    /// @note Exception guarantee: No throw.
+    std::size_t length() const;
 
     /// @brief Dispatch message to its handler
     /// @details The message will be dispatched to the handler using
@@ -204,60 +155,105 @@ public:
     void dispatch(Handler& handler);
 
 protected:
-    /// Actual Endianness defined in provided Traits class
-    typedef typename Traits::Endianness Endianness;
+    /// @brief Pure virtual function to be called to update contents of the
+    ///        message based on the data in the stream buffer.
+    /// @details Must be implemented in the derived class
+    /// @param[in, out] iter Input iterator.
+    /// @param[in] size Size of the data in the iterated sequence.
+    /// @return Status of the read operation.
+    /// @note Must comply with all the preconditions, postconditions,
+    ///       Thread safety and Exception guarantee specified in read().
+    virtual ErrorStatus readImpl(ReadIterator& iter, std::size_t size) = 0;
 
-    /// @brief Write data into the output stream buffer.
+    /// @brief Pure virtual function to be called to write contents of the
+    ///        message to the stream buffer.
+    /// @details Must be implemented in the derived class
+    /// @param[in, out] iter Output stream buffer.
+    /// @param[in] size Maximal size the message data must fit it.
+    /// @return Status of the write operation.
+    /// @pre lengthImpl() <= size. This check is performed in write()
+    ///      prior to call to this function.
+    /// @note Must comply with all the preconditions, postconditions,
+    ///       Thread safety and Exception guarantee specified in write().
+    virtual ErrorStatus writeImpl(WriteIterator& iter, std::size_t size) const = 0;
+
+    /// @brief Pure virtual function to be called to retrieve
+    ///        number of bytes required to serialise current message.
+    /// @details Must be implemented in the derived class.
+    /// @return Number of bytes required to serialise a message.
+    /// @note Must comply with all the preconditions, postconditions,
+    ///       Thread safety and Exception guarantee specified in length().
+    virtual std::size_t lengthImpl() const = 0;
+
+    /// @brief Write data into the output sequence.
     /// @details Use this function to write data to the stream buffer.
     ///          The endianness of the data will be as specified in the TTraits
     ///          template parameter of the class.
     /// @tparam T Type of the value to write. Must be integral.
+    /// @tparam Type of output iterator
     /// @param[in] value Integral type value to be written.
-    /// @param[in, out] buf Output stream buffer.
-    /// @return Number of bytes actually written.
-    /// @post The internal pointer of the stream buffer is advanced.
+    /// @param[in, out] iter Output iterator.
+    /// @pre The iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least sizeof(T) times.
+    /// @post The iterator is advanced.
     /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <typename T>
-    static std::size_t putData(T value, std::streambuf& buf);
+    template <typename T, typename TIter>
+    static void writeData(T value, TIter& iter);
 
-    /// @brief Write partial data into the output stream buffer.
+    /// @brief Write partial data into the output sequence.
     /// @details Use this function to write partial data to the stream buffer.
     ///          The endianness of the data will be as specified in the TTraits
     ///          template parameter of the class.
     /// @tparam TSize Length of the value in bytes known in compile time.
     /// @tparam T Type of the value to write. Must be integral.
+    /// @tparam TIter Type of output iterator
     /// @param[in] value Integral type value to be written.
-    /// @param[in, out] buf Output stream buffer.
-    /// @return Number of bytes actually written.
+    /// @param[in, out] iter Output iterator.
     /// @pre TSize <= sizeof(T)
-    /// @post The internal pointer of the stream buffer is advanced.
+    /// @pre The iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least TSize times.
+    /// @post The iterator is advanced.
     /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <std::size_t TSize, typename T>
-    static std::size_t putData(T value, std::streambuf& buf);
+    template <std::size_t TSize, typename T, typename TIter>
+    static void writeData(T value, TIter& iter);
 
-    /// @brief Read data from input stream buffer.
+    /// @brief Read data from input sequence.
+    /// @details Use this function to read data from the stream buffer.
+    /// The endianness of the data will be as specified in the TTraits
+    /// template parameter of the class.
+    /// @tparam T Return type
+    /// @tparam TIter Type of input iterator
+    /// @param[in, out] iter Input iterator.
+    /// @return The integral type value.
+    /// @pre TSize <= sizeof(T)
+    /// @pre The iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least sizeof(T) times.
+    /// @post The iterator is advanced.
+    /// @note Thread safety: Safe for distinct stream buffers, unsafe otherwise.
+    template <typename T, typename TIter>
+    static T readData(TIter& iter);
+
+    /// @brief Read partial data from input sequence.
     /// @details Use this function to read data from the stream buffer.
     /// The endianness of the data will be as specified in the TTraits
     /// template parameter of the class.
     /// @tparam T Return type
     /// @tparam TSize number of bytes to read
-    /// @param[in, out] buf Input stream buffer.
+    /// @tparam TIter Type of input iterator
+    /// @param[in, out] iter Input iterator.
     /// @return The integral type value.
-    /// @pre The buffer has required amount of bytes to be read.
-    ///      The result is undefined otherwise.
     /// @pre TSize <= sizeof(T)
+    /// @pre The iterator must be valid and can be successfully dereferenced
+    ///      and incremented at least TSize times.
     /// @post The internal pointer of the stream buffer is advanced.
     /// @note Thread safety: Safe for distinct stream buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <typename T, std::size_t TSize = sizeof(T)>
-    static T getData(std::streambuf& buf);
+    template <typename T, std::size_t TSize, typename TIter>
+    static T readData(TIter& iter);
 
 private:
+
+    /// @brief Implemented in MessageBase
+    virtual MsgIdType getIdImpl() const = 0;
 
     /// @brief Implemented in MessageBase
     virtual void dispatchImpl(Handler& handler) = 0;
@@ -326,23 +322,29 @@ public:
 
 protected:
 
+    /// @brief Read iterator type
+    typedef typename Base::ReadIterator ReadIterator;
+
+    /// @brief Write iterator type
+    typedef typename Base::WriteIterator WriteIterator;
+
     /// @brief Implements read body behaviour.
     /// @details Does nothing
     /// @return ErrorStatus::Success.
     virtual ErrorStatus readImpl(
-        std::streambuf& buf,
+        ReadIterator& iter,
         std::size_t size) override final;
 
     /// @brief Implements read body behaviour.
     /// @details Does nothing
     /// @return ErrorStatus::Success.
     virtual ErrorStatus writeImpl(
-        std::streambuf& buf,
+        WriteIterator& iter,
         std::size_t size) const override final;
 
     /// @brief Implements serialisation size retrieval.
     /// @return 0
-    virtual std::size_t getDataSizeImpl() const override final;
+    virtual std::size_t lengthImpl() const override final;
 };
 
 /// @brief Meta base class for all the custom messages.
@@ -359,14 +361,14 @@ protected:
 ///         class
 /// @tparam TFields All field classes wrapped in std::tuple. Every field
 ///         class must provide the following member functions:
-///         @li @code std::size_t getLength() const; @endcode Provides an
+///         @li @code std::size_t length() const; @endcode Provides an
 ///             information about length of the field when serialised. May also
-///             be static if doesn't depen on the field value.
-///         @li @code ErrorStatus read(std::streambuf& buf, std::size_t size); @endcode
-///             Reads the serialised value from the input stream buffer and
+///             be static if doesn't depend on the field value.
+///         @li @code template <typename TIter> ErrorStatus read(TIter& iter, std::size_t size); @endcode
+///             Reads the serialised value from the input data sequence and
 ///             updates its value.
-///         @li @code ErrorStatus write(std::streambuf& buf, std::size_t size) const; @endcode
-///             Serialises value into the output stream buffer.
+///         @li @code template <typename TIter> ErrorStatus write(TIter& iter, std::size_t size) const; @endcode
+///             Serialises value into the output data sequence.
 /// @headerfile embxx/comms/Message.h
 template <traits::MsgIdType TId,
           typename TBase,
@@ -389,37 +391,48 @@ public:
     /// @brief Destructor
     virtual ~MetaMessageBase();
 
+    /// @brief Access all the fields
     Fields& getFields();
+
+    /// @brief Const version of getFields
     const Fields& getFields() const;
 
 protected:
+
+    /// @brief Read iterator type is inherited from base class
+    typedef typename Base::ReadIterator ReadIterator;
+
+    /// @brief Write iterator type is inherited from base class
+    typedef typename Base::WriteIterator WriteIterator;
+
     /// @brief Implements read body behaviour.
     /// @details Calls read() member function of every element in TFields.
     /// @return ErrorStatus::Success if all read operations are successful.
     virtual ErrorStatus readImpl(
-        std::streambuf& buf,
-        std::size_t size) override;
+        ReadIterator& iter,
+        std::size_t size) override final;
 
     /// @brief Implements write body behaviour.
     /// @details Calls write() member function of every element in TField
     /// @return ErrorStatus::Success if all write operations are successful.
     virtual ErrorStatus writeImpl(
-        std::streambuf& buf,
-        std::size_t size) const override;
+        WriteIterator& iter,
+        std::size_t size) const override final;
 
     /// @brief Implements serialisation size retrieval.
-    /// @details Calls getLength() member functio nof every element it TField
+    /// @details Calls length() member functio nof every element it TField
     ///          and sums the result
     /// @return Number of bytes required to serialise all fields in TField
-    virtual std::size_t getDataSizeImpl() const override;
+    virtual std::size_t lengthImpl() const override final;
 
 private:
 
+    /// @cond DOCUMENT_FIELD_READER_WRITER_SIZE_GETTER
     class FieldReader
     {
     public:
-        FieldReader(std::streambuf& buf, ErrorStatus& status, std::size_t& size)
-            : buf_(buf),
+        FieldReader(ReadIterator& iter, ErrorStatus& status, std::size_t& size)
+            : iter_(iter),
               status_(status),
               size_(size)
         {
@@ -429,15 +442,15 @@ private:
         template <typename TField>
         void operator()(TField& field) {
             if (status_ == ErrorStatus::Success) {
-                status_ = field.read(buf_, size_);
+                status_ = field.read(iter_, size_);
                 if (status_ == ErrorStatus::Success) {
-                    GASSERT(field.getLength() <= size_);
-                    size_ -= field.getLength();
+                    GASSERT(field.length() <= size_);
+                    size_ -= field.length();
                 }
             }
         }
     private:
-        std::streambuf& buf_;
+        ReadIterator& iter_;
         ErrorStatus status_;
         std::size_t& size_;
     };
@@ -445,27 +458,26 @@ private:
     class FieldWriter
     {
     public:
-        FieldWriter(std::streambuf& buf, ErrorStatus& status, std::size_t& size)
-            : buf_(buf),
+        FieldWriter(WriteIterator& iter, ErrorStatus& status, std::size_t& size)
+            : iter_(iter),
               status_(status),
               size_(size)
         {
-
         }
 
         template <typename TField>
         void operator()(TField& field) {
             if (status_ == ErrorStatus::Success) {
-                status_ = field.write(buf_, size_);
+                status_ = field.write(iter_, size_);
                 if (status_ == ErrorStatus::Success) {
-                    GASSERT(field.getLength() <= size_);
-                    size_ -= field.getLength();
+                    GASSERT(field.length() <= size_);
+                    size_ -= field.length();
                 }
             }
         }
 
     private:
-        std::streambuf& buf_;
+        WriteIterator& iter_;
         ErrorStatus status_;
         std::size_t& size_;
     };
@@ -476,9 +488,10 @@ private:
         template <typename TField>
         std::size_t operator()(std::size_t size, const TField& field)
         {
-            return size + field.getLength();
+            return size + field.length();
         }
     };
+    /// @endcond
 
     Fields fields_;
 };
@@ -487,79 +500,52 @@ private:
 /// @}
 
 // Implementation
-template <typename T>
-CommonMessageBase<T>::~CommonMessageBase()
+template <typename THandler, typename TTraits>
+Message<THandler, TTraits>::~Message()
 {
 }
 
-template <typename T>
-typename CommonMessageBase<T>::MsgIdType
-CommonMessageBase<T>::getId() const
+template <typename THandler, typename TTraits>
+typename Message<THandler, TTraits>::MsgIdType
+Message<THandler, TTraits>::getId() const
 {
     // redirecting request to derived class
     return this->getIdImpl();
 }
 
-template <typename T>
-ErrorStatus CommonMessageBase<T>::read(
-    std::streambuf& buf,
+template <typename THandler, typename TTraits>
+ErrorStatus Message<THandler, TTraits>::read(
+    ReadIterator& iter,
     std::size_t size)
 {
-    GASSERT(size <= static_cast<decltype(size)>(buf.in_avail()));
+    auto minSize = length();
+    if (size < minSize) {
+        return ErrorStatus::NotEnoughData;
+    }
 
-    auto minSize = getDataSize();
-    ErrorStatus status = ErrorStatus::NumOfErrorStatuses;
-    do {
-        if (size < minSize) {
-            status = ErrorStatus::NotEnoughData;
-            break;
-        }
-
-        status = this->readImpl(buf, size);
-    } while (false);
-
-    return status;
+    return this->readImpl(iter, size);
 }
 
-template <typename T>
-ErrorStatus CommonMessageBase<T>::write(
-    std::streambuf& buf,
+template <typename THandler, typename TTraits>
+ErrorStatus Message<THandler, TTraits>::write(
+    WriteIterator& iter,
     std::size_t size) const
 {
-#ifndef NDEBUG
-    auto firstPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
-    auto lastPos = buf.pubseekoff(0, std::ios_base::end, std::ios_base::out);
-    buf.pubseekpos(firstPos, std::ios_base::out);
-    auto diff = static_cast<decltype(size)>(lastPos - firstPos);
-    GASSERT(size <= diff);
-#endif // #ifndef NDEBUG
+    if (size < length()) {
+        return ErrorStatus::BufferOverflow;
+    }
 
-    ErrorStatus status = ErrorStatus::NumOfErrorStatuses;
-    do {
-        if (size < getDataSize()) {
-            status = ErrorStatus::BufferOverflow;
-            break;
-        }
-
-        status = this->writeImpl(buf, size);
-    } while (false);
-
-    return status;
+    return this->writeImpl(iter, size);
 }
 
-template <typename T>
-std::size_t CommonMessageBase<T>::getDataSize() const
+template <typename THandler, typename TTraits>
+std::size_t Message<THandler, TTraits>::length() const
 {
-    auto value = this->getDataSizeImpl();
+    auto value = this->lengthImpl();
     GASSERT(value < std::numeric_limits<decltype(value)>::max());
     return value;
 }
 
-
-template <typename THandler, typename TTraits>
-Message<THandler, TTraits>::~Message()
-{
-}
 
 template <typename THandler, typename TTraits>
 void Message<THandler, TTraits>::dispatch(Handler& handler)
@@ -568,28 +554,39 @@ void Message<THandler, TTraits>::dispatch(Handler& handler)
 }
 
 template <typename THandler, typename TTraits>
-template <typename T>
-std::size_t Message<THandler, TTraits>::putData(T value, std::streambuf& buf)
+template <typename T, typename TIter>
+void Message<THandler, TTraits>::writeData(
+    T value,
+    TIter& iter)
 {
-    return io::putData<T>(value, buf, Endianness());
+    io::writeData<T>(value, iter, Endianness());
 }
 
 template <typename THandler, typename TTraits>
-template <std::size_t TSize, typename T>
-std::size_t Message<THandler, TTraits>::putData(T value, std::streambuf& buf)
+template <std::size_t TSize, typename T, typename TIter>
+void Message<THandler, TTraits>::writeData(
+    T value,
+    TIter& iter)
 {
     static_assert(TSize <= sizeof(T),
                                 "Cannot put more bytes than type contains");
-    return io::putData<TSize, T>(value, buf, Endianness());
+    return io::writeData<TSize, T>(value, iter, Endianness());
 }
 
 template <typename THandler, typename TTraits>
-template <typename T, std::size_t TSize>
-T Message<THandler, TTraits>::getData(std::streambuf& buf)
+template <typename T, typename TIter>
+T Message<THandler, TTraits>::readData(TIter& iter)
+{
+    return readData<T, sizeof(T)>(iter);
+}
+
+template <typename THandler, typename TTraits>
+template <typename T, std::size_t TSize, typename TIter>
+T Message<THandler, TTraits>::readData(TIter& iter)
 {
     static_assert(TSize <= sizeof(T),
-                                "Cannot get more bytes than type contains");
-    return io::getData<T, TSize>(buf, Endianness());
+        "Cannot get more bytes than type contains");
+    return io::readData<T, TSize>(iter, Endianness());
 }
 
 template <typename traits::MsgIdType TId,
@@ -628,10 +625,10 @@ template <typename traits::MsgIdType TId,
           typename TBase,
           typename TActual>
 ErrorStatus EmptyBodyMessage<TId, TBase, TActual>::readImpl(
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size)
 {
-    static_cast<void>(buf);
+    static_cast<void>(iter);
     static_cast<void>(size);
     return ErrorStatus::Success;
 }
@@ -640,10 +637,10 @@ template <typename traits::MsgIdType TId,
           typename TBase,
           typename TActual>
 ErrorStatus EmptyBodyMessage<TId, TBase, TActual>::writeImpl(
-    std::streambuf& buf,
+    WriteIterator& iter,
     std::size_t size) const
 {
-    static_cast<void>(buf);
+    static_cast<void>(iter);
     static_cast<void>(size);
     return ErrorStatus::Success;
 }
@@ -651,7 +648,7 @@ ErrorStatus EmptyBodyMessage<TId, TBase, TActual>::writeImpl(
 template <typename traits::MsgIdType TId,
           typename TBase,
           typename TActual>
-std::size_t EmptyBodyMessage<TId, TBase, TActual>::getDataSizeImpl() const
+std::size_t EmptyBodyMessage<TId, TBase, TActual>::lengthImpl() const
 {
     return 0;
 }
@@ -697,13 +694,12 @@ template <traits::MsgIdType TId,
           typename TActual,
           typename TFields>
 ErrorStatus MetaMessageBase<TId, TBase, TActual, TFields>::readImpl(
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size)
 {
-    GASSERT(size <= buf.in_avail());
     ErrorStatus status = ErrorStatus::Success;
     std::size_t remainingSize = size;
-    util::tupleForEach(fields_, FieldReader(buf, status, remainingSize));
+    util::tupleForEach(fields_, FieldReader(iter, status, remainingSize));
     return status;
 }
 
@@ -712,12 +708,12 @@ template <traits::MsgIdType TId,
           typename TActual,
           typename TFields>
 ErrorStatus MetaMessageBase<TId, TBase, TActual, TFields>::writeImpl(
-    std::streambuf& buf,
+    WriteIterator& iter,
     std::size_t size) const
 {
     ErrorStatus status = ErrorStatus::Success;
     std::size_t remainingSize = size;
-    util::tupleForEach(fields_, FieldWriter(buf, status, remainingSize));
+    util::tupleForEach(fields_, FieldWriter(iter, status, remainingSize));
     return status;
 }
 
@@ -725,7 +721,7 @@ template <traits::MsgIdType TId,
           typename TBase,
           typename TActual,
           typename TFields>
-std::size_t MetaMessageBase<TId, TBase, TActual, TFields>::getDataSizeImpl() const
+std::size_t MetaMessageBase<TId, TBase, TActual, TFields>::lengthImpl() const
 {
     return util::tupleAccumulate(fields_, 0U, FieldLengthRetriever());
 }

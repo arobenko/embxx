@@ -20,12 +20,11 @@
 
 #pragma once
 
-#include <streambuf>
-
 #include "boost/crc.hpp"
 
 #include "embxx/util/SizeToType.h"
 #include "embxx/util/Assert.h"
+#include "embxx/io/access.h"
 
 namespace embxx
 {
@@ -107,23 +106,26 @@ public:
     typedef typename util::SizeToType<ChecksumLen>::Type ChecksumType;
 
     /// @brief CRC calculation function.
-    /// @param[in, out] buf Input stream buffer
+    /// @tparam TIter Type of input iterator
+    /// @param[in, out] iter Input iterator
     /// @param[in] size Size of the data in the buffer
     /// @return Checksum value
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes actually read.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
-    static ChecksumType calc(std::streambuf& buf, std::size_t size)
+    template <typename TIter>
+    static ChecksumType calc(TIter& iter, std::size_t size)
     {
         static const std::size_t Bits = ChecksumLen * 8;
         boost::crc_optimal<
             Bits,
             crc_details::CrcPolynomial<ChecksumType>::Value> crc;
         for (auto count = 0U; count < size; ++count) {
-            typedef std::streambuf::traits_type TraitsType;
-            auto byte = buf.sbumpc();
-            GASSERT(static_cast<unsigned>(byte) != std::char_traits<TraitsType>::eof());
+            auto byte = embxx::io::readBig<unsigned char>(iter);
             crc.process_byte(static_cast<unsigned char>(byte));
         }
         auto checksum = crc.checksum();

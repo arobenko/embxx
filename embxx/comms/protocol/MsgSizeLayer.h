@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <iterator>
+#include <type_traits>
 #include "embxx/util/Assert.h"
 #include "embxx/util/SizeToType.h"
 #include "embxx/comms/traits.h"
@@ -54,6 +56,7 @@ template <typename TTraits,
 class MsgSizeLayer : public ProtocolLayer<TTraits, TNextLayer>
 {
     typedef ProtocolLayer<TTraits, TNextLayer> Base;
+
 public:
 
     /// @brief Pointer to message object
@@ -74,14 +77,36 @@ public:
     /// Type of the "size" field
     typedef typename util::SizeToType<MsgSizeLen>::Type MsgSizeType;
 
+    /// @brief Type of read iterator
+    typedef typename Base::ReadIterator ReadIterator;
+
+    /// @brief Type of write iterator
+    typedef typename Base::WriteIterator WriteIterator;
+
     /// Constructor
     MsgSizeLayer() = default;
 
-    /// @brief Deserialise message from the data in the input stream buffer.
-    /// @details Reads size of the subsequent data in the stream buffer
+    /// @brief Copy constructor is default
+    MsgSizeLayer(const MsgSizeLayer&) = default;
+
+    /// @brief Move constructor is default
+    MsgSizeLayer(MsgSizeLayer&&) = default;
+
+    /// @brief Copy assignment is default
+    MsgSizeLayer& operator=(const MsgSizeLayer&) = default;
+
+    /// @brief Move assignment is default.
+    MsgSizeLayer& operator=(MsgSizeLayer&&) = default;
+
+    /// @brief Destructor is default
+    ~MsgSizeLayer() = default;
+
+
+    /// @brief Deserialise message from the input data sequence.
+    /// @details Reads size of the subsequent data from the intput data sequence
     ///          and calls read() member function of the next layer with
     ///          the size specified in the size field.The function will also
-    ///          compare the provided size of the buffer with size of the
+    ///          compare the provided size of the data with size of the
     ///          message read from the buffer. If the latter is greater than
     ///          former, embxx::comms::ErrorStatus::NotEnoughData will be returned.
     ///          However, if buffer contains enough data, but the next layer
@@ -89,67 +114,89 @@ public:
     ///          embxx::comms::ErrorStatus::ProtocolError will be returned.
     /// @param[in, out] msgPtr Reference to smart pointer that already holds or
     ///                 will hold allocated message object
-    /// @param[in, out] buf Input stream buffer
-    /// @param[in] size Size of the data in the buffer
+    /// @param[in, out] iter Input iterator.
+    /// @param[in] size Size of the data in the sequence
     /// @return Error status of the operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer.
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     template <typename TMsgPtr>
-    ErrorStatus read(TMsgPtr& msgPtr, std::streambuf& buf, std::size_t size);
+    ErrorStatus read(TMsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
 
-    /// @brief Read the size information from the stream buffer.
+    /// @brief Read the size information from the input data sequence.
     /// @details The read is executed from current input position of the buffer.
     ///          The internal pointer will NOT be returned to its original
     ///          position.
-    /// @param[in, out] buf Input stream buffer
-    /// @param[in] size Size of the data in the buffer
+    /// @param[in, out] iter Input iterator
+    /// @param[in] size Size of the data in the sequence
     /// @param[out] msgSize Value of the message size.
     /// @return Error status of the operation
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer.
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
     /// @post The msgSize value is updated if and only if ErrorStatus::Success
     ///       is returned.
-    ///       pointer points to a valid object.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     static ErrorStatus readSize(
-        std::streambuf& buf,
+        ReadIterator& iter,
         std::size_t size,
         MsgSizeType& msgSize);
 
-    /// @brief Serialise message into the stream buffer.
-    /// @details The function will reserve space in the output stream buffer
+    /// @brief Serialise message into the output data sequence.
+    /// @details The function will reserve space in the output data sequence
     ///          required to write size field, then forward the write() request
     ///          the the next layer in the protocol stack. After the latter
     ///          finishes its write, this protocol will evaluate the size of
-    ///          the written data and update size field accordingly.
+    ///          the written data and update size field accordingly if such
+    ///          update is possible (output iterator is random access one). If
+    ///          update of the field is not possible (for example
+    ///          std::back_insert_iterator was used), this function will return
+    ///          embxx::comms::ErrorStatus::UpdateRequired. In this case
+    ///          it is needed to call update() member function to finalise
+    ///          the write operation.
     /// @param[in] msg Reference to message object
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size size of the buffer
+    /// @param[in, out] iter Output iterator.
+    /// @param[in] size Available space in data sequence.
     /// @return Status of the write operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available space in the buffer.
-    /// @post The internal (std::ios_base::out) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually written.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       written. In case of an error, distance between original position
+    ///       and advanced will pinpoint the location of the error.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     ErrorStatus write(
             const MsgBase& msg,
-            std::streambuf& buf,
+            WriteIterator& iter,
             std::size_t size) const;
 
+    /// @brief Update the recently written output data sequence.
+    /// @copydetails MsgIdLayer::update
+    template <typename TUpdateIter>
+    ErrorStatus update(
+        TUpdateIter& iter,
+        std::size_t size) const;
+
+private:
+
+    ErrorStatus write(
+                const MsgBase& msg,
+                WriteIterator& iter,
+                std::size_t size,
+                const std::random_access_iterator_tag& tag) const;
+
+    ErrorStatus write(
+                    const MsgBase& msg,
+                    WriteIterator& iter,
+                    std::size_t size,
+                    const std::output_iterator_tag& tag) const;
 };
 
 // Implementation
@@ -158,20 +205,18 @@ template <typename TTraits, typename TNextLayer>
 template <typename TMsgPtr>
 ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::read(
     TMsgPtr& msgPtr,
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size)
 {
     static_assert(std::is_base_of<MsgBase, typename std::decay<decltype(*msgPtr)>::type>::value,
         "TMsgBase must be a base class of decltype(*msgPtr)");
-
-    GASSERT(size <= static_cast<decltype(size)>(buf.in_avail()));
 
     if (size < (MsgSizeLen + ExtraSizeValue)) {
         return ErrorStatus::NotEnoughData;
     }
 
     MsgSizeType msgSize = 0;
-    ErrorStatus status = readSize(buf, size, msgSize);
+    ErrorStatus status = readSize(iter, size, msgSize);
     if (status != ErrorStatus::Success) {
         return status;
     }
@@ -184,7 +229,7 @@ ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::read(
         return ErrorStatus::NotEnoughData;
     }
 
-    status = Base::nextLayer().read(msgPtr, buf, msgSize - ExtraSizeValue);
+    status = Base::nextLayer().read(msgPtr, iter, msgSize - ExtraSizeValue);
     if (status == ErrorStatus::NotEnoughData) {
         return ErrorStatus::ProtocolError;
     }
@@ -193,52 +238,89 @@ ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::read(
 
 template <typename TTraits, typename TNextLayer>
 ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::readSize(
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size,
     MsgSizeType& msgSize)
 {
-    GASSERT(size <= static_cast<decltype(size)>(buf.in_avail()));
     if (size < MsgSizeLen) {
         return ErrorStatus::NotEnoughData;
     }
 
-    msgSize = Base::template getData<MsgSizeType, MsgSizeLen>(buf);
+    msgSize = Base::template readData<MsgSizeType, MsgSizeLen>(iter);
     return ErrorStatus::Success;
 }
 
 template <typename TTraits, typename TNextLayer>
 ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::write(
     const MsgBase& msg,
-    std::streambuf& buf,
+    WriteIterator& iter,
     std::size_t size) const
 {
-    auto firstPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
+    typedef typename std::iterator_traits<WriteIterator>::iterator_category IterType;
+    return write(msg, iter, size, IterType());
+}
 
-#ifndef NDEBUG
-    auto lastPos = buf.pubseekoff(0, std::ios_base::end, std::ios_base::out);
-    buf.pubseekpos(firstPos, std::ios_base::out);
-    auto diff = static_cast<decltype(size)>(lastPos - firstPos);
-    GASSERT(size <= diff);
-#endif // #ifndef NDEBUG
-
+template <typename TTraits, typename TNextLayer>
+template <typename TUpdateIter>
+ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::update(
+    TUpdateIter& iter,
+    std::size_t size) const
+{
     if (size < MsgSizeLen) {
         return ErrorStatus::BufferOverflow;
     }
 
-    Base::template putData<MsgSizeLen>(0, buf);
-    auto status = Base::nextLayer().write(msg, buf, size - MsgSizeLen);
+    auto sizeToWrite = (size - MsgSizeLen) + ExtraSizeValue;
+    Base::template writeData<MsgSizeLen>(sizeToWrite, iter);
+    return Base::nextLayer().update(iter, size - MsgSizeLen);
+}
+
+template <typename TTraits, typename TNextLayer>
+ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::write(
+    const MsgBase& msg,
+    WriteIterator& iter,
+    std::size_t size,
+    const std::random_access_iterator_tag& tag) const
+{
+    static_cast<void>(tag);
+    WriteIterator firstIter(iter);
+    if (size < MsgSizeLen) {
+        return ErrorStatus::BufferOverflow;
+    }
+
+    Base::template writeData<MsgSizeLen>(0, iter);
+    auto status = Base::nextLayer().write(msg, iter, size - MsgSizeLen);
     if (status == ErrorStatus::Success)
     {
-        auto curPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
         auto diff =
-            (static_cast<std::size_t>(curPos - firstPos) - MsgSizeLen) +
+            (static_cast<std::size_t>(std::distance(firstIter, iter)) - MsgSizeLen) +
                                                                 ExtraSizeValue;
-        buf.pubseekpos(firstPos, std::ios_base::out);
-        Base::template putData<MsgSizeLen>(diff, buf);
-        buf.pubseekpos(curPos, std::ios_base::out);
+        Base::template writeData<MsgSizeLen>(diff, firstIter);
     }
 
     return status;
+}
+
+template <typename TTraits, typename TNextLayer>
+ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::write(
+    const MsgBase& msg,
+    WriteIterator& iter,
+    std::size_t size,
+    const std::output_iterator_tag& tag) const
+{
+    static_cast<void>(tag);
+    if (size < MsgSizeLen) {
+        return ErrorStatus::BufferOverflow;
+    }
+
+    Base::template writeData<MsgSizeLen>(0U, iter);
+    auto status = Base::nextLayer().write(msg, iter, size - MsgSizeLen);
+    if (status != ErrorStatus::Success)
+    {
+        return status;
+    }
+
+    return ErrorStatus::UpdateRequired;
 }
 
 }  // namespace protocol

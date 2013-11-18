@@ -26,7 +26,7 @@
 #include "embxx/util/Assert.h"
 #include "embxx/util/SizeToType.h"
 #include "embxx/util/IntegralPromotion.h"
-#include "embxx/io/std_streambuf_access.h"
+#include "embxx/io/access.h"
 #include "embxx/comms/ErrorStatus.h"
 
 namespace embxx
@@ -112,34 +112,29 @@ public:
     static constexpr const ValueType fromSerialised(SerialisedType value);
 
     /// @brief Get length of serialised data
-    static constexpr std::size_t getLength();
+    static constexpr std::size_t length();
 
-    /// @brief Read the serialised field value from the stream buffer.
-    /// @param[in, out] buf Input stream buffer.
-    /// @param[in] size Size of the data in the stream buffer.
+    /// @brief Read the serialised field value from the some data structure.
+    /// @tparam TIter Type of input iterator
+    /// @param[in, out] iter Input iterator.
+    /// @param[in] size Size of the data in iterated data structure.
     /// @return Status of the read operation.
     /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer
-    /// @pre @code size <= buf.in_avail() @endcode
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
-    ErrorStatus read(std::streambuf& buf, std::size_t size);
+    ///      available data in the used data structure/stream
+    /// @post The iterator will be incremented.
+    template <typename TIter>
+    ErrorStatus read(TIter& iter, std::size_t size);
 
-    /// @brief Write the serialised field value to the stream buffer.
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size Size of the buffer, message data must fit it.
+    /// @brief Write the serialised field value to some data structure.
+    /// @tparam TIter Type of output iterator
+    /// @param[in, out] iter Output iterator.
+    /// @param[in] size Size of the buffer, field data must fit it.
     /// @return Status of the write operation.
     /// @pre Value of provided "size" must be less than or equal to
-    ///      available space in the buffer.
-    /// @pre Available space in the buffer is greater of equal to the
-    ///      serialisation length of the field.
-    /// @post The internal (std::ios_base::out) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually written.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
-    ErrorStatus write(std::streambuf& buf, std::size_t size) const;
+    ///      available space in the data structure.
+    /// @post The iterator will be incremented.
+    template <typename TIter>
+    ErrorStatus write(TIter& iter, std::size_t size) const;
 
 private:
     ValueType value_;
@@ -160,6 +155,20 @@ bool operator==(
 {
     return field1.getValue() == field2.getValue();
 }
+
+/// @brief Non-equality comparison operator.
+/// @related BasicIntValue
+template <typename T,
+          typename TTraits,
+          std::size_t TLen,
+          typename util::IntegralPromotion<T>::Type TOff>
+bool operator!=(
+    const BasicIntValue<T, TTraits, TLen, TOff>& field1,
+    const BasicIntValue<T, TTraits, TLen, TOff>& field2)
+{
+    return field1.getValue() != field2.getValue();
+}
+
 
 /// @brief Equivalence comparison operator.
 /// @related BasicIntValue
@@ -258,7 +267,7 @@ template <typename T,
           typename TTraits,
           std::size_t TLen,
           typename util::IntegralPromotion<T>::Type TOff>
-constexpr std::size_t BasicIntValue<T, TTraits, TLen, TOff>::getLength()
+constexpr std::size_t BasicIntValue<T, TTraits, TLen, TOff>::length()
 {
     return SerialisedLen;
 }
@@ -267,18 +276,18 @@ template <typename T,
           typename TTraits,
           std::size_t TLen,
           typename util::IntegralPromotion<T>::Type TOff>
+template <typename TIter>
 ErrorStatus BasicIntValue<T, TTraits, TLen, TOff>::read(
-    std::streambuf& buf,
+    TIter& iter,
     std::size_t size)
 {
-    GASSERT(size <= buf.in_avail());
-    if (size < SerialisedLen) {
+    if (size < length()) {
         return ErrorStatus::NotEnoughData;
     }
 
     auto serialisedValue =
-        io::getData<SerialisedType, SerialisedLen>(
-            buf,
+        io::readData<SerialisedType, SerialisedLen>(
+            iter,
             Endianness());
     setSerialisedValue(serialisedValue);
     return ErrorStatus::Success;
@@ -288,23 +297,15 @@ template <typename T,
           typename TTraits,
           std::size_t TLen,
           typename util::IntegralPromotion<T>::Type TOff>
+template <typename TIter>
 ErrorStatus BasicIntValue<T, TTraits, TLen, TOff>::write(
-    std::streambuf& buf,
+    TIter& iter,
     std::size_t size) const
 {
-
-#ifndef NDEBUG
-    auto firstPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
-    auto lastPos = buf.pubseekoff(0, std::ios_base::end, std::ios_base::out);
-    buf.pubseekpos(firstPos, std::ios_base::out);
-    auto diff = static_cast<decltype(size)>(lastPos - firstPos);
-    GASSERT(size <= diff);
-#endif // #ifndef NDEBUG
-
-    GASSERT(getLength() <= size);
+    GASSERT(length() <= size);
     static_cast<void>(size);
 
-    io::putData<SerialisedLen>(getSerialisedValue(), buf, Endianness());
+    io::writeData<SerialisedLen>(getSerialisedValue(), iter, Endianness());
     return ErrorStatus::Success;
 }
 

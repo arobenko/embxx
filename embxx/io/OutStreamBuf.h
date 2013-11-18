@@ -308,7 +308,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 std::size_t OutStreamBuf<TDriver, TBufSize, TWaitHandler>::resize(
     std::size_t newSize)
 {
-    auto minSize = std::min(fullCapacity(), size + flushedSize_);
+    auto minSize = std::min(fullCapacity(), newSize + flushedSize_);
     buf_.resize(minSize);
     return size();
 }

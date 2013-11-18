@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
 #include <algorithm>
 #include <iterator>
 
@@ -41,16 +40,22 @@ private:
 
     struct Traits1 {
         typedef embxx::comms::traits::endian::Big Endianness;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 1;
     };
 
     struct Traits2 {
         typedef embxx::comms::traits::endian::Big Endianness;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 2;
     };
 
     struct Traits3 {
         typedef embxx::comms::traits::endian::Little Endianness;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 3;
     };
 

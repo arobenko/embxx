@@ -21,12 +21,11 @@
 
 #pragma once
 
-#include <streambuf>
+#include <cstddef>
 
 #include "embxx/util/Assert.h"
 #include "embxx/comms/traits.h"
 #include "embxx/comms/ErrorStatus.h"
-#include "ProtocolLayer.h"
 
 namespace embxx
 {
@@ -51,89 +50,107 @@ public:
     /// @brief Base class for all the messages
     typedef TMsgBase MsgBase;
 
+    /// @brief Type of read iterator, defined in message base.
+    typedef typename MsgBase::ReadIterator ReadIterator;
+
+    /// @brief Type of write iterator, defined in message base.
+    typedef typename MsgBase::WriteIterator WriteIterator;
+
     /// @brief MsgPtr is unknown type, will be redefined in one of other layers.
     typedef void MsgPtr;
 
     /// @brief Default constructor
     MsgDataLayer() = default;
 
-    /// @brief Deserialise message from the data in the input stream buffer.
+    /// @brief Copy constructor is default
+    MsgDataLayer(const MsgDataLayer&) = default;
+
+    /// @brief Destructor is default
+    ~MsgDataLayer() = default;
+
+    /// @brief Deserialise message from the input data sequence.
     /// @details The function must receive smart pointer to already allocated
     ///          message object. It forwards the read() request to the latter.
     /// @param[in, out] msgPtr Reference to a smart pointer to allocated
     ///                 message object
-    /// @param[in, out] buf Input stream buffer
+    /// @param[in, out] iter Input iterator
     /// @param[in] size Size of the data in the buffer
     /// @return Error status of the operation.
     /// @pre msgPtr must point to a valid message object.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer (size <= buf.in_avail());
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
     /// @note Thread safety: Safe on distinct MsgIdLayer object and distinct
     ///       buffers, unsafe otherwise.
     /// @note Exception guarantee: Basic
     template <typename TMsgPtr>
-    ErrorStatus read(TMsgPtr& msgPtr, std::streambuf& buf, std::size_t size);
+    ErrorStatus read(TMsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
 
-    /// @brief Serialise message into the stream buffer.
+    /// @brief Serialise message into the output data sequence.
     /// @details The function will forward the write() request to the provided
     ///          message object.
     /// @param[in] msg Reference to message object
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size size of the buffer
+    /// @param[in, out] iter Output iterator.
+    /// @param[in] size Size of the buffer
     /// @return Status of the write operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available space in the buffer.
-    /// @post The internal (std::ios_base::out) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually written.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
-    /// @note Thread safety: Safe on distinct stream buffers, unsafe otherwise.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
+    /// @note Thread safety: Safe on distinct buffers, unsafe otherwise.
     /// @note Exception guarantee: Basic
     ErrorStatus write(
         const MsgBase& msg,
-        std::streambuf& buf,
+        WriteIterator& iter,
         std::size_t size) const;
+
+    /// @brief Update the recently written output data sequence.
+    /// @details Advances iterator "size" positions.
+    template <typename TUpdateIter>
+    ErrorStatus update(
+        TUpdateIter& iter,
+        std::size_t size) const;
+
 };
 
 // Implementation
-
 
 template <typename TMsgBase>
 template <typename TMsgPtr>
 ErrorStatus MsgDataLayer<TMsgBase>::read(
     TMsgPtr& msgPtr,
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size)
 {
     static_assert(std::is_base_of<MsgBase, typename std::decay<decltype(*msgPtr)>::type>::value,
         "TMsgBase must be a base class of decltype(*msgPtr)");
 
-    GASSERT(size <= static_cast<decltype(size)>(buf.in_avail()));
     GASSERT(msgPtr);
-
-    return msgPtr->read(buf, size);
+    return msgPtr->read(iter, size);
 }
 
 template <typename TMsgBase>
 ErrorStatus MsgDataLayer<TMsgBase>::write(
     const MsgBase& msg,
-    std::streambuf& buf,
+    WriteIterator& iter,
     std::size_t size) const
 {
-#ifndef NDEBUG
-    auto firstPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
-    auto lastPos = buf.pubseekoff(0, std::ios_base::end, std::ios_base::out);
-    buf.pubseekpos(firstPos, std::ios_base::out);
-    auto diff = static_cast<decltype(size)>(lastPos - firstPos);
-    GASSERT(size <= diff);
-#endif // #ifndef NDEBUG
-
-    return msg.write(buf, size);
+    return msg.write(iter, size);
 }
+
+template <typename TMsgBase>
+template <typename TUpdateIter>
+ErrorStatus MsgDataLayer<TMsgBase>::update(
+    TUpdateIter& iter,
+    std::size_t size) const
+{
+    std::advance(iter, size);
+    return ErrorStatus::Success;
+}
+
 
 }  // namespace protocol
 

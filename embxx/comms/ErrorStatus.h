@@ -31,6 +31,8 @@ namespace comms
 /// @headerfile embxx/comms/ErrorStatus.h "embxx/comms/ErrorStatus.h"
 enum class ErrorStatus {
     Success, ///< Used to indicate successful outcome of the operation.
+    UpdateRequired, ///< Used to indicate that write operation wasn't complete,
+                    /// call to update(...) is required.
     NotEnoughData, ///< Used to indicate that stream buffer didn't contain
                    /// enough data to complete read operation.
     ProtocolError, ///< Used to indicate that any of the used protocols

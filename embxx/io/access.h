@@ -198,8 +198,12 @@ public:
     static T value(T value)
     {
         typedef typename std::decay<T>::type ValueType;
+        typedef typename std::make_unsigned<TByteType>::type UnsignedByteType;
+        static const std::size_t BinDigits =
+            std::numeric_limits<UnsignedByteType>::digits;
+        static_assert(BinDigits % 8 == 0, "Byte size assumption is not valid");
         ValueType mask =
-            (static_cast<ValueType>(1) << ((TSize * std::numeric_limits<TByteType>::digits) - 1));
+            (static_cast<ValueType>(1) << ((TSize * BinDigits) - 1));
         if (value & mask) {
             return value | (~((mask << 1) - 1));
         }
@@ -287,12 +291,16 @@ void writeBig(T value, std::size_t size, TIter& iter)
     typedef typename std::decay<T>::type ValueType;
     typedef typename std::make_unsigned<ValueType>::type UnsignedType;
     typedef ByteType<TIter> ByteType;
+    typedef typename std::make_unsigned<ByteType>::type UnsignedByteType;
+    static const std::size_t BinDigits =
+        std::numeric_limits<UnsignedByteType>::digits;
+    static_assert(BinDigits % 8 == 0, "Byte size assumption is not valid");
+
 
     UnsignedType unsignedValue = static_cast<UnsignedType>(value);
     std::size_t remainingSize = size;
     while (remainingSize > 0) {
-        std::size_t remaingShift =
-            ((remainingSize - 1) * std::numeric_limits<ByteType>::digits);
+        std::size_t remaingShift = ((remainingSize - 1) * BinDigits);
         auto byte = static_cast<ByteType>(unsignedValue >> remaingShift);
         *iter = byte;
         ++iter;
@@ -306,17 +314,20 @@ T readBig(std::size_t size, TIter& iter)
     typedef typename std::decay<T>::type ValueType;
     typedef typename std::make_unsigned<ValueType>::type UnsignedType;
     typedef ByteType<TIter> ByteType;
+    typedef typename std::make_unsigned<ByteType>::type UnsignedByteType;
+    static const std::size_t BinDigits =
+        std::numeric_limits<UnsignedByteType>::digits;
+    static_assert(BinDigits % 8 == 0, "Byte size assumption is not valid");
 
     UnsignedType value = 0;
     std::size_t remainingSize = size;
     while (remainingSize > 0) {
         auto byte = *iter;
-        value <<= std::numeric_limits<ByteType>::digits;
-        value |= byte;
+        value <<= BinDigits;
+        value |= static_cast<decltype(value)>(static_cast<UnsignedByteType>(byte));
         ++iter;
         --remainingSize;
     }
-
     return static_cast<T>(static_cast<ValueType>(value));
 }
 
@@ -326,12 +337,15 @@ void writeLittle(T value, std::size_t size, TIter& iter)
     typedef typename std::decay<T>::type ValueType;
     typedef typename std::make_unsigned<ValueType>::type UnsignedType;
     typedef ByteType<TIter> ByteType;
+    typedef typename std::make_unsigned<ByteType>::type UnsignedByteType;
+    static const std::size_t BinDigits =
+        std::numeric_limits<UnsignedByteType>::digits;
+    static_assert(BinDigits % 8 == 0, "Byte size assumption is not valid");
 
     std::size_t remainingSize = size;
     UnsignedType unsignedValue = static_cast<UnsignedType>(value);
     while (remainingSize > 0) {
-        std::size_t remaingShift =
-            ((size - remainingSize) * std::numeric_limits<ByteType>::digits);
+        std::size_t remaingShift = ((size - remainingSize) * BinDigits);
 
         auto byte = static_cast<ByteType>(unsignedValue >> remaingShift);
         *iter = byte;
@@ -346,13 +360,17 @@ T readLittle(std::size_t size, TIter& iter)
     typedef typename std::decay<T>::type ValueType;
     typedef typename std::make_unsigned<ValueType>::type UnsignedType;
     typedef ByteType<TIter> ByteType;
+    typedef typename std::make_unsigned<ByteType>::type UnsignedByteType;
+    static const std::size_t BinDigits =
+        std::numeric_limits<UnsignedByteType>::digits;
+    static_assert(BinDigits % 8 == 0, "Byte size assumption is not valid");
 
     UnsignedType value = 0;
     std::size_t remainingSize = size;
     while (remainingSize > 0) {
         auto byte = *iter;
-        value |= static_cast<UnsignedType>(byte) <<
-            ((size - remainingSize) * std::numeric_limits<ByteType>::digits);
+        value |= static_cast<UnsignedType>(static_cast<UnsignedByteType>(byte)) <<
+            ((size - remainingSize) * BinDigits);
         ++iter;
         --remainingSize;
     }

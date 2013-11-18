@@ -40,11 +40,14 @@ public:
     void test6();
     void test7();
     void test8();
+    void test9();
 
 private:
     struct Traits1 {
         typedef embxx::comms::traits::endian::Big Endianness;
         typedef embxx::comms::traits::checksum::VerifyBeforeProcessing ChecksumVerification;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 1;
         static const std::size_t ChecksumLen = 2;
     };
@@ -52,6 +55,8 @@ private:
     struct Traits2 {
         typedef embxx::comms::traits::endian::Little Endianness;
         typedef embxx::comms::traits::checksum::VerifyBeforeProcessing ChecksumVerification;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 2;
         static const std::size_t ChecksumLen = 2;
     };
@@ -59,6 +64,8 @@ private:
     struct Traits3 {
         typedef embxx::comms::traits::endian::Big Endianness;
         typedef embxx::comms::traits::checksum::VerifyAfterProcessing ChecksumVerification;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 1;
         static const std::size_t MsgSizeLen = 1;
         static const std::size_t ChecksumLen = 2;
@@ -68,13 +75,22 @@ private:
     struct Traits4 {
         typedef embxx::comms::traits::endian::Big Endianness;
         typedef embxx::comms::traits::checksum::VerifyAfterProcessing ChecksumVerification;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
         static const std::size_t MsgIdLen = 1;
         static const std::size_t MsgSizeLen = 1;
         static const std::size_t ChecksumLen = 2;
         static const std::size_t ExtraSizeValue = 0;
     };
 
-
+    struct Traits5 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        typedef embxx::comms::traits::checksum::VerifyBeforeProcessing ChecksumVerification;
+        typedef const char* ReadIterator;
+        typedef std::back_insert_iterator<std::vector<char> > WriteIterator;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t ChecksumLen = 2;
+    };
 
     template <typename TTraits>
     struct ProtocolStack
@@ -177,6 +193,11 @@ void ChecksumLayerTestSuite::test1()
 
 void ChecksumLayerTestSuite::test2()
 {
+    char testBuf[] = {(char)0xa7, (char)0xfc};
+    auto iter = &testBuf[0];
+    auto value = embxx::io::readLittle<std::uint16_t, 2>(iter);
+    TS_ASSERT_EQUALS(value, 0xfca7);
+
     typedef Message1<Traits2> Message;
     Message msg;
     msg.setValue(0x0304);
@@ -270,5 +291,19 @@ void ChecksumLayerTestSuite::test8()
 
     auto msg = readWriteMsgTest<Traits3, ProtocolStackWithSize>(buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
     TS_ASSERT(!msg);
+}
+
+void ChecksumLayerTestSuite::test9()
+{
+    const char buf[] = {
+        MessageType1, 0x01, 0x02, 0x13, 0x73
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteVectorMsgTest<Traits5, Message1, ProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+    auto sameMsg = successfulReadWriteVectorMsgTest<Traits5, Message1, InPlaceProtocolStack>(buf, bufSize);
+    TS_ASSERT_EQUALS(msg, sameMsg);
 }
 

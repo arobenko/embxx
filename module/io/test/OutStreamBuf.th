@@ -22,6 +22,7 @@
 #include "embxx/util/EventLoop.h"
 #include "embxx/driver/Character.h"
 #include "embxx/io/OutStreamBuf.h"
+#include "embxx/io/access.h"
 #include "cxxtest/TestSuite.h"
 
 #include "module/driver/test/CommonEventLoopDefs.h"
@@ -33,6 +34,7 @@ public:
     void test1();
     void test2();
     void test3();
+    void test4();
 
 private:
     template <typename TBuf>
@@ -174,4 +176,28 @@ void OutStreamBufTestSuite::test3()
     el.run();
     device.stop();
     TS_ASSERT_EQUALS(((MaxCount / str.size()) + 1) * str.size(), device.getWriteString().size());
+}
+
+void OutStreamBufTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<
+        Driver,
+        128> OutStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+
+    std::uint32_t value = 0xdeadbeef;
+    buf.resize(sizeof(value));
+    auto writeIter = buf.begin();
+    embxx::io::writeBig(value, writeIter);
+    TS_ASSERT_EQUALS(writeIter, buf.end());
+    auto readIter = buf.cbegin();
+    auto readValue = embxx::io::readBig<decltype(value)>(readIter);
+    TS_ASSERT_EQUALS(readIter, buf.cend());
+    TS_ASSERT_EQUALS(value, readValue);
 }

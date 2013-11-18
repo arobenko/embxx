@@ -23,7 +23,6 @@
 #include <array>
 #include <tuple>
 #include <algorithm>
-#include <streambuf>
 
 #include "embxx/util/Assert.h"
 #include "embxx/util/Tuple.h"
@@ -101,8 +100,14 @@ public:
     ///          @endcode
     typedef InternalMsgPtr MsgPtr;
 
-    /// Type of message ID
+    /// @brief Type of message ID
     typedef traits::MsgIdType MsgIdType;
+
+    /// @brief Type of read iterator
+    typedef typename Base::ReadIterator ReadIterator;
+
+    /// @brief Type of write iterator
+    typedef typename Base::WriteIterator WriteIterator;
 
     /// Length of the message ID field. Originally defined in traits
     static const std::size_t MsgIdLen = Traits::MsgIdLen;
@@ -115,53 +120,84 @@ public:
     /// @note Exception guarantee: Basic
     MsgIdLayer();
 
+    /// @brief Copy constructor is default
+    MsgIdLayer(const MsgIdLayer&) = default;
+
+    /// @brief Move constructor is default
+    MsgIdLayer(MsgIdLayer&&) = default;
+
+    /// @brief Copy assignment is default
+    MsgIdLayer& operator=(const MsgIdLayer&) = default;
+
+    /// @brief Move assignment is default.
+    MsgIdLayer& operator=(MsgIdLayer&&) = default;
+
     /// @brief Destructor
     ~MsgIdLayer();
 
-    /// @brief Deserialise message from the data in the input stream buffer.
-    /// @details The function will read message ID from the stream first,
+    /// @brief Deserialise message from the input data sequence.
+    /// @details The function will read message ID from the data sequence first,
     ///          generate appropriate message object based on the read ID and
     ///          forward the request to the next layer.
     /// @param[in, out] msgPtr Reference to smart pointer that will hold
     ///                 allocated message object
-    /// @param[in, out] buf Input stream buffer
-    /// @param[in] size Size of the data in the buffer
+    /// @param[in, out] iter Input iterator
+    /// @param[in] size Size of the data in the sequence
     /// @return Error status of the operation.
     /// @pre msgPtr doesn't point to any object:
     ///      @code assert(!msgPtr); @endcode
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available data in the buffer (size <= buf.in_avail());
-    /// @post The internal (std::ios_base::in) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually read.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       read. In case of an error, distance between original position and
+    ///       advanced will pinpoint the location of the error.
     /// @post Returns embxx::comms::ErrorStatus::Success if and only if msgPtr points
     ///       to a valid object.
     /// @note Thread safety: Safe on distinct MsgIdLayer object and distinct
     ///       buffers, unsafe otherwise.
     /// @note Exception guarantee: Basic
-    ErrorStatus read(MsgPtr& msgPtr, std::streambuf& buf, std::size_t size);
+    ErrorStatus read(MsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
 
-    /// @brief Serialise message into the stream buffer.
-    /// @details The function will write ID of the message to the stream
-    ///          buffer, then call write() member function of the next
+    /// @brief Serialise message into output data sequence.
+    /// @details The function will write ID of the message to the data
+    ///          sequence, then call write() member function of the next
     ///          protocol layer.
     /// @param[in] msg Reference to message object
-    /// @param[in, out] buf Output stream buffer.
-    /// @param[in] size size of the buffer
+    /// @param[in, out] iter Output iterator.
+    /// @param[in] size Available space in data sequence.
     /// @return Status of the write operation.
-    /// @pre Value of provided "size" must be less than or equal to
-    ///      available space in the buffer.
-    /// @post The internal (std::ios_base::out) pointer of the stream buffer
-    ///       will be advanced by the number of bytes was actually written.
-    ///       In case of an error, it will provide an information to the caller
-    ///       about the place the error was recognised.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "size" times;
+    /// @post The iterator will be advanced by the number of bytes was actually
+    ///       written. In case of an error, distance between original position
+    ///       and advanced will pinpoint the location of the error.
     /// @note Thread safety: Safe on distinct stream buffers, unsafe otherwise.
     /// @note Exception guarantee: Basic
     ErrorStatus write(
         const MsgBase& msg,
-        std::streambuf& buf,
+        WriteIterator& iter,
         std::size_t size) const;
+
+    /// @brief Update the recently written output data sequence.
+    /// @details In case write() operation returned
+    ///          embxx::comms::ErrorStatus::UpdateRequired the output operator
+    ///          wasn't of random access type, such as std::back_insert_iterator
+    ///          for example. In this case some protocol fields may contain
+    ///          invalid data that needs to be updated. This function is used
+    ///          for this purpose.
+    /// @tparam TUpdateIter Type of update iterator
+    /// @param iter Random access iterator used to both read and update
+    ///        already written data.
+    /// @param size Size of the written data.
+    /// @return Status of the update operation.
+    /// @pre Iterator must be of random access type.
+    /// @post The iterator is advanced to the end of current protocol
+    ///       layer data.
+    template <typename TUpdateIter>
+    ErrorStatus update(
+        TUpdateIter& iter,
+        std::size_t size) const;
+
 
     /// @brief Get allocator.
     /// @details Returns reference to the message allocator. It can be used
@@ -177,6 +213,7 @@ public:
 
 private:
 
+    /// @cond DOCUMENT_MSG_ID_PROTOCOL_LAYER_FACTORY
     class Factory
     {
     public:
@@ -203,6 +240,7 @@ private:
         virtual MsgPtr createImpl(Allocator& allocator) const;
     private:
     };
+    /// @endcond
 
     typedef std::array<Factory*, std::tuple_size<AllMessages>::value> Factories;
 
@@ -282,33 +320,31 @@ template <typename TAllMessages,
           typename TNextLayer>
 ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::read(
     MsgPtr& msgPtr,
-    std::streambuf& buf,
+    ReadIterator& iter,
     std::size_t size)
 {
     GASSERT(!msgPtr);
-    GASSERT(size <= static_cast<decltype(size)>(buf.in_avail()));
-
     if (size < MsgIdLen) {
         return ErrorStatus::NotEnoughData;
     }
 
-    auto id = Base::template getData<MsgIdType, MsgIdLen>(buf);
-    auto iter = std::lower_bound(factories_.begin(), factories_.end(), id,
+    auto id = Base::template readData<MsgIdType, MsgIdLen>(iter);
+    auto factoryIter = std::lower_bound(factories_.begin(), factories_.end(), id,
         [](Factory* factory, MsgIdType id) -> bool
         {
             return factory->getId() < id;
         });
 
-    if ((iter == factories_.end()) || ((*iter)->getId() != id)) {
+    if ((factoryIter == factories_.end()) || ((*factoryIter)->getId() != id)) {
         return ErrorStatus::InvalidMsgId;
     }
 
-    msgPtr = (*iter)->create(allocator_);
+    msgPtr = (*factoryIter)->create(allocator_);
     if (!msgPtr) {
         return ErrorStatus::MsgAllocFaulure;
     }
 
-    auto status = Base::nextLayer().read(msgPtr, buf, size - MsgIdLen);
+    auto status = Base::nextLayer().read(msgPtr, iter, size - MsgIdLen);
     if (status != ErrorStatus::Success) {
         msgPtr.reset();
     }
@@ -322,23 +358,28 @@ template <typename TAllMessages,
           typename TNextLayer>
 ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::write(
     const MsgBase& msg,
-    std::streambuf& buf,
+    WriteIterator& iter,
     std::size_t size) const
 {
-#ifndef NDEBUG
-    auto firstPos = buf.pubseekoff(0, std::ios_base::cur, std::ios_base::out);
-    auto lastPos = buf.pubseekoff(0, std::ios_base::end, std::ios_base::out);
-    buf.pubseekpos(firstPos, std::ios_base::out);
-    auto diff = static_cast<decltype(size)>(lastPos - firstPos);
-    GASSERT(size <= diff);
-#endif // #ifndef NDEBUG
-
     if (size < MsgIdLen) {
         return ErrorStatus::BufferOverflow;
     }
 
-    Base::template putData<MsgIdLen>(msg.getId(), buf);
-    return Base::nextLayer().write(msg, buf, size - MsgIdLen);
+    Base::template writeData<MsgIdLen>(msg.getId(), iter);
+    return Base::nextLayer().write(msg, iter, size - MsgIdLen);
+}
+
+template <typename TAllMessages,
+          typename TAllocator,
+          typename TTraits,
+          typename TNextLayer>
+template <typename TUpdateIter>
+ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::update(
+    TUpdateIter& iter,
+    std::size_t size) const
+{
+    std::advance(iter, MsgIdLen);
+    return Base::nextLayer().update(iter, size - MsgIdLen);
 }
 
 template <typename TAllMessages,
@@ -361,7 +402,7 @@ MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::getAllocator() const
     return allocator_;
 }
 
-
+/// @cond DOCUMENT_MSG_ID_PROTOCOL_LAYER_FACTORY
 template <typename TAllMessages,
           typename TAllocator,
           typename TTraits,
@@ -414,6 +455,8 @@ MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::MsgFactory<TMessage>:
 {
     return std::move(allocator.template alloc<Message>());
 }
+
+/// @endcond
 
 }  // namespace protocol
 
