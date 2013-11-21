@@ -56,6 +56,8 @@ namespace io
 ///         std::function or embxx::util::StaticFunction and have
 ///         "void ()" signature. It is used to store callback handler provided
 ///         in asyncWaitAvailableCapacity() request.
+/// @pre No other components performs asynchronous write requests to the same
+///      driver.
 /// @headerfile embxx/io/OutStreamBuf.h
 template <typename TDriver,
           std::size_t TBufSize,
@@ -117,6 +119,9 @@ public:
 
     /// @brief Copy constructor is default
     OutStreamBuf(const OutStreamBuf&) = default;
+
+    /// @brief Move constructor is default
+    OutStreamBuf(OutStreamBuf&&) = default;
 
     /// @brief Copy assignment operator is deleted
     OutStreamBuf& operator=(const OutStreamBuf&) = delete;
@@ -214,6 +219,7 @@ public:
     /// @brief Operator to access element in the "modifiable" (not flushed)
     ///        section of the buffer.
     /// @param idx Index of the element.
+    /// @pre @code idx < size() @endcode
     Reference operator[](std::size_t idx);
 
     /// @brief Const version of operator[]
@@ -222,11 +228,14 @@ public:
     /// @brief Asynchronous wait until requested capacity of the internal
     ///        buffer becomes available.
     /// @details The function records copies the callback object to its internal
-    ///          data structures and returns immediatelly. The callback will
+    ///          data structures and returns immediately. The callback will
     ///          be called in the context of the event loop when requested
     ///          size becomes available.
     /// @param capacity Requested capacity.
     /// @param func Callback functor object, must have "void ()" signature.
+    /// @pre All the previous asynchronous wait request are complete (their
+    ///      callback has been executed).
+    /// @pre @code capacity <= fullCapacity() @endcode
     template <typename TFunc>
     void asyncWaitAvailableCapacity(
         std::size_t capacity,
@@ -317,6 +326,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::flush(
     std::size_t flushSize)
 {
+    GASSERT(flushSize <= size());
     bool flush = (flushedSize_ == 0);
     std::size_t actualFlushSize = std::min(flushSize, size());
     flushedSize_ += actualFlushSize;
@@ -434,6 +444,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 typename OutStreamBuf<TDriver, TBufSize, TWaitHandler>::Reference
 OutStreamBuf<TDriver, TBufSize, TWaitHandler>::operator[](std::size_t idx)
 {
+    GASSERT(idx < size());
     return buf_[idx + flushedSize_];
 }
 
@@ -442,6 +453,7 @@ typename OutStreamBuf<TDriver, TBufSize, TWaitHandler>::ConstReference
 OutStreamBuf<TDriver, TBufSize, TWaitHandler>::operator[](
     std::size_t idx) const
 {
+    GASSERT(idx < size());
     return buf_[idx + flushedSize_];
 }
 

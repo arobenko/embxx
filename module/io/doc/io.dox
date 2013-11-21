@@ -5,6 +5,7 @@
 /// @li @ref io_write_queue_page
 /// @li @ref io_out_stream_buf_page
 /// @li @ref io_out_stream_page
+/// @li @ref io_in_stream_buf_page
 
 /// @namespace embxx::io
 /// @ingroup io
