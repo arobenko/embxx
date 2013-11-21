@@ -24,6 +24,8 @@
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/StaticFunction.h"
 
+#include "ErrorStatus.h"
+
 namespace embxx
 {
 
@@ -54,14 +56,14 @@ namespace io
 /// @tparam TWaitHandler Callback functor class to be called when requested
 ///         space becomes available. Must be either
 ///         std::function or embxx::util::StaticFunction and have
-///         "void ()" signature. It is used to store callback handler provided
-///         in asyncWaitAvailableCapacity() request.
+///         "void (embxx::io::ErrorStatus)" signature. It is used to store
+///         callback handler provided in asyncWaitAvailableCapacity() request.
 /// @pre No other components performs asynchronous write requests to the same
 ///      driver.
 /// @headerfile embxx/io/OutStreamBuf.h
 template <typename TDriver,
           std::size_t TBufSize,
-          typename TWaitHandler = embxx::util::StaticFunction<void ()> >
+          typename TWaitHandler = embxx::util::StaticFunction<void (embxx::io::ErrorStatus)> >
 class OutStreamBuf
 {
 public:
@@ -232,7 +234,7 @@ public:
     ///          be called in the context of the event loop when requested
     ///          size becomes available.
     /// @param capacity Requested capacity.
-    /// @param func Callback functor object, must have "void ()" signature.
+    /// @param func Callback functor object, must have "void (embxx::io::ErrorStatus)" signature.
     /// @pre All the previous asynchronous wait request are complete (their
     ///      callback has been executed).
     /// @pre @code capacity <= fullCapacity() @endcode
@@ -466,7 +468,9 @@ void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::asyncWaitAvailableCapacity(
     GASSERT(capacity <= fullCapacity());
     GASSERT(!waitHandler_);
     if (capacity <= availableCapacity()) {
-        auto postResult = driver_.eventLoop().post(std::forward<TFunc>(func));
+        auto postResult =
+            driver_.eventLoop().post(
+                std::bind(std::forward<TFunc>(func), embxx::io::ErrorStatus::Success));
         GASSERT((postResult) || (!"Failed to post handler, increase size of Event Loop"));
         static_cast<void>(postResult);
     }
@@ -495,7 +499,13 @@ void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::initiateFlush()
             if ((waitHandler_) &&
                 (waitAvailableCapacity_ <= availableCapacity())) {
                 auto& el = driver_.eventLoop();
-                auto postResult = el.post(std::move(waitHandler_));
+                static_assert(std::is_same<embxx::driver::ErrorStatus, embxx::io::ErrorStatus>::value,
+                    "Status type assumption is incorrect");
+                auto postResult =
+                    el.post(
+                        std::bind(
+                            std::move(waitHandler_),
+                            static_cast<embxx::io::ErrorStatus>(status)));
                 GASSERT((postResult) || (!"Failed to post handler, increase size of Event Loop"));
                 static_cast<void>(postResult);
 

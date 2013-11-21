@@ -79,8 +79,12 @@
 /// @code
 /// buf.asyncWaitAvailableCapacity(
 ///     capacity,
-///     [&buf]()
+///     [&buf](embxx::io::ErrorStatus status)
 ///     {
+///         if (status != embxx::io::ErrorStatus) {
+///             ... // handle error
+///         }
+///
 ///         buf.pushBack(...) // Perform write here
 ///         buf.flush();
 ///     });
