@@ -405,6 +405,7 @@
 /// static calc() member function. Currently "comms" module provides the
 /// following checksum calculators:
 /// @li embxx::comms::protocol::checksum::CrcBasic
+/// @li embxx::comms::protocol::checksum::BytesSum
 ///
 /// Third template parameter is the next layer in the protocol stack:
 /// @code
