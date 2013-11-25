@@ -78,7 +78,8 @@ protected:
     typedef typename Traits::Endianness Endianness;
 
     /// @brief Default constructor
-    ProtocolLayer() = default;
+    template <typename... TArgs>
+    explicit ProtocolLayer(TArgs&&... args);
 
     /// @brief Copy constructor is default
     ProtocolLayer(const ProtocolLayer&) = default;
@@ -171,6 +172,13 @@ private:
 /// @}
 
 // Implementation
+template <typename TTraits, typename TNextLayer>
+template <typename... TArgs>
+ProtocolLayer<TTraits, TNextLayer>::ProtocolLayer(TArgs&&... args)
+    : nextLayer_(std::forward<TArgs>(args)...)
+{
+}
+
 template <typename TTraits, typename TNextLayer>
 typename ProtocolLayer<TTraits, TNextLayer>::NextLayer&
 ProtocolLayer<TTraits, TNextLayer>::nextLayer()

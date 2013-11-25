@@ -238,6 +238,8 @@
 ///     "data size" field to indicate size of the serialised message data.
 /// @li embxx::comms::protocol::ChecksumLayer - an optional layer that uses checksum
 ///     to verify the correctness of serialised data.
+/// @li embxx::comms::protocol::SyncPrefixLayer - an optional layer that uses
+///     "Sync" value at the beginning for synchronisation purposes.
 ///
 /// The protocol layers are folded into one another and the one that wraps all
 /// others are defined to be a "protocol stack". For example protocol stack
@@ -374,7 +376,7 @@
 /// typedef embxx::comms::MsgSizeLayer<
 ///     MyProjectMsgSizeLayerTraits,
 ///     MyProjectMsgIdLayer
-/// > MyProjectMsgIdLayer;
+/// > MyProjectMsgSizeLayer;
 /// @endcode 
 ///
 /// @subsection comms_tutorial_protocol_stack_checksum_layer ChecksumLayer
@@ -416,6 +418,43 @@
 /// > MyProjectChecksumLayer;
 /// @endcode
 ///
+/// @subsection comms_tutorial_protocol_stack_sync_prefix_layer SyncPrefixLayer
+/// "Sync Prefix" protocol layer is an optional protocol layer, it comes
+/// to increase robustness of the communication by adding synchronisation value
+/// at the beginning of the serialised message.
+///
+/// embxx::comms::protocol::SyncPrefixLayer has two template parameters. First 
+/// one is a "traits" class that must specify endianness of the written data, 
+/// and length of the "sync" field in bytes:
+/// @code
+/// struct MyProjectSyncPrefixLayerTraits
+/// {
+///     typedef embxx::comms::traits::endian::Big Endianness;
+///     static const std::size_t SyncPrefixLen = 2;
+/// };
+/// @endcode
+/// When serialising a message, "Sync Prefix" layer writes synchronisation value 
+/// (provided in the constructor) into the output data sequence, then forwards 
+/// write() request to the next layer. When deserialising a message, the layer
+/// makes sure that the next "SyncPrefixLen" bytes are as expected and forwards
+/// read request to the next layer in case the read sync value is correct.
+///
+/// Second template parameter is the next layer in the protocol stack:
+/// @code
+/// typedef embxx::comms::SyncPrefixLayer<
+///     MyProjectSyncPrefixLayerTraits,
+///     MyProjectChecksumLayer
+/// > MyProjectSyncPrefixLayer;
+/// @endcode 
+/// Please note that "Sync Prefix" layer constructor requires at least one
+/// argument of expected sync value:
+/// @code
+/// static const MyProjectSyncPrefixLayer::SyncPrefixType SyncPrefix = ...;
+/// typedef ... MyPrjectProtocolStack;
+/// MyProjectProtocolStack stack(SyncPrefix); // The argument will be used by the MyProjectSyncPrefixLayer,
+///                                           // doesn't matter what is its position in the protocl stack.
+/// @endcode
+///
 /// @subsection comms_tutorial_protocol_stack_new_layer Adding new protocol layer
 /// It is possible to inmplement new protocols and add them to any place in the
 /// protocol stack. The new custom protocol stack must inherit from 
@@ -424,6 +463,7 @@
 /// functions that do their job and forward the request to the next layer:
 /// @li @code ErrorStatus read(MsgPtr& msgPtr, ReadIterator& iter, std::size_t size); @endcode
 /// @li @code ErrorStatus write(const MsgBase& msg, WriteIterator& iter, std::size_t size) const; @endcode
+/// @li @code ErrorStatus template <typename TUpdateIter> update(TUpdateIter& iter, std::size_t size) const; @endcode
 ///
 /// @subsection comms_tutorial_protocol_stack_summary Putting it all together
 /// The last protocol layer that wraps all the others is defined to be
@@ -439,7 +479,7 @@
 /// As a result to deserialise message object from the data sequence the 
 /// following code should be written:
 /// @code
-/// MyProjectProtocolStack protocolStack;
+/// MyProjectProtocolStack protocolStack; // May receive parameters if needed
 /// ...
 /// MsgPtr msgPtr;
 /// auto readIter = ...; // iterator to the input data sequence

@@ -95,7 +95,8 @@ public:
 
 
     /// @brief Constructor
-    ChecksumLayer() = default;
+    template <typename... TArgs>
+    explicit ChecksumLayer(TArgs&&... args);
 
     /// @brief Copy constructor is default
     ChecksumLayer(const ChecksumLayer&) = default;
@@ -219,6 +220,16 @@ private:
 };
 
 // Implementation
+template <typename TTraits,
+          typename TChecksumCalc,
+          typename TNextLayer>
+template <typename... TArgs>
+ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::ChecksumLayer(
+    TArgs&&... args)
+    : Base(std::forward<TArgs>(args)...)
+{
+}
+
 template <typename TTraits,
           typename TChecksumCalc,
           typename TNextLayer>

@@ -84,7 +84,8 @@ public:
     typedef typename Base::WriteIterator WriteIterator;
 
     /// Constructor
-    MsgSizeLayer() = default;
+    template <typename... TArgs>
+    explicit MsgSizeLayer(TArgs&&... args);
 
     /// @brief Copy constructor is default
     MsgSizeLayer(const MsgSizeLayer&) = default;
@@ -103,7 +104,7 @@ public:
 
 
     /// @brief Deserialise message from the input data sequence.
-    /// @details Reads size of the subsequent data from the intput data sequence
+    /// @details Reads size of the subsequent data from the input data sequence
     ///          and calls read() member function of the next layer with
     ///          the size specified in the size field.The function will also
     ///          compare the provided size of the data with size of the
@@ -200,6 +201,13 @@ private:
 };
 
 // Implementation
+
+template <typename TTraits, typename TNextLayer>
+template <typename... TArgs>
+MsgSizeLayer<TTraits, TNextLayer>::MsgSizeLayer(TArgs&&... args)
+    : Base(std::forward<TArgs>(args)...)
+{
+}
 
 template <typename TTraits, typename TNextLayer>
 template <typename TMsgPtr>

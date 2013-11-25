@@ -115,10 +115,13 @@ public:
     /// @brief Constructor
     /// @details Defines static factories responsible for generation of
     ///          custom message objects.
+    /// @tparam Types of parameters
+    /// @param args Parameters, all forwarded to the next layer
     /// @note Thread safety: Safe if compiler supports safe initialisation
     ///       of static data
     /// @note Exception guarantee: Basic
-    MsgIdLayer();
+    template <typename... TArgs>
+    explicit MsgIdLayer(TArgs&&... args);
 
     /// @brief Copy constructor is default
     MsgIdLayer(const MsgIdLayer&) = default;
@@ -292,7 +295,9 @@ template <typename TAllMessages,
           typename TAllocator,
           typename TTraits,
           typename TNextLayer>
-MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::MsgIdLayer()
+template <typename... TArgs>
+MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::MsgIdLayer(
+    TArgs&&... args)
 {
 
     static const std::size_t NumOfMsgs = std::tuple_size<AllMessages>::value;

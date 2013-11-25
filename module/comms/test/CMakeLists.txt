@@ -125,6 +125,26 @@ endfunction ()
 
 #################################################################
 
+function (test_sync_prefix_layer)
+    set (test_suite_name "SyncPrefixLayer")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link)
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 ar_add_cxx_flags ("-Wno-overloaded-virtual")
@@ -135,5 +155,6 @@ test_msg_data_layer()
 test_msg_id_layer()
 test_msg_size_layer()
 test_checksum_layer()
+test_sync_prefix_layer()
 
 endif ()
