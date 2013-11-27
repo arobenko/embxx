@@ -248,6 +248,26 @@ readWriteMsgTest(
 }
 
 template <typename TTraits,
+          typename TProtStack>
+typename TProtStack::MsgPtr
+readNotEnoughDataMsgTest(
+    TProtStack& stack,
+    const char* const buf,
+    std::size_t bufSize,
+    std::size_t expectedMissingSize)
+{
+    typedef typename TProtStack::MsgPtr MsgPtr;
+    MsgPtr msg;
+    auto readIter = buf;
+    auto missingSize = std::numeric_limits<std::size_t>::max();
+    auto es = stack.read(msg, readIter, bufSize, &missingSize);
+    TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT_EQUALS(missingSize, expectedMissingSize);
+    TS_ASSERT(!msg);
+    return std::move(msg);
+}
+
+template <typename TTraits,
           template<class> class TProtStack>
 typename TProtStack<TTraits>::Type::MsgPtr
 readWriteMsgTest(

@@ -117,16 +117,26 @@ public:
     ///                 will hold allocated message object
     /// @param[in, out] iter Input iterator.
     /// @param[in] size Size of the data in the sequence
+    /// @param[out] missingSize If not nullptr and return value is
+    ///             embxx::comms::ErrorStatus::NotEnoughData it will contain
+    ///             minimal missing data length required for the successful
+    ///             read attempt.
     /// @return Error status of the operation.
     /// @pre Iterator must be valid and can be dereferenced and incremented at
     ///      least "size" times;
     /// @post The iterator will be advanced by the number of bytes was actually
     ///       read. In case of an error, distance between original position and
     ///       advanced will pinpoint the location of the error.
+    /// @post missingSize output value is updated if and only if function
+    ///       returns embxx::comms::ErrorStatus::NotEnoughData.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     template <typename TMsgPtr>
-    ErrorStatus read(TMsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
+    ErrorStatus read(
+        TMsgPtr& msgPtr,
+        ReadIterator& iter,
+        std::size_t size,
+        std::size_t* missingSize = nullptr);
 
     /// @brief Read the size information from the input data sequence.
     /// @details The read is executed from current input position of the buffer.
@@ -185,6 +195,16 @@ public:
         TUpdateIter& iter,
         std::size_t size) const;
 
+    /// @brief Returns minimal protocol stack length required to serialise
+    ///        empty message.
+    /// @details Adds "MsgSizeLen" to the result of nextLayer().length().
+    constexpr std::size_t length() const;
+
+    /// @brief Returns message serialisation length including protocol stack
+    ///        overhead.
+    /// @details Adds "MsgSizeLen" to the result of nextLayer().length(msg).
+    std::size_t length(const MsgBase& msg) const;
+
 private:
 
     ErrorStatus write(
@@ -214,30 +234,39 @@ template <typename TMsgPtr>
 ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::read(
     TMsgPtr& msgPtr,
     ReadIterator& iter,
-    std::size_t size)
+    std::size_t size,
+    std::size_t* missingSize)
 {
     static_assert(std::is_base_of<MsgBase, typename std::decay<decltype(*msgPtr)>::type>::value,
         "TMsgBase must be a base class of decltype(*msgPtr)");
 
-    if (size < (MsgSizeLen + ExtraSizeValue)) {
+    if (size < MsgSizeLen) {
+        if (missingSize != nullptr) {
+            *missingSize = length() - size;
+        }
         return ErrorStatus::NotEnoughData;
     }
 
     MsgSizeType msgSize = 0;
     ErrorStatus status = readSize(iter, size, msgSize);
-    if (status != ErrorStatus::Success) {
-        return status;
-    }
+    static_cast<void>(status);
+    GASSERT(status == ErrorStatus::Success);
 
     if ((0 < ExtraSizeValue) && (msgSize < ExtraSizeValue)) {
         return ErrorStatus::ProtocolError;
     }
 
-    if ((size - MsgSizeLen) < (msgSize - ExtraSizeValue)) {
+    auto actualRemainingSize = (size - MsgSizeLen);
+    auto requiredRemainingSize = (msgSize - ExtraSizeValue);
+    if (actualRemainingSize < requiredRemainingSize) {
+        if (missingSize != nullptr) {
+            *missingSize = requiredRemainingSize - actualRemainingSize;
+        }
         return ErrorStatus::NotEnoughData;
     }
 
-    status = Base::nextLayer().read(msgPtr, iter, msgSize - ExtraSizeValue);
+    // not passing missingSize farther on purpose
+    status = Base::nextLayer().read(msgPtr, iter, requiredRemainingSize);
     if (status == ErrorStatus::NotEnoughData) {
         return ErrorStatus::ProtocolError;
     }
@@ -281,6 +310,18 @@ ErrorStatus MsgSizeLayer<TTraits, TNextLayer>::update(
     auto sizeToWrite = (size - MsgSizeLen) + ExtraSizeValue;
     Base::template writeData<MsgSizeLen>(sizeToWrite, iter);
     return Base::nextLayer().update(iter, size - MsgSizeLen);
+}
+
+template <typename TTraits, typename TNextLayer>
+constexpr std::size_t MsgSizeLayer<TTraits, TNextLayer>::length() const
+{
+    return MsgSizeLen + Base::nextLayer().length();
+}
+
+template <typename TTraits, typename TNextLayer>
+std::size_t MsgSizeLayer<TTraits, TNextLayer>::length(const MsgBase& msg) const
+{
+    return MsgSizeLen + Base::nextLayer().length(msg);
 }
 
 template <typename TTraits, typename TNextLayer>

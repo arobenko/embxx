@@ -129,16 +129,26 @@ public:
     ///                 will hold allocated message object
     /// @param[in, out] iter Input iterator
     /// @param[in] size Size of the data in the buffer
+    /// @param[out] missingSize If not nullptr and return value is
+    ///             embxx::comms::ErrorStatus::NotEnoughData it will contain
+    ///             minimal missing data length required for the successful
+    ///             read attempt.
     /// @return Error status of the operation.
     /// @pre Iterator must be valid and can be dereferenced and incremented at
     ///      least "size" times;
     /// @post The iterator will be advanced by the number of bytes was actually
     ///       read. In case of an error, distance between original position and
     ///       advanced will pinpoint the location of the error.
+    /// @post missingSize output value is updated if and only if function
+    ///       returns embxx::comms::ErrorStatus::NotEnoughData.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     template <typename TMsgPtr>
-    ErrorStatus read(TMsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
+    ErrorStatus read(
+        TMsgPtr& msgPtr,
+        ReadIterator& iter,
+        std::size_t size,
+        std::size_t* missingSize = nullptr);
 
     /// @brief Calculate checksum of the data in the input data sequence.
     /// @details The read is executed from current position of the iterator.
@@ -190,6 +200,16 @@ public:
         TUpdateIter& iter,
         std::size_t size) const;
 
+    /// @brief Returns minimal protocol stack length required to serialise
+    ///        empty message.
+    /// @details Adds "ChecksumLen" to the result of nextLayer().length().
+    constexpr std::size_t length() const;
+
+    /// @brief Returns message serialisation length including protocol stack
+    ///        overhead.
+    /// @details Adds "ChecksumLen" to the result of nextLayer().length(msg).
+    std::size_t length(const MsgBase& msg) const;
+
 private:
 
     template <typename TMsgPtr>
@@ -197,6 +217,7 @@ private:
         TMsgPtr& msgPtr,
         ReadIterator& iter,
         std::size_t size,
+        std::size_t* missingSize,
         const traits::checksum::VerifyBeforeProcessing& behavour);
 
     template <typename TMsgPtr>
@@ -204,6 +225,7 @@ private:
         TMsgPtr& msgPtr,
         ReadIterator& iter,
         std::size_t size,
+        std::size_t* missingSize,
         const traits::checksum::VerifyAfterProcessing& behavour);
 
     ErrorStatus writeInternal(
@@ -237,16 +259,20 @@ template <typename TMsgPtr>
 ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::read(
     TMsgPtr& msgPtr,
     ReadIterator& iter,
-    std::size_t size)
+    std::size_t size,
+    std::size_t* missingSize)
 {
     static_assert(std::is_base_of<MsgBase, typename std::decay<decltype(*msgPtr)>::type>::value,
         "TMsgBase must be a base class of decltype(*msgPtr)");
 
     if (size < ChecksumLen) {
+        if (missingSize != nullptr) {
+            *missingSize = length() - size;
+        }
         return ErrorStatus::NotEnoughData;
     }
 
-    return readInternal(msgPtr, iter, size, ChecksumVerification());
+    return readInternal(msgPtr, iter, size, missingSize, ChecksumVerification());
 }
 
 template <typename TTraits,
@@ -294,11 +320,31 @@ ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::update(
 template <typename TTraits,
           typename TChecksumCalc,
           typename TNextLayer>
+constexpr
+std::size_t ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::length() const
+{
+    return ChecksumLen + Base::nextLayer().length();
+}
+
+template <typename TTraits,
+          typename TChecksumCalc,
+          typename TNextLayer>
+std::size_t ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::length(
+    const MsgBase& msg) const
+{
+    return ChecksumLen + Base::nextLayer().length(msg);
+}
+
+
+template <typename TTraits,
+          typename TChecksumCalc,
+          typename TNextLayer>
 template <typename TMsgPtr>
 ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::readInternal(
     TMsgPtr& msgPtr,
     ReadIterator& iter,
     std::size_t size,
+    std::size_t* missingSize,
     const traits::checksum::VerifyBeforeProcessing& behaviour)
 {
     static_cast<void>(behaviour);
@@ -313,7 +359,7 @@ ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::readInternal(
     auto advanceSize = -(static_cast<int>(size));
     std::advance(iter, advanceSize);
 
-    auto status = Base::nextLayer().read(msgPtr, iter, size - ChecksumLen);
+    auto status = Base::nextLayer().read(msgPtr, iter, size - ChecksumLen, missingSize);
     if (status != ErrorStatus::Success) {
         return ErrorStatus::ProtocolError;
     }
@@ -330,18 +376,27 @@ ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::readInternal(
     TMsgPtr& msgPtr,
     ReadIterator& iter,
     std::size_t size,
+    std::size_t* missingSize,
     const traits::checksum::VerifyAfterProcessing& behaviour)
 {
     static_cast<void>(behaviour);
 
     ReadIterator firstPosIter(iter);
-    auto status = Base::nextLayer().read(msgPtr, iter, size - ChecksumLen);
+    auto status = Base::nextLayer().read(msgPtr, iter, size - ChecksumLen, missingSize);
     if (status != ErrorStatus::Success) {
+        if ((status == ErrorStatus::NotEnoughData) &&
+            (missingSize != nullptr)) {
+            *missingSize += ChecksumLen;
+        }
         return status;
     }
 
     auto posDiff = static_cast<std::size_t>(std::distance(firstPosIter, iter));
+    GASSERT(posDiff <= size);
     if (size < (posDiff + ChecksumLen)) {
+        if (missingSize != nullptr) {
+            *missingSize = (posDiff + ChecksumLen) - size;
+        }
         msgPtr.reset();
         return ErrorStatus::NotEnoughData;
     }

@@ -36,6 +36,7 @@ public:
     void test3();
     void test4();
     void test5();
+    void test6();
 
 private:
     struct Traits1 {
@@ -170,11 +171,30 @@ void SyncPrefixLayerTestSuite::test5()
         (char)0xab
     };
 
-    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+    static const std::size_t BufSize = sizeof(buf)/sizeof(buf[0]);
+    static const std::size_t ExpectedMsgSize = 5;
 
-    auto msg = readWriteMsgTest<Traits1>(stack, buf, bufSize, embxx::comms::ErrorStatus::NotEnoughData);
+    auto msg = readNotEnoughDataMsgTest<Traits1>(stack, buf, BufSize, ExpectedMsgSize - BufSize);
     TS_ASSERT(!msg);
 }
 
+void SyncPrefixLayerTestSuite::test6()
+{
+    static const std::uint16_t SyncPrefix = 0xaabb;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    const char buf[] = {
+        (char)0xaa, (char)0xbb, 0x0, 0x3, MessageType1, 0x01
+    };
+
+    const std::size_t BufSize = sizeof(buf)/sizeof(buf[0]);
+    static const std::size_t ExpectedMsgSize = 7;
+
+    auto msg = readNotEnoughDataMsgTest<Traits1>(stack, buf, BufSize, ExpectedMsgSize - BufSize);
+    TS_ASSERT(!msg);
+}
 
 

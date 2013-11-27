@@ -146,6 +146,10 @@ public:
     ///                 allocated message object
     /// @param[in, out] iter Input iterator
     /// @param[in] size Size of the data in the sequence
+    /// @param[out] missingSize If not nullptr and return value is
+    ///             embxx::comms::ErrorStatus::NotEnoughData it will contain
+    ///             minimal missing data length required for the successful
+    ///             read attempt.
     /// @return Error status of the operation.
     /// @pre msgPtr doesn't point to any object:
     ///      @code assert(!msgPtr); @endcode
@@ -156,10 +160,16 @@ public:
     ///       advanced will pinpoint the location of the error.
     /// @post Returns embxx::comms::ErrorStatus::Success if and only if msgPtr points
     ///       to a valid object.
+    /// @post missingSize output value is updated if and only if function
+    ///       returns embxx::comms::ErrorStatus::NotEnoughData.
     /// @note Thread safety: Safe on distinct MsgIdLayer object and distinct
     ///       buffers, unsafe otherwise.
     /// @note Exception guarantee: Basic
-    ErrorStatus read(MsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
+    ErrorStatus read(
+        MsgPtr& msgPtr,
+        ReadIterator& iter,
+        std::size_t size,
+        std::size_t* missingSize = nullptr);
 
     /// @brief Serialise message into output data sequence.
     /// @details The function will write ID of the message to the data
@@ -201,6 +211,15 @@ public:
         TUpdateIter& iter,
         std::size_t size) const;
 
+    /// @brief Returns minimal protocol stack length required to serialise
+    ///        empty message.
+    /// @details Adds "MsgIdLen" to the result of nextLayer().length().
+    constexpr std::size_t length() const;
+
+    /// @brief Returns message serialisation length including protocol stack
+    ///        overhead.
+    /// @details Adds "MsgIdLen" to the result of nextLayer().length(msg).
+    std::size_t length(const MsgBase& msg) const;
 
     /// @brief Get allocator.
     /// @details Returns reference to the message allocator. It can be used
@@ -326,10 +345,14 @@ template <typename TAllMessages,
 ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::read(
     MsgPtr& msgPtr,
     ReadIterator& iter,
-    std::size_t size)
+    std::size_t size,
+    std::size_t* missingSize)
 {
     GASSERT(!msgPtr);
     if (size < MsgIdLen) {
+        if (missingSize != nullptr) {
+            *missingSize = length() - size;
+        }
         return ErrorStatus::NotEnoughData;
     }
 
@@ -349,7 +372,7 @@ ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::read(
         return ErrorStatus::MsgAllocFaulure;
     }
 
-    auto status = Base::nextLayer().read(msgPtr, iter, size - MsgIdLen);
+    auto status = Base::nextLayer().read(msgPtr, iter, size - MsgIdLen, missingSize);
     if (status != ErrorStatus::Success) {
         msgPtr.reset();
     }
@@ -385,6 +408,26 @@ ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::update(
 {
     std::advance(iter, MsgIdLen);
     return Base::nextLayer().update(iter, size - MsgIdLen);
+}
+
+template <typename TAllMessages,
+          typename TAllocator,
+          typename TTraits,
+          typename TNextLayer>
+constexpr
+std::size_t MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::length() const
+{
+    return MsgIdLen + Base::nextLayer().length();
+}
+
+template <typename TAllMessages,
+          typename TAllocator,
+          typename TTraits,
+          typename TNextLayer>
+std::size_t MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::length(
+    const MsgBase& msg) const
+{
+    return MsgIdLen + Base::nextLayer().length(msg);
 }
 
 template <typename TAllMessages,

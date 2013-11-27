@@ -111,16 +111,26 @@ public:
     ///                 will hold allocated message object
     /// @param[in, out] iter Input iterator.
     /// @param[in] size Size of the data in the sequence
+    /// @param[out] missingSize If not nullptr and return value is
+    ///             embxx::comms::ErrorStatus::NotEnoughData it will contain
+    ///             minimal missing data length required for the successful
+    ///             read attempt.
     /// @return Error status of the operation.
     /// @pre Iterator must be valid and can be dereferenced and incremented at
     ///      least "size" times;
     /// @post The iterator will be advanced by the number of bytes was actually
     ///       read. In case of an error, distance between original position and
     ///       advanced will pinpoint the location of the error.
+    /// @post missingSize output value is updated if and only if function
+    ///       returns embxx::comms::ErrorStatus::NotEnoughData.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic
     template <typename TMsgPtr>
-    ErrorStatus read(TMsgPtr& msgPtr, ReadIterator& iter, std::size_t size);
+    ErrorStatus read(
+        TMsgPtr& msgPtr,
+        ReadIterator& iter,
+        std::size_t size,
+        std::size_t* missingSize = nullptr);
 
     /// @brief Read the "sync" prefix from the input data sequence.
     /// @details The read is executed from current input position of the buffer.
@@ -170,6 +180,16 @@ public:
         TUpdateIter& iter,
         std::size_t size) const;
 
+    /// @brief Returns minimal protocol stack length required to serialise
+    ///        empty message.
+    /// @details Adds "SyncPrefixLen" to the result of nextLayer().length().
+    constexpr std::size_t length() const;
+
+    /// @brief Returns message serialisation length including protocol stack
+    ///        overhead.
+    /// @details Adds "SyncPrefixLen" to the result of nextLayer().length(msg).
+    std::size_t length(const MsgBase& msg) const;
+
 private:
     const SyncPrefixType sync_;
 
@@ -198,23 +218,29 @@ template <typename TMsgPtr>
 ErrorStatus SyncPrefixLayer<TTraits, TNextLayer>::read(
     TMsgPtr& msgPtr,
     ReadIterator& iter,
-    std::size_t size)
+    std::size_t size,
+    std::size_t* missingSize)
 {
     static_assert(std::is_base_of<MsgBase, typename std::decay<decltype(*msgPtr)>::type>::value,
         "TMsgBase must be a base class of decltype(*msgPtr)");
 
+    if (size < SyncPrefixLen) {
+        if (missingSize != nullptr) {
+            *missingSize = length() - size;
+        }
+        return ErrorStatus::NotEnoughData;
+    }
+
     SyncPrefixType sync = 0;
     ErrorStatus status = readSync(iter, size, sync);
-    if (status != ErrorStatus::Success) {
-        return status;
-    }
+    static_cast<void>(status);
+    GASSERT(status == ErrorStatus::Success);
 
     if (sync != sync_) {
         return ErrorStatus::ProtocolError;
     }
 
-    return Base::nextLayer().read(msgPtr, iter, size - SyncPrefixLen);
-
+    return Base::nextLayer().read(msgPtr, iter, size - SyncPrefixLen, missingSize);
 }
 
 template <typename TTraits, typename TNextLayer>
@@ -260,6 +286,19 @@ ErrorStatus SyncPrefixLayer<TTraits, TNextLayer>::update(
     return Base::nextLayer().update(iter, size - SyncPrefixLen);
 }
 
+template <typename TTraits, typename TNextLayer>
+constexpr
+std::size_t SyncPrefixLayer<TTraits, TNextLayer>::length() const
+{
+    return SyncPrefixLen + Base::nextLayer().length();
+}
+
+template <typename TTraits, typename TNextLayer>
+std::size_t SyncPrefixLayer<TTraits, TNextLayer>::length(
+    const MsgBase& msg) const
+{
+    return SyncPrefixLen + Base::nextLayer().length(msg);
+}
 
 
 }  // namespace protocol
