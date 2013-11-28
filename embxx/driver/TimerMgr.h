@@ -205,7 +205,7 @@ public:
         ///            requested wait is over. It must have the following
         ///            signature:
         ///            @code
-        ///            void timeoutHandler(embxx::driver::TimeoutStatus status);
+        ///            void timeoutHandler(embxx::driver::ErrorStatus status);
         ///            @endcode
         /// @pre Timer object is valid (isValid() return true).
         /// @pre The callback from the previous wait request must already be

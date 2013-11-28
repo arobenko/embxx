@@ -23,6 +23,7 @@
 #include <array>
 #include <tuple>
 #include <algorithm>
+#include <utility>
 
 #include "embxx/util/Assert.h"
 #include "embxx/util/Tuple.h"
@@ -45,7 +46,8 @@ namespace protocol
 /// @tparam TMsgBase Base class for all the custom messages, smart pointer to
 ///         which will be returned from read() member function.
 /// @tparam TAllMessages A tuple (std::tuple) of all the custom message types
-///         this protocol layer must support.
+///         this protocol layer must support. The messages in the tuple must
+///         be sorted in ascending order based on their MsgId
 /// @tparam TAllocator The allocator class, will be used to allocate message
 ///         objects in read() member function.
 ///         The requirements for the allocator are:
@@ -66,6 +68,8 @@ namespace protocol
 /// @pre TMsgBase must be a base class to all custom message types bundled in
 ///      TAllMessages
 /// @pre TAllMessages must be any variation of std::tuple
+/// @pre All message types in TAllMessages must be in ascending order based on
+///      their MsgId value
 /// @headerfile embxx/comms/protocol/MsgIdLayer.h
 template <typename TAllMessages,
           typename TAllocator,
@@ -306,6 +310,31 @@ struct FactoryCreator<0>
     }
 };
 
+template <std::size_t TEndIdx, typename TAllMessages>
+struct AreMessagesSorted
+{
+    typedef typename std::tuple_element<TEndIdx - 2, TAllMessages>::type FirstElemType;
+    typedef typename std::tuple_element<TEndIdx - 1, TAllMessages>::type SecondElemType;
+
+    static const bool Value =
+        ((FirstElemType::MsgId < SecondElemType::MsgId) &&
+         (AreMessagesSorted<TEndIdx - 1, TAllMessages>::Value));
+};
+
+template <typename TAllMessages>
+struct AreMessagesSorted<1, TAllMessages>
+{
+    static const bool Value = true;
+};
+
+template <typename TAllMessages>
+struct AreMessagesSorted<0, TAllMessages>
+{
+    static const bool Value = true;
+};
+
+
+
 
 }  // namespace details
 
@@ -317,17 +346,16 @@ template <typename TAllMessages,
 template <typename... TArgs>
 MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::MsgIdLayer(
     TArgs&&... args)
+    : Base(std::forward<TArgs>(args)...)
 {
-
     static const std::size_t NumOfMsgs = std::tuple_size<AllMessages>::value;
+
+    static_assert(details::AreMessagesSorted<NumOfMsgs, AllMessages>::Value,
+        "All the message types in the bundle must be sorted in ascending order "
+        "based on their MsgId");
+
     details::FactoryCreator<NumOfMsgs>::template
                     create<AllMessages, MsgFactory>(factories_);
-
-    std::sort(factories_.begin(), factories_.end(),
-        [](Factory* factory1, Factory* factory2) -> bool
-        {
-            return factory1->getId() < factory2->getId();
-        });
 }
 
 template <typename TAllMessages,
