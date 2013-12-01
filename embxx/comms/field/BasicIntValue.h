@@ -92,6 +92,15 @@ public:
     /// @param value Initial value
     explicit BasicIntValue(ValueType value);
 
+    /// @brief Copy constructor is default
+    BasicIntValue(const BasicIntValue&) = default;
+
+    /// @brief Destructor is default
+    ~BasicIntValue() = default;
+
+    /// @brief Copy assignment is default
+    BasicIntValue& operator=(const BasicIntValue&) = default;
+
     /// @brief Retrieve the value.
     const ValueType getValue() const;
 

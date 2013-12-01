@@ -189,6 +189,7 @@
 /// Current version of the "comms" module provides the following field classes:
 /// @li embxx::comms::field::BasicIntValue
 /// @li embxx::comms::field::BitmaskValue
+/// @li embxx::comms::field::BasicEnumValue
 ///
 /// @code
 /// typedef std::tuple<

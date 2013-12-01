@@ -386,7 +386,11 @@ public:
     typedef TFields Fields;
 
     /// @brief Default constructor
-    MetaMessageBase();
+    MetaMessageBase() = default;
+
+    explicit MetaMessageBase(const Fields& fields);
+
+    explicit MetaMessageBase(Fields&& fields);
 
     /// @brief Destructor
     virtual ~MetaMessageBase();
@@ -657,7 +661,19 @@ template <traits::MsgIdType TId,
           typename TBase,
           typename TActual,
           typename TFields>
-MetaMessageBase<TId, TBase, TActual, TFields>::MetaMessageBase()
+MetaMessageBase<TId, TBase, TActual, TFields>::MetaMessageBase(
+    const Fields& fields)
+    : fields_(fields)
+{
+}
+
+template <traits::MsgIdType TId,
+          typename TBase,
+          typename TActual,
+          typename TFields>
+MetaMessageBase<TId, TBase, TActual, TFields>::MetaMessageBase(
+    Fields&& fields)
+    : fields_(std::move(fields))
 {
 }
 

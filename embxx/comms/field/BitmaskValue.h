@@ -46,8 +46,7 @@ namespace field
 ///         Endianness. The traits class/struct must typedef either
 ///         embxx::comms::traits::endian::Big or
 ///         embxx::comms::traits::endian::Little to Endianness.
-/// @headerfile embxx/comms/field/BasicIntValue.h
-/// @headerfile embxx/comms/field.h
+/// @headerfile embxx/comms/field/BitmaskValue.h
 template <std::size_t TLen,
           typename TTraits>
 class BitmaskValue
@@ -82,6 +81,15 @@ public:
 
     /// @brief Constructor
     explicit BitmaskValue(ValueType value);
+
+    /// @brief Copy constructor is default
+    BitmaskValue(const BitmaskValue&) = default;
+
+    /// @brief Destructor is default
+    ~BitmaskValue() = default;
+
+    /// @brief Copy assignment is default
+    BitmaskValue& operator=(const BitmaskValue&) = default;
 
     /// @brief Retrieve underlying BasicIntValue field.
     const IntValueField asIntValueField() const;
