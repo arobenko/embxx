@@ -303,6 +303,7 @@ successfulReadWriteMsgTest(
     TS_ASSERT(handler.countUncaught_ == 0);
 
     auto actualBufSize = static_cast<std::size_t>(std::distance(buf, readIter));
+    TS_ASSERT_EQUALS(actualBufSize, msg->length() + stack.length());
     std::unique_ptr<char []> outCheckBuf(new char[actualBufSize]);
     auto writeIter = &outCheckBuf[0];
     es = stack.write(*msg, writeIter, actualBufSize);

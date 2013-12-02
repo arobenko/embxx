@@ -37,6 +37,7 @@ public:
     void test4();
     void test5();
     void test6();
+    void test7();
 
 private:
     struct Traits1 {
@@ -197,4 +198,23 @@ void SyncPrefixLayerTestSuite::test6()
     TS_ASSERT(!msg);
 }
 
+void SyncPrefixLayerTestSuite::test7()
+{
+    static const std::uint16_t SyncPrefix = 0xaabb;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
 
+    ProtStack stack(SyncPrefix);
+    const char buf[] = {
+        (char)0xaa, (char)0xbb, 0x0, 0xb, MessageType3, 0x01, 0x02, 0x3, 0x4, (char)((std::uint8_t)-5), (char)0xde, (char)0xad, 0x00, (char)0xaa, (char)0xff
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message3>(stack, buf, bufSize);
+
+    TS_ASSERT_EQUALS(std::get<0>(msg.getFields()).getValue(), 0x01020304);
+    TS_ASSERT_EQUALS(std::get<1>(msg.getFields()).getValue(), -5);
+    TS_ASSERT_EQUALS(std::get<2>(msg.getFields()).getValue(), 0xdead);
+    TS_ASSERT_EQUALS(std::get<3>(msg.getFields()).getValue(), 0xaaff);
+    TS_ASSERT_EQUALS(msg.length(), 10);
+}

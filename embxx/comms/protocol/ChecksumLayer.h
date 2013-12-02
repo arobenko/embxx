@@ -459,7 +459,8 @@ ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::writeInternal(
     }
 
     auto status = Base::nextLayer().write(msg, iter, size - ChecksumLen);
-    if (status != ErrorStatus::Success)
+    if ((status != ErrorStatus::Success) &&
+        (status != ErrorStatus::UpdateRequired))
     {
         return status;
     }
