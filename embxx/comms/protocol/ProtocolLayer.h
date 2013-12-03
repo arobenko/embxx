@@ -21,7 +21,8 @@
 
 #pragma once
 
-#include "embxx/io/iosimple.h"
+#include <cstddef>
+#include "embxx/io/access.h"
 #include "embxx/comms/traits.h"
 
 namespace embxx
@@ -46,24 +47,51 @@ namespace protocol
 ///         must define the following:
 ///         @li MsgPtr type - smart pointer to message object
 ///         @li MsgBase type - base class to all the custom messages
+///         @li ReadIterator type - input iterator type
+///         @li WriteIterator type - output iterator type
 template <typename TTraits, typename TNextLayer>
 class ProtocolLayer
 {
 
 public:
-    /// Next layer type
+    /// @brief Next layer type
     typedef TNextLayer NextLayer;
 
-    /// Pointer to message object
+    /// @brief Pointer to message object
     typedef typename NextLayer::MsgPtr MsgPtr;
-
-protected:
 
     /// Base class to all custom messages
     typedef typename NextLayer::MsgBase MsgBase;
 
-    /// Constructor
-    ProtocolLayer() = default;
+    /// @brief Read iterator type
+    typedef typename NextLayer::ReadIterator ReadIterator;
+
+    /// @brief Write iterator type
+    typedef typename NextLayer::WriteIterator WriteIterator;
+
+protected:
+
+    /// @brief Traits type
+    typedef TTraits Traits;
+
+    /// @brief Endianness type
+    typedef typename Traits::Endianness Endianness;
+
+    /// @brief Default constructor
+    template <typename... TArgs>
+    explicit ProtocolLayer(TArgs&&... args);
+
+    /// @brief Copy constructor is default
+    ProtocolLayer(const ProtocolLayer&) = default;
+
+    /// @brief Move constructor is default
+    ProtocolLayer(ProtocolLayer&&) = default;
+
+    /// @brief Copy assignment is default
+    ProtocolLayer& operator=(const ProtocolLayer&) = default;
+
+    /// @brief Move assignment is default
+    ProtocolLayer& operator=(ProtocolLayer&&) = default;
 
     /// @brief Retrieve reference to the next layer object.
     /// @note Thread safety: Safe
@@ -73,61 +101,69 @@ protected:
     /// @brief Const version of nextLayer()
     const NextLayer& nextLayer() const;
 
-    /// @brief Traits type
-    typedef TTraits Traits;
-
-    /// @brief Endianness type
-    typedef typename Traits::Endianness Endianness;
-
-    /// @brief Write data into the output stream buffer.
-    /// @details Use this function to write data to the stream buffer.
+    /// @brief Write data into the output data sequence.
+    /// @details Use this function to write data to the output data sequence.
     ///          The endianness of the data will be as specified in the TTraits
     ///          template parameter of the class.
     /// @tparam T Type of the value to write. Must be integral.
+    /// @tparam TIter Type of output iterator
     /// @param[in] value Integral type value to be written.
-    /// @param[in, out] buf Output stream buffer.
-    /// @return Number of bytes actually written.
-    /// @post The internal pointer of the stream buffer is advanced.
+    /// @param[in, out] iter Output iterator.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "sizeof(T)" times;
+    /// @post The iterator is advanced.
     /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <typename T>
-    static std::size_t putData(T value, std::streambuf& buf);
+    template <typename T, typename TIter>
+    static void writeData(T value, TIter& iter);
 
-    /// @brief Write partial data into the output stream buffer.
-    /// @details Use this function to write partial data to the stream buffer.
+    /// @brief Write partial data into the output data sequence.
+    /// @details Use this function to write partial data to the output data sequence.
     ///          The endianness of the data will be as specified in the TTraits
     ///          template parameter of the class.
     /// @tparam TSize Length of the value in bytes known in compile time.
     /// @tparam T Type of the value to write. Must be integral.
+    /// @tparam TIter Type of the output iterator
     /// @param[in] value Integral type value to be written.
-    /// @param[in, out] buf Output stream buffer.
-    /// @return Number of bytes actually written.
+    /// @param[in, out] iter Output iterator.
     /// @pre TSize <= sizeof(T)
-    /// @post The internal pointer of the stream buffer is advanced.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "TSize" times;
+    /// @post The iterator is advanced.
     /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <std::size_t TSize, typename T>
-    static std::size_t putData(T value, std::streambuf& buf);
+    template <std::size_t TSize, typename T, typename TIter>
+    static void writeData(T value, TIter& iter);
 
-    /// @brief Read data from input stream buffer.
-    /// @details Use this function to read data from the stream buffer.
+    /// @brief Read data from input data sequence.
+    /// @details Use this function to read data from input data sequence.
+    /// The endianness of the data will be as specified in the TTraits
+    /// template parameter of the class.
+    /// @tparam T Return type
+    /// @tparam TIter Type of input iterator.
+    /// @param[in, out] iter Input iterator.
+    /// @return The integral type value.
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "sizeof(T)" times;
+    /// @post The iterator is advanced.
+    /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
+    template <typename T, typename TIter>
+    static T readData(TIter& iter);
+
+    /// @brief Read partial data from input data sequence.
+    /// @details Use this function to read partial data from input data sequence.
     /// The endianness of the data will be as specified in the TTraits
     /// template parameter of the class.
     /// @tparam T Return type
     /// @tparam TSize number of bytes to read
-    /// @param[in, out] buf Input stream buffer.
+    /// @tparam TIter Type of input iterator.
+    /// @param[in, out] iter Input iterator.
     /// @return The integral type value.
-    /// @pre The buffer has required amount of bytes to be read.
-    ///      The result is undefined otherwise.
     /// @pre TSize <= sizeof(T)
-    /// @post The internal pointer of the stream buffer is advanced.
-    /// @note Thread safety: Safe for distinct stream buffers, unsafe otherwise.
-    /// @note Exception guarantee: Depends on exception safety of the stream
-    ///       buffer.
-    template <typename T, std::size_t TSize = sizeof(T)>
-    static T getData(std::streambuf& buf);
+    /// @pre Iterator must be valid and can be dereferenced and incremented at
+    ///      least "TSize" times;
+    /// @post The iterator is advanced.
+    /// @note Thread safety: Safe for distinct buffers, unsafe otherwise.
+    template <typename T, std::size_t TSize, typename TIter>
+    static T readData(TIter& iter);
 
 private:
     NextLayer nextLayer_;
@@ -136,6 +172,13 @@ private:
 /// @}
 
 // Implementation
+template <typename TTraits, typename TNextLayer>
+template <typename... TArgs>
+ProtocolLayer<TTraits, TNextLayer>::ProtocolLayer(TArgs&&... args)
+    : nextLayer_(std::forward<TArgs>(args)...)
+{
+}
+
 template <typename TTraits, typename TNextLayer>
 typename ProtocolLayer<TTraits, TNextLayer>::NextLayer&
 ProtocolLayer<TTraits, TNextLayer>::nextLayer()
@@ -151,34 +194,41 @@ ProtocolLayer<TTraits, TNextLayer>::nextLayer() const
 }
 
 template <typename TTraits, typename TNextLayer>
-template <typename T>
-std::size_t ProtocolLayer<TTraits, TNextLayer>::putData(
+template <typename T, typename TIter>
+void ProtocolLayer<TTraits, TNextLayer>::writeData(
     T value,
-    std::streambuf& buf)
+    TIter& iter)
 {
-    return io::putData<T>(value, buf, Endianness());
+    writeData<sizeof(T)>(value, iter);
 }
 
 
 template <typename TTraits, typename TNextLayer>
-template <std::size_t TSize, typename T>
-std::size_t ProtocolLayer<TTraits, TNextLayer>::putData(
+template <std::size_t TSize, typename T, typename TIter>
+void ProtocolLayer<TTraits, TNextLayer>::writeData(
     T value,
-    std::streambuf& buf)
+    TIter& iter)
 {
     static_assert(TSize <= sizeof(T),
-                                "Cannot put more bytes than type contains");
+        "Cannot write more bytes than type contains");
 
-    return io::putData<TSize, T>(value, buf, Endianness());
+    io::writeData<TSize, T>(value, iter, Endianness());
 }
 
 template <typename TTraits, typename TNextLayer>
-template <typename T, std::size_t TSize>
-T ProtocolLayer<TTraits, TNextLayer>::getData(std::streambuf& buf)
+template <typename T, typename TIter>
+T ProtocolLayer<TTraits, TNextLayer>::readData(TIter& iter)
+{
+    return readData<T, sizeof(T)>(iter);
+}
+
+template <typename TTraits, typename TNextLayer>
+template <typename T, std::size_t TSize, typename TIter>
+T ProtocolLayer<TTraits, TNextLayer>::readData(TIter& iter)
 {
     static_assert(TSize <= sizeof(T),
-                                "Cannot get more bytes than type contains");
-    return io::getData<T, TSize>(buf, Endianness());
+        "Cannot read more bytes than type contains");
+    return io::readData<T, TSize>(iter, Endianness());
 }
 
 

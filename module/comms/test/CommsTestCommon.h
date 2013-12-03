@@ -20,9 +20,8 @@
 #include <string>
 #include <tuple>
 #include <algorithm>
-
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream_buffer.hpp>
+#include <memory>
+#include <iterator>
 
 #include "embxx/comms/Message.h"
 #include "embxx/comms/MessageHandler.h"
@@ -57,12 +56,21 @@ private:
 };
 
 template <typename TTraits>
-class Message1 : public embxx::comms::MessageBase<MessageType1,
-                                           TestMessageBase<TTraits>,
-                                           Message1<TTraits> >
+class Message1 :
+    public embxx::comms::MessageBase<
+        MessageType1,
+        TestMessageBase<TTraits>,
+        Message1<TTraits> >
 {
+    typedef
+        embxx::comms::MessageBase<
+            MessageType1,
+            TestMessageBase<TTraits>,
+            Message1<TTraits> > Base;
 public:
     typedef std::uint16_t ValueType;
+    typedef typename Base::ReadIterator ReadIterator;
+    typedef typename Base::WriteIterator WriteIterator;
 
     Message1() : value_(0) {};
 
@@ -72,21 +80,21 @@ public:
     void setValue(ValueType value) { value_ = value; }
 
 protected:
-    virtual embxx::comms::ErrorStatus readImpl(std::streambuf& buf, std::size_t size)
+    virtual embxx::comms::ErrorStatus readImpl(ReadIterator& iter, std::size_t size)
     {
         TS_ASSERT_LESS_THAN_EQUALS(sizeof(value_), size);
-        value_ = this->template getData<ValueType>(buf);
+        value_ = this->template readData<ValueType>(iter);
         return embxx::comms::ErrorStatus::Success;
     }
 
-    virtual embxx::comms::ErrorStatus writeImpl(std::streambuf& buf, std::size_t size) const
+    virtual embxx::comms::ErrorStatus writeImpl(WriteIterator& iter, std::size_t size) const
     {
         TS_ASSERT_LESS_THAN_EQUALS(sizeof(value_), size);
-        this->putData(value_, buf);
+        this->writeData(value_, iter);
         return embxx::comms::ErrorStatus::Success;
     }
 
-    virtual std::size_t getDataSizeImpl() const
+    virtual std::size_t lengthImpl() const
     {
         return sizeof(value_);
     }
@@ -221,53 +229,71 @@ struct MessageHandler : public TestMessageHandler<TTraits>
     unsigned countUncaught_;
 };
 
-typedef boost::iostreams::array_sink Sink;
-typedef boost::iostreams::array_source Source;
-typedef boost::iostreams::array ArrayDevice;
-typedef boost::iostreams::stream_buffer<Sink> OutputBuf;
-typedef boost::iostreams::stream_buffer<Source> InputBuf;
-typedef boost::iostreams::stream_buffer<ArrayDevice> InOutBuf;
-
 template <typename TTraits,
-          template<class> class TProtStack>
-typename TProtStack<TTraits>::Type::MsgPtr
+          typename TProtStack>
+typename TProtStack::MsgPtr
 readWriteMsgTest(
-    const char* buf,
+    TProtStack& stack,
+    const char* const buf,
     std::size_t bufSize,
     embxx::comms::ErrorStatus expectedErrStatus)
 {
-    typedef typename TProtStack<TTraits>::Type ProtStack;
-    typedef typename ProtStack::MsgPtr MsgPtr;
-
-    ProtStack stack;
-    InputBuf inBuf(buf, bufSize);
-    inBuf.pubseekpos(0, std::ios_base::in);
-
+    typedef typename TProtStack::MsgPtr MsgPtr;
     MsgPtr msg;
-    auto es = stack.read(msg, inBuf, bufSize);
+    auto readIter = buf;
+    auto es = stack.read(msg, readIter, bufSize);
     TS_ASSERT_EQUALS(es, expectedErrStatus);
     TS_ASSERT(!msg);
     return std::move(msg);
 }
 
 template <typename TTraits,
-          template<class> class TMessage,
+          typename TProtStack>
+typename TProtStack::MsgPtr
+readNotEnoughDataMsgTest(
+    TProtStack& stack,
+    const char* const buf,
+    std::size_t bufSize,
+    std::size_t expectedMissingSize)
+{
+    typedef typename TProtStack::MsgPtr MsgPtr;
+    MsgPtr msg;
+    auto readIter = buf;
+    auto missingSize = std::numeric_limits<std::size_t>::max();
+    auto es = stack.read(msg, readIter, bufSize, &missingSize);
+    TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::NotEnoughData);
+    TS_ASSERT_EQUALS(missingSize, expectedMissingSize);
+    TS_ASSERT(!msg);
+    return std::move(msg);
+}
+
+template <typename TTraits,
           template<class> class TProtStack>
-TMessage<TTraits>
-successfulReadWriteMsgTest(
-    const char* buf,
-    std::size_t bufSize)
+typename TProtStack<TTraits>::Type::MsgPtr
+readWriteMsgTest(
+    const char* const buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus)
 {
     typedef typename TProtStack<TTraits>::Type ProtStack;
-    typedef TMessage<TTraits> ExpectedMsg;
-
     ProtStack stack;
-    InputBuf inBuf(buf, bufSize);
-    inBuf.pubseekpos(0, std::ios_base::in);
+    return readWriteMsgTest<TTraits>(stack, buf, bufSize, expectedErrStatus);
+}
 
-    typedef typename ProtStack::MsgPtr MsgPtr;
+template <typename TTraits,
+          template<class> class TMessage,
+          typename TProtStack>
+TMessage<TTraits>
+successfulReadWriteMsgTest(
+    TProtStack& stack,
+    const char* const buf,
+    std::size_t bufSize)
+{
+    typedef TMessage<TTraits> ExpectedMsg;
+    typedef typename TProtStack::MsgPtr MsgPtr;
     MsgPtr msg;
-    auto es = stack.read(msg, inBuf, bufSize);
+    auto readIter = buf;
+    auto es = stack.read(msg, readIter, bufSize);
     TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::Success);
     TS_ASSERT(msg);
 
@@ -276,11 +302,11 @@ successfulReadWriteMsgTest(
     TS_ASSERT(handler.countCaught_ > 0);
     TS_ASSERT(handler.countUncaught_ == 0);
 
-    auto actualBufSize = static_cast<std::size_t>(inBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::in));
+    auto actualBufSize = static_cast<std::size_t>(std::distance(buf, readIter));
+    TS_ASSERT_EQUALS(actualBufSize, msg->length() + stack.length());
     std::unique_ptr<char []> outCheckBuf(new char[actualBufSize]);
-    InOutBuf outBuf(&outCheckBuf[0], actualBufSize);
-    outBuf.pubseekpos(0, std::ios_base::out);
-    es = stack.write(*msg, outBuf, actualBufSize);
+    auto writeIter = &outCheckBuf[0];
+    es = stack.write(*msg, writeIter, actualBufSize);
     TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::Success);
     TS_ASSERT(std::equal(buf, buf + actualBufSize, &outCheckBuf[0]));
 
@@ -291,20 +317,67 @@ successfulReadWriteMsgTest(
 template <typename TTraits,
           template<class> class TMessage,
           template<class> class TProtStack>
+TMessage<TTraits>
+successfulReadWriteMsgTest(
+    const char* const buf,
+    std::size_t bufSize)
+{
+    typedef typename TProtStack<TTraits>::Type ProtStack;
+    ProtStack stack;
+    return successfulReadWriteMsgTest<TTraits, TMessage>(stack, buf, bufSize);
+}
+
+template <typename TTraits,
+          template<class> class TMessage,
+          template<class> class TProtStack>
+TMessage<TTraits>
+successfulReadWriteVectorMsgTest(
+    const char* const buf,
+    std::size_t bufSize)
+{
+    typedef typename TProtStack<TTraits>::Type ProtStack;
+    typedef TMessage<TTraits> ExpectedMsg;
+
+    ProtStack stack;
+    typedef typename ProtStack::MsgPtr MsgPtr;
+    MsgPtr msg;
+    auto readIter = buf;
+    auto es = stack.read(msg, readIter, bufSize);
+    TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::Success);
+    TS_ASSERT(msg);
+
+    MessageHandler<TTraits> handler;
+    msg->dispatch(handler);
+    TS_ASSERT(handler.countCaught_ > 0);
+    TS_ASSERT(handler.countUncaught_ == 0);
+
+    auto actualBufSize = static_cast<std::size_t>(std::distance(buf, readIter));
+    std::vector<char> outCheckBuf;
+    auto writeIter = std::back_inserter(outCheckBuf);
+    es = stack.write(*msg, writeIter, actualBufSize);
+    TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::UpdateRequired);
+    auto updateIter = &outCheckBuf[0];
+    es = stack.update(updateIter, outCheckBuf.size());
+    TS_ASSERT(std::equal(buf, buf + actualBufSize, &outCheckBuf[0]));
+
+    auto castedMsg = dynamic_cast<ExpectedMsg*>(msg.get());
+    return *castedMsg;
+}
+
+template <typename TTraits,
+          template<class> class TMessage,
+          typename TProtStack>
 void writeReadMsgTest(
+    TProtStack& stack,
     const TMessage<TTraits>& msg,
-    char* buf,
+    char* const buf,
     std::size_t bufSize,
     embxx::comms::ErrorStatus expectedErrStatus,
     const char* expectedBuf = 0)
 {
-    typedef typename TProtStack<TTraits>::Type ProtStack;
     typedef TMessage<TTraits> Message;
-
-    ProtStack stack;
-    InOutBuf outBuf(buf, bufSize);
-    outBuf.pubseekpos(0, std::ios_base::out);
-    embxx::comms::ErrorStatus es = stack.write(msg, outBuf, bufSize);
+    auto writeIter = buf;
+    embxx::comms::ErrorStatus es = stack.write(msg, writeIter, bufSize);
     TS_ASSERT_EQUALS(es, expectedErrStatus);
     if (es != embxx::comms::ErrorStatus::Success) {
         return;
@@ -312,14 +385,28 @@ void writeReadMsgTest(
 
     TS_ASSERT(std::equal(&buf[0], &buf[0] + bufSize, &expectedBuf[0]));
 
-    InputBuf inBuf(buf, bufSize);
-    inBuf.pubseekpos(0, std::ios_base::in);
-    typedef typename ProtStack::MsgPtr MsgPtr;
+    typedef typename TProtStack::MsgPtr MsgPtr;
     MsgPtr readMsgPtr;
-    es = stack.read(readMsgPtr, inBuf, bufSize);
+    auto readIter = expectedBuf;
+    es = stack.read(readMsgPtr, readIter, bufSize);
     TS_ASSERT_EQUALS(es, embxx::comms::ErrorStatus::Success);
     TS_ASSERT(readMsgPtr);
 
     auto castedMsg = dynamic_cast<Message*>(readMsgPtr.get());
     TS_ASSERT_EQUALS(*castedMsg, msg);
+}
+
+template <typename TTraits,
+          template<class> class TMessage,
+          template<class> class TProtStack>
+void writeReadMsgTest(
+    const TMessage<TTraits>& msg,
+    char* const buf,
+    std::size_t bufSize,
+    embxx::comms::ErrorStatus expectedErrStatus,
+    const char* expectedBuf = 0)
+{
+    typedef typename TProtStack<TTraits>::Type ProtStack;
+    ProtStack stack;
+    writeReadMsgTest<TTraits, TMessage>(stack, msg, buf, bufSize, expectedErrStatus, expectedBuf);
 }

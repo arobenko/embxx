@@ -22,6 +22,7 @@
 #include "embxx/util/EventLoop.h"
 #include "embxx/driver/Character.h"
 #include "embxx/io/OutStreamBuf.h"
+#include "embxx/io/access.h"
 #include "cxxtest/TestSuite.h"
 
 #include "module/driver/test/CommonEventLoopDefs.h"
@@ -33,19 +34,28 @@ public:
     void test1();
     void test2();
     void test3();
+    void test4();
 
 private:
     template <typename TBuf>
     static void stringPushFunc(
+        embxx::io::ErrorStatus status,
         TBuf& buf,
         std::size_t count,
         const std::size_t maxCount,
         const std::string& str)
     {
+        TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
         if (buf.availableCapacity() < str.size()) {
             buf.asyncWaitAvailableCapacity(
                 str.size(),
-                std::bind(&stringPushFunc<TBuf>, std::ref(buf), count, maxCount, std::cref(str)));
+                std::bind(
+                    &stringPushFunc<TBuf>,
+                    std::placeholders::_1,
+                    std::ref(buf),
+                    count,
+                    maxCount,
+                    std::cref(str)));
             return;
         }
 
@@ -57,14 +67,15 @@ private:
         if (maxCount <= count) {
             buf.asyncWaitAvailableCapacity(
                 buf.fullCapacity(),
-                [&buf]()
+                [&buf](embxx::io::ErrorStatus status)
                 {
+                    TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
                     buf.driver().eventLoop().stop();
                 });
             return;
         }
 
-        stringPushFunc<TBuf>(buf, count, maxCount, str);
+        stringPushFunc<TBuf>(status, buf, count, maxCount, str);
     }
 };
 
@@ -94,8 +105,9 @@ void OutStreamBufTestSuite::test1()
 
     buf.asyncWaitAvailableCapacity(
         buf.fullCapacity(),
-        [&el]()
+        [&el](embxx::io::ErrorStatus status)
         {
+            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
             el.stop();
         });
 
@@ -137,8 +149,9 @@ void OutStreamBufTestSuite::test2()
 
     buf.asyncWaitAvailableCapacity(
         buf.fullCapacity(),
-        [&el]()
+        [&el](embxx::io::ErrorStatus status)
         {
+            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
             el.stop();
         });
 
@@ -154,7 +167,7 @@ void OutStreamBufTestSuite::test3()
     typedef embxx::io::OutStreamBuf<
         Driver,
         501,
-        embxx::util::StaticFunction<void (), 24> > OutStreamBuf;
+        embxx::util::StaticFunction<void (embxx::io::ErrorStatus), 24> > OutStreamBuf;
 
     EventLoop el;
     CharDevice device(el.getLock());
@@ -170,8 +183,32 @@ void OutStreamBufTestSuite::test3()
     }
 
     static const std::size_t MaxCount = buf.fullCapacity() * 1.5;
-    stringPushFunc(buf, 0, MaxCount, str);
+    stringPushFunc(embxx::io::ErrorStatus::Success, buf, 0, MaxCount, str);
     el.run();
     device.stop();
     TS_ASSERT_EQUALS(((MaxCount / str.size()) + 1) * str.size(), device.getWriteString().size());
+}
+
+void OutStreamBufTestSuite::test4()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<
+        Driver,
+        128> OutStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+
+    std::uint32_t value = 0xdeadbeef;
+    buf.resize(sizeof(value));
+    auto writeIter = buf.begin();
+    embxx::io::writeBig(value, writeIter);
+    TS_ASSERT_EQUALS(writeIter, buf.end());
+    auto readIter = buf.cbegin();
+    auto readValue = embxx::io::readBig<decltype(value)>(readIter);
+    TS_ASSERT_EQUALS(readIter, buf.cend());
+    TS_ASSERT_EQUALS(value, readValue);
 }

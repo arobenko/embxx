@@ -1121,10 +1121,10 @@ template <typename T,
           std::size_t TSize>
 class BasicStaticQueueBase<T, TSize>::ConstIterator :
             public BasicStaticQueueBase<T, TSize>::
-            template IteratorBase<Iterator, const BasicStaticQueueBase<T, TSize> >
+            template IteratorBase<ConstIterator, const BasicStaticQueueBase<T, TSize> >
 {
     typedef typename BasicStaticQueueBase<T, TSize>::
-        template IteratorBase<Iterator, const BasicStaticQueueBase<T, TSize> > Base;
+        template IteratorBase<ConstIterator, const BasicStaticQueueBase<T, TSize> > Base;
 
 public:
 

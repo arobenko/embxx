@@ -1,0 +1,115 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#include <algorithm>
+#include <iterator>
+#include <string>
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/driver/Character.h"
+#include "embxx/io/InStreamBuf.h"
+#include "embxx/io/access.h"
+#include "cxxtest/TestSuite.h"
+
+#include "module/driver/test/CommonEventLoopDefs.h"
+#include "module/driver/test/CharDevice.h"
+
+class InStreamBufTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+};
+
+void InStreamBufTestSuite::test1()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::InStreamBuf<Driver, 1024> InStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    InStreamBuf buf(driver);
+
+    static const std::string ReadString("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    device.setReadString(ReadString);
+    device.setOpDelay(2);
+    device.start();
+
+    buf.start();
+    buf.asyncWaitDataAvailable(
+        ReadString.size(),
+        [&el, &buf](embxx::io::ErrorStatus status)
+        {
+            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(buf.size(), ReadString.size());
+            TS_ASSERT_EQUALS(ReadString, std::string(buf.begin(), buf.end()));
+            buf.consume();
+            TS_ASSERT(buf.empty());
+            el.stop();
+        });
+
+    el.run();
+    buf.stop();
+    device.stop();
+}
+
+void InStreamBufTestSuite::test2()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::InStreamBuf<Driver, 1024> InStreamBuf;
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    InStreamBuf buf(driver);
+
+    static const std::string ReadString1("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    static const std::string ReadString2("abcdefghijk111");
+    device.setReadString(ReadString1 + ReadString2);
+    device.setOpDelay(2);
+    device.start();
+
+    buf.start();
+    buf.asyncWaitDataAvailable(
+        ReadString1.size(),
+        [&el, &buf](embxx::io::ErrorStatus status)
+        {
+            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT_EQUALS(buf.size(), ReadString1.size());
+
+            buf.asyncWaitDataAvailable(
+                ReadString1.size() + ReadString2.size(),
+                [&el, &buf](embxx::io::ErrorStatus status2)
+                {
+                    TS_ASSERT_EQUALS(status2, embxx::io::ErrorStatus::Success);
+                    TS_ASSERT_EQUALS(buf.size(), ReadString1.size() + ReadString2.size());
+                    TS_ASSERT_EQUALS(ReadString1 + ReadString2, std::string(buf.begin(), buf.end()));
+
+                    buf.consume();
+                    TS_ASSERT(buf.empty());
+                    el.stop();
+                });
+        });
+
+    el.run();
+    buf.stop();
+    device.stop();
+}
+

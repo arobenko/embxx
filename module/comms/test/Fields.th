@@ -19,12 +19,13 @@
 #include <cstdint>
 #include <algorithm>
 #include <limits>
+#include <memory>
+#include <iterator>
 
 #include "embxx/util/assert/CxxTestAssert.h"
 #include "embxx/comms/field.h"
 #include "embxx/comms/traits.h"
 #include "cxxtest/TestSuite.h"
-#include "CommsTestCommon.h"
 
 
 class FieldsTestSuite : public CxxTest::TestSuite,
@@ -39,6 +40,8 @@ public:
     void test6();
     void test7();
     void test8();
+    void test9();
+    void test10();
 
 private:
     struct BigEndianTraits
@@ -50,6 +53,22 @@ private:
     {
         typedef embxx::comms::traits::endian::Little Endianness;
     };
+
+    enum Enum1 {
+        Enum1_Value1,
+        Enum1_Value2,
+        Enum1_Value3,
+        Enum1_NumOfValues
+    };
+
+    enum class Enum2 {
+        Value1,
+        Value2,
+        Value3,
+        Value4,
+        NumOfValues
+    };
+
 
     template <typename TField>
     static TField readWriteField(
@@ -73,7 +92,7 @@ void FieldsTestSuite::test1()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == sizeof(std::uint32_t), "Sizes do not match");
+    static_assert(field.length() == sizeof(std::uint32_t), "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), 0x01020304);
 }
@@ -86,7 +105,7 @@ void FieldsTestSuite::test2()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == 3, "Sizes do not match");
+    static_assert(field.length() == 3, "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), 0x010203);
 }
@@ -99,7 +118,7 @@ void FieldsTestSuite::test3()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == sizeof(std::int16_t), "Sizes do not match");
+    static_assert(field.length() == sizeof(std::int16_t), "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), static_cast<std::int16_t>(0x0102));
 }
@@ -112,7 +131,7 @@ void FieldsTestSuite::test4()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == sizeof(std::int16_t), "Sizes do not match");
+    static_assert(field.length() == sizeof(std::int16_t), "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), -1);
 }
@@ -125,7 +144,7 @@ void FieldsTestSuite::test5()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == sizeof(std::int16_t), "Sizes do not match");
+    static_assert(field.length() == sizeof(std::int16_t), "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), std::numeric_limits<std::int16_t>::min());
 }
@@ -138,7 +157,7 @@ void FieldsTestSuite::test6()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == 1, "Sizes do not match");
+    static_assert(field.length() == 1, "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), -1);
 }
@@ -151,7 +170,7 @@ void FieldsTestSuite::test7()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == 1, "Sizes do not match");
+    static_assert(field.length() == 1, "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), 2013);
     TS_ASSERT_EQUALS(field.getSerialisedValue(), 13);
@@ -165,7 +184,7 @@ void FieldsTestSuite::test8()
     };
     const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
     auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
-    static_assert(field.getLength() == 2, "Sizes do not match");
+    static_assert(field.length() == 2, "Sizes do not match");
 
     TS_ASSERT_EQUALS(field.getValue(), 0xdead);
     TS_ASSERT_EQUALS(field.getSerialisedValue(), field.getValue());
@@ -180,6 +199,56 @@ void FieldsTestSuite::test8()
     writeReadField(field, expectedBuf, expectedBufSize);
 }
 
+void FieldsTestSuite::test9()
+{
+    typedef embxx::comms::field::BasicEnumValue<Enum1, BigEndianTraits, 1, Enum1_NumOfValues> Field;
+    const char buf[] = {
+        (char)Enum1_Value1, (char)0x3f
+    };
+    const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
+    auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
+    static_assert(field.length() == 1, "Sizes do not match");
+
+    TS_ASSERT_EQUALS(field.getValue(), Enum1_Value1);
+    TS_ASSERT_EQUALS(field.getSerialisedValue(), field.asIntValueField().getValue());
+    TS_ASSERT(field.isValid());
+
+    field.setValue(Enum1_NumOfValues);
+    TS_ASSERT(!field.isValid());
+    field.setValue(Enum1_Value2);
+
+    const char expectedBuf[] = {
+        (char)Enum1_Value2
+    };
+    const std::size_t expectedBufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    writeReadField(field, expectedBuf, expectedBufSize);
+}
+
+void FieldsTestSuite::test10()
+{
+    typedef embxx::comms::field::BasicEnumValue<Enum2, BigEndianTraits, 2, Enum2::NumOfValues> Field;
+    const char buf[] = {
+        0x0, (char)Enum2::Value4, (char)0x3f
+    };
+    const std::size_t bufSize = sizeof(buf) / sizeof(buf[0]);
+    auto field = readWriteField<Field>(buf, bufSize, embxx::comms::ErrorStatus::Success);
+    static_assert(field.length() == 2, "Sizes do not match");
+
+    TS_ASSERT_EQUALS(field.getValue(), Enum2::Value4);
+    TS_ASSERT_EQUALS(field.getSerialisedValue(), field.asIntValueField().getValue());
+    TS_ASSERT(field.isValid());
+
+    field.setValue(Enum2::NumOfValues);
+    TS_ASSERT(!field.isValid());
+    field.setValue(Enum2::Value3);
+
+    const char expectedBuf[] = {
+        0x0, (char)Enum2::Value3
+    };
+    const std::size_t expectedBufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    writeReadField(field, expectedBuf, expectedBufSize);
+}
+
 template <typename TField>
 TField FieldsTestSuite::readWriteField(
     const char* buf,
@@ -189,32 +258,27 @@ TField FieldsTestSuite::readWriteField(
     typedef TField Field;
     Field field;
 
-    InputBuf inBuf(buf, size);
-    inBuf.pubseekpos(0, std::ios_base::in);
-
-    auto status = field.read(inBuf, size);
+    auto iter = buf;
+    auto status = field.read(iter, size);
     TS_ASSERT_EQUALS(status, expectedStatus);
 
     if (status != embxx::comms::ErrorStatus::Success) {
         return field;
     }
 
-    auto lastPos =
-        static_cast<std::size_t>(
-            inBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::in));
-    TS_ASSERT_EQUALS(field.getLength(), lastPos);
+    auto diff = static_cast<std::size_t>(std::distance(buf, iter));
+    TS_ASSERT_EQUALS(field.length(), diff);
 
-    std::unique_ptr<char[]> outDataBuf(new char[lastPos]);
-    OutputBuf outBuf(&outDataBuf[0], lastPos);
-    outBuf.pubseekpos(0, std::ios_base::out);
+    std::unique_ptr<char[]> outDataBuf(new char[diff]);
+    auto writeIter = &outDataBuf[0];
 
-    field.write(outBuf, lastPos);
-    TS_ASSERT(std::equal(buf, buf + lastPos, &outDataBuf[0]));
+    status = field.write(writeIter, diff);
+    TS_ASSERT_EQUALS(status, embxx::comms::ErrorStatus::Success);
+    TS_ASSERT(std::equal(buf, buf + diff, &outDataBuf[0]));
 
-    auto lastOutPos =
-        static_cast<std::size_t>(
-            outBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::out));
-    TS_ASSERT_EQUALS(lastPos, lastOutPos);
+    auto writeDiff = static_cast<std::size_t>(std::distance(&outDataBuf[0], writeIter));
+    TS_ASSERT_EQUALS(field.length(), writeDiff);
+    TS_ASSERT_EQUALS(diff, writeDiff);
     return field;
 }
 
@@ -226,18 +290,15 @@ void FieldsTestSuite::writeReadField(
     embxx::comms::ErrorStatus expectedStatus)
 {
     std::unique_ptr<char[]> outDataBuf(new char[size]);
-    OutputBuf outBuf(&outDataBuf[0], size);
-    outBuf.pubseekpos(0, std::ios_base::out);
-
-    auto es = field.write(outBuf, size);
+    auto writeIter = &outDataBuf[0];
+    auto es = field.write(writeIter, size);
     TS_ASSERT_EQUALS(es, expectedStatus);
     TS_ASSERT(std::equal(expectedBuf, expectedBuf + size, &outDataBuf[0]));
 
     if (es == embxx::comms::ErrorStatus::Success) {
-        InputBuf inBuf(&outDataBuf[0], size);
-        inBuf.pubseekpos(0, std::ios_base::in);
+        auto readIter = &outDataBuf[0];
         TField newField;
-        auto readEs = newField.read(inBuf, size);
+        auto readEs = newField.read(readIter, size);
         TS_ASSERT_EQUALS(readEs, embxx::comms::ErrorStatus::Success);
         TS_ASSERT_EQUALS(field, newField);
     }

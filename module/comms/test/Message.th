@@ -17,6 +17,8 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <memory>
+#include <iterator>
 
 #include "embxx/util/assert/CxxTestAssert.h"
 #include "cxxtest/TestSuite.h"
@@ -38,31 +40,34 @@ private:
 
     template <template<class> class TMessage, typename TTraits>
     TMessage<TTraits> internalReadWriteTest(
-        const char* buf,
+        const std::uint8_t* const buf,
         std::size_t bufSize,
         embxx::comms::ErrorStatus expectedErrStatus);
 
     template <template<class> class TMessage, typename TTraits>
     void internalWriteReadTest(
         const TMessage<TTraits>& msg,
-        char* buf,
+        std::uint8_t* const buf,
         std::size_t bufSize,
         embxx::comms::ErrorStatus expectedErrStatus);
 
 
     struct BigEndianTraits {
         typedef embxx::comms::traits::endian::Big Endianness;
+        typedef const std::uint8_t* ReadIterator;
+        typedef std::uint8_t* WriteIterator;
     };
 
     struct LittleEndianTraits {
         typedef embxx::comms::traits::endian::Little Endianness;
+        typedef const std::uint8_t* ReadIterator;
+        typedef std::uint8_t* WriteIterator;
     };
-
 };
 
 void MessageTestSuite::test1()
 {
-    const char buf[] = {
+    const std::uint8_t buf[] = {
         0x01, 0x02
     };
 
@@ -85,29 +90,29 @@ void MessageTestSuite::test1()
 
 void MessageTestSuite::test2()
 {
-    const char expectecedBeBuf[] = {
+    const std::uint8_t expectecedBeBuf[] = {
         0x01, 0x02
     };
 
     Message1<BigEndianTraits> beMsg;
     beMsg.setValue(0x0102);
-    char beBuf[2] = {0};
+    std::uint8_t beBuf[2] = {0};
     internalWriteReadTest(beMsg, beBuf, sizeof(beBuf)/sizeof(beBuf[0]), embxx::comms::ErrorStatus::Success);
     TS_ASSERT(std::equal(&expectecedBeBuf[0], &expectecedBeBuf[0] + sizeof(beBuf)/sizeof(beBuf[0]), &beBuf[0]));
 
-    const char expectecedLeBuf[] = {
+    const std::uint8_t expectecedLeBuf[] = {
         0x02, 0x01
     };
     Message1<LittleEndianTraits> leMsg;
     leMsg.setValue(0x0102);
-    char leBuf[2] = {0};
+    std::uint8_t leBuf[2] = {0};
     internalWriteReadTest(leMsg, leBuf, sizeof(leBuf)/sizeof(leBuf[0]), embxx::comms::ErrorStatus::Success);
     TS_ASSERT(std::equal(&expectecedLeBuf[0], &expectecedLeBuf[0] + sizeof(leBuf)/sizeof(leBuf[0]), &leBuf[0]));
 }
 
 void MessageTestSuite::test3()
 {
-    const char buf[] = {
+    const std::uint8_t buf[] = {
         0x01
     };
 
@@ -126,7 +131,7 @@ void MessageTestSuite::test3()
 
 void MessageTestSuite::test4()
 {
-    char buf[1] = {0};
+    std::uint8_t buf[1] = {0};
 
     Message1<BigEndianTraits> beMsg;
     beMsg.setValue(0x0102);
@@ -139,8 +144,8 @@ void MessageTestSuite::test4()
 
 void MessageTestSuite::test5()
 {
-    const char buf[] = {
-        0x01, 0x02, 0x3, 0x4, (char)-5, (char)0xde, (char)0xad, 0x00, (char)0xaa, (char)0xff
+    const std::uint8_t buf[] = {
+        0x01, 0x02, 0x3, 0x4, (std::uint8_t)-5, 0xde, 0xad, 0x00, 0xaa, 0xff
     };
 
     auto beMsg =
@@ -153,7 +158,7 @@ void MessageTestSuite::test5()
     TS_ASSERT_EQUALS(std::get<1>(beMsg.getFields()).getValue(), -5);
     TS_ASSERT_EQUALS(std::get<2>(beMsg.getFields()).getValue(), 0xdead);
     TS_ASSERT_EQUALS(std::get<3>(beMsg.getFields()).getValue(), 0xaaff);
-    TS_ASSERT_EQUALS(beMsg.getDataSize(), 10);
+    TS_ASSERT_EQUALS(beMsg.length(), 10);
 
     auto leMsg =
         internalReadWriteTest<Message3, LittleEndianTraits>(
@@ -165,12 +170,12 @@ void MessageTestSuite::test5()
     TS_ASSERT_EQUALS(std::get<1>(leMsg.getFields()).getValue(), -5);
     TS_ASSERT_EQUALS(std::get<2>(leMsg.getFields()).getValue(), 0xadde);
     TS_ASSERT_EQUALS(std::get<3>(leMsg.getFields()).getValue(), 0xffaa00);
-    TS_ASSERT_EQUALS(leMsg.getDataSize(), 10);
+    TS_ASSERT_EQUALS(leMsg.length(), 10);
 }
 
 void MessageTestSuite::test6()
 {
-    char buf[4] = {0};
+    std::uint8_t buf[4] = {0};
 
     Message3<BigEndianTraits> beMsg;
     internalWriteReadTest(beMsg, buf, sizeof(buf)/sizeof(buf[0]), embxx::comms::ErrorStatus::BufferOverflow);
@@ -182,7 +187,7 @@ void MessageTestSuite::test6()
 
 template <template<class> class TMessage, typename TTraits>
 TMessage<TTraits> MessageTestSuite::internalReadWriteTest(
-    const char* buf,
+    const std::uint8_t* const buf,
     std::size_t bufSize,
     embxx::comms::ErrorStatus expectedErrStatus)
 {
@@ -190,25 +195,19 @@ TMessage<TTraits> MessageTestSuite::internalReadWriteTest(
     typedef TMessage<Traits> TestMsg;
     TestMsg msg;
 
-    InputBuf inBuf(buf, bufSize);
-    inBuf.pubseekpos(0, std::ios_base::in);
-    embxx::comms::ErrorStatus es = msg.read(inBuf, bufSize);
+    auto readIter = buf;
+    embxx::comms::ErrorStatus es = msg.read(readIter, bufSize);
     TS_ASSERT_EQUALS(es, expectedErrStatus);
 
     if (es == embxx::comms::ErrorStatus::Success) {
-        auto lastPos =
-            static_cast<std::size_t>(
-                inBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::in));
-
-        std::unique_ptr<char[]> outDataBuf(new char[lastPos]);
-        OutputBuf outBuf(&outDataBuf[0], lastPos);
-        outBuf.pubseekpos(0, std::ios_base::out);
-
-        auto writeES = msg.write(outBuf, lastPos);
+        auto diff = static_cast<unsigned>(std::distance(buf, readIter));
+        TS_ASSERT_LESS_THAN(0, diff);
+        std::unique_ptr<std::uint8_t[]> outDataBuf(new std::uint8_t[diff]);
+        auto writeIter = &outDataBuf[0];
+        auto writeES = msg.write(writeIter, diff);
         TS_ASSERT_EQUALS(writeES, embxx::comms::ErrorStatus::Success);
-        TS_ASSERT(std::equal(buf, buf + lastPos, &outDataBuf[0]));
+        TS_ASSERT(std::equal(buf, buf + diff, &outDataBuf[0]));
     }
-
     return msg;
 }
 
@@ -216,25 +215,19 @@ TMessage<TTraits> MessageTestSuite::internalReadWriteTest(
 template <template<class> class TMessage, typename TTraits>
 void MessageTestSuite::internalWriteReadTest(
     const TMessage<TTraits>& msg,
-    char* buf,
+    std::uint8_t* const buf,
     std::size_t bufSize,
     embxx::comms::ErrorStatus expectedErrStatus)
 {
-    OutputBuf outBuf(buf, bufSize);
-    outBuf.pubseekpos(0, std::ios_base::out);
-    embxx::comms::ErrorStatus es = msg.write(outBuf, bufSize);
+    auto writeIter = buf;
+    embxx::comms::ErrorStatus es = msg.write(writeIter, bufSize);
     TS_ASSERT_EQUALS(es, expectedErrStatus);
 
     if (es == embxx::comms::ErrorStatus::Success) {
-        auto lastPos =
-            static_cast<std::size_t>(
-                outBuf.pubseekoff(0, std::ios_base::cur, std::ios_base::out));
-
-        InputBuf inBuf(buf, lastPos);
-        inBuf.pubseekpos(0, std::ios_base::in);
-
+        auto diff = static_cast<std::size_t>(std::distance(buf, writeIter));
         TMessage<TTraits> readMsg;
-        auto readES = readMsg.read(inBuf, lastPos);
+        auto readIter = static_cast<const std::uint8_t*>(buf);
+        auto readES = readMsg.read(readIter, diff);
         TS_ASSERT_EQUALS(readES, embxx::comms::ErrorStatus::Success);
         TS_ASSERT_EQUALS(msg, readMsg);
     }

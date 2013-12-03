@@ -46,8 +46,7 @@ namespace field
 ///         Endianness. The traits class/struct must typedef either
 ///         embxx::comms::traits::endian::Big or
 ///         embxx::comms::traits::endian::Little to Endianness.
-/// @headerfile embxx/comms/field/BasicIntValue.h
-/// @headerfile embxx/comms/field.h
+/// @headerfile embxx/comms/field/BitmaskValue.h
 template <std::size_t TLen,
           typename TTraits>
 class BitmaskValue
@@ -83,6 +82,15 @@ public:
     /// @brief Constructor
     explicit BitmaskValue(ValueType value);
 
+    /// @brief Copy constructor is default
+    BitmaskValue(const BitmaskValue&) = default;
+
+    /// @brief Destructor is default
+    ~BitmaskValue() = default;
+
+    /// @brief Copy assignment is default
+    BitmaskValue& operator=(const BitmaskValue&) = default;
+
     /// @brief Retrieve underlying BasicIntValue field.
     const IntValueField asIntValueField() const;
 
@@ -104,14 +112,16 @@ public:
     /// @copydoc BasicIntValue::fromSerialised()
     static constexpr const ValueType fromSerialised(SerialisedType value);
 
-    /// @copydoc BasicIntValue::getLength()
-    static constexpr std::size_t getLength();
+    /// @copydoc BasicIntValue::length()
+    static constexpr std::size_t length();
 
     /// @copydoc BasicIntValue::read()
-    ErrorStatus read(std::streambuf& buf, std::size_t size);
+    template <typename TIter>
+    ErrorStatus read(TIter& iter, std::size_t size);
 
     /// @copydoc BasicIntValue::write()
-    ErrorStatus write(std::streambuf& buf, std::size_t size) const;
+    template <typename TIter>
+    ErrorStatus write(TIter& iter, std::size_t size) const;
 
     /// @brief Check whether all bits from provided mask are set.
     /// @param[in] mask Mask to check against
@@ -148,6 +158,17 @@ bool operator==(
     const BitmaskValue<TLen, TTraits>& field2)
 {
     return field1.asIntValueField() == field2.asIntValueField();
+}
+
+/// @brief Non-equality comparison operator.
+/// @related BitmaskValue
+template <std::size_t TLen,
+          typename TTraits>
+bool operator!=(
+    const BitmaskValue<TLen, TTraits>& field1,
+    const BitmaskValue<TLen, TTraits>& field2)
+{
+    return field1.asIntValueField() != field2.asIntValueField();
 }
 
 /// @brief Equivalence comparison operator.
@@ -235,27 +256,29 @@ BitmaskValue<TLen, TTraits>::fromSerialised(SerialisedType value)
 
 template <std::size_t TLen,
           typename TTraits>
-constexpr std::size_t BitmaskValue<TLen, TTraits>::getLength()
+constexpr std::size_t BitmaskValue<TLen, TTraits>::length()
 {
-    return IntValueField::getLength();
+    return IntValueField::length();
 }
 
 template <std::size_t TLen,
           typename TTraits>
+template <typename TIter>
 ErrorStatus BitmaskValue<TLen, TTraits>::read(
-    std::streambuf& buf,
+    TIter& iter,
     std::size_t size)
 {
-    return intValue_.read(buf, size);
+    return intValue_.read(iter, size);
 }
 
 template <std::size_t TLen,
           typename TTraits>
+template <typename TIter>
 ErrorStatus BitmaskValue<TLen, TTraits>::write(
-    std::streambuf& buf,
+    TIter& iter,
     std::size_t size) const
 {
-    return intValue_.write(buf, size);
+    return intValue_.write(iter, size);
 }
 
 template <std::size_t TLen,

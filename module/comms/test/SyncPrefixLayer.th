@@ -1,0 +1,220 @@
+//
+// Copyright 2013 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#include <cstdint>
+#include <cstddef>
+#include <algorithm>
+#include <iterator>
+
+#include "embxx/util/assert/CxxTestAssert.h"
+#include "embxx/comms/MsgAllocators.h"
+#include "embxx/comms/protocol.h"
+#include "cxxtest/TestSuite.h"
+#include "CommsTestCommon.h"
+
+class SyncPrefixLayerTestSuite : public CxxTest::TestSuite,
+                                 public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+
+private:
+    struct Traits1 {
+        typedef embxx::comms::traits::endian::Big Endianness;
+        typedef const char* ReadIterator;
+        typedef char* WriteIterator;
+        static const std::size_t MsgIdLen = 1;
+        static const std::size_t MsgSizeLen = 2;
+        static const std::size_t ExtraSizeValue = 0;
+        static const std::size_t SyncPrefixLen = 2;
+    };
+
+    template <typename TTraits>
+    struct ProtocolStack
+    {
+        typedef
+            embxx::comms::protocol::MsgDataLayer<
+                TestMessageBase<TTraits>
+            > MsgDataLayer;
+
+        typedef
+            embxx::comms::protocol::MsgIdLayer<
+                typename AllMessages<TTraits>::Type,
+                embxx::comms::DynMemMsgAllocator,
+                TTraits,
+                MsgDataLayer
+            > MsgIdLayer;
+
+        typedef
+            embxx::comms::protocol::MsgSizeLayer<
+                TTraits,
+                MsgIdLayer
+            > MsgSizeLayer;
+
+        typedef
+            embxx::comms::protocol::SyncPrefixLayer<
+                TTraits,
+                MsgSizeLayer
+            > SyncPrefixLayer;
+
+        typedef SyncPrefixLayer Type;
+    };
+
+};
+
+void SyncPrefixLayerTestSuite::test1()
+{
+    static const std::uint16_t SyncPrefix = 0x9aec;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    const char buf[] = {
+        (char)0x9a, (char)0xec, 0x0, 0x3, MessageType1, 0x01, 0x02, static_cast<char>(0x3f)
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message1>(stack, buf, bufSize);
+    TS_ASSERT_EQUALS(msg.getValue(), 0x0102);
+
+}
+
+void SyncPrefixLayerTestSuite::test2()
+{
+    static const std::uint16_t SyncPrefix = 0xbbcc;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    typedef Message1<Traits1> Message;
+    Message msg;
+    msg.setValue(0x0304);
+
+    const char expectedBuf[] = {
+        (char)0xbb, (char)0xcc, 0x0, 0x3, MessageType1, 0x03, 0x04
+    };
+
+    static const std::size_t bufSize = sizeof(expectedBuf)/sizeof(expectedBuf[0]);
+    char buf[bufSize] = {0};
+
+    writeReadMsgTest<Traits1, Message1>(stack, msg, buf, bufSize, embxx::comms::ErrorStatus::Success, expectedBuf);
+}
+
+void SyncPrefixLayerTestSuite::test3()
+{
+    static const std::uint16_t SyncPrefix = 0xaabb;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    const char buf[] = {
+        (char)0xaa, (char)0xbc, 0x0, 0x3, MessageType1, 0x01, 0x02, static_cast<char>(0x3f)
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = readWriteMsgTest<Traits1>(stack, buf, bufSize, embxx::comms::ErrorStatus::ProtocolError);
+    TS_ASSERT(!msg);
+}
+
+void SyncPrefixLayerTestSuite::test4()
+{
+    static const std::uint16_t SyncPrefix = 0xbbcc;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    typedef Message1<Traits1> Message;
+    Message msg;
+    msg.setValue(0x0304);
+
+    char buf[sizeof(SyncPrefix) - 1] = {0};
+    static const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    writeReadMsgTest<Traits1, Message1>(stack, msg, buf, bufSize, embxx::comms::ErrorStatus::BufferOverflow);
+}
+
+void SyncPrefixLayerTestSuite::test5()
+{
+    static const std::uint16_t SyncPrefix = 0xabcd;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    const char buf[] = {
+        (char)0xab
+    };
+
+    static const std::size_t BufSize = sizeof(buf)/sizeof(buf[0]);
+    static const std::size_t ExpectedMsgSize = 5;
+
+    auto msg = readNotEnoughDataMsgTest<Traits1>(stack, buf, BufSize, ExpectedMsgSize - BufSize);
+    TS_ASSERT(!msg);
+}
+
+void SyncPrefixLayerTestSuite::test6()
+{
+    static const std::uint16_t SyncPrefix = 0xaabb;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    TS_ASSERT_EQUALS(stack.syncPrefix(), SyncPrefix);
+
+    const char buf[] = {
+        (char)0xaa, (char)0xbb, 0x0, 0x3, MessageType1, 0x01
+    };
+
+    const std::size_t BufSize = sizeof(buf)/sizeof(buf[0]);
+    static const std::size_t ExpectedMsgSize = 7;
+
+    auto msg = readNotEnoughDataMsgTest<Traits1>(stack, buf, BufSize, ExpectedMsgSize - BufSize);
+    TS_ASSERT(!msg);
+}
+
+void SyncPrefixLayerTestSuite::test7()
+{
+    static const std::uint16_t SyncPrefix = 0xaabb;
+    typedef ProtocolStack<Traits1>::Type ProtStack;
+
+    ProtStack stack(SyncPrefix);
+    const char buf[] = {
+        (char)0xaa, (char)0xbb, 0x0, 0xb, MessageType3, 0x01, 0x02, 0x3, 0x4, (char)((std::uint8_t)-5), (char)0xde, (char)0xad, 0x00, (char)0xaa, (char)0xff
+    };
+
+    const std::size_t bufSize = sizeof(buf)/sizeof(buf[0]);
+
+    auto msg = successfulReadWriteMsgTest<Traits1, Message3>(stack, buf, bufSize);
+
+    TS_ASSERT_EQUALS(std::get<0>(msg.getFields()).getValue(), 0x01020304);
+    TS_ASSERT_EQUALS(std::get<1>(msg.getFields()).getValue(), -5);
+    TS_ASSERT_EQUALS(std::get<2>(msg.getFields()).getValue(), 0xdead);
+    TS_ASSERT_EQUALS(std::get<3>(msg.getFields()).getValue(), 0xaaff);
+    TS_ASSERT_EQUALS(msg.length(), 10);
+}

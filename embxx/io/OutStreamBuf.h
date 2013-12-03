@@ -24,6 +24,8 @@
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/StaticFunction.h"
 
+#include "ErrorStatus.h"
+
 namespace embxx
 {
 
@@ -54,12 +56,14 @@ namespace io
 /// @tparam TWaitHandler Callback functor class to be called when requested
 ///         space becomes available. Must be either
 ///         std::function or embxx::util::StaticFunction and have
-///         "void ()" signature. It is used to store callback handler provided
-///         in asyncWaitAvailableCapacity() request.
+///         "void (embxx::io::ErrorStatus)" signature. It is used to store
+///         callback handler provided in asyncWaitAvailableCapacity() request.
+/// @pre No other components performs asynchronous write requests to the same
+///      driver.
 /// @headerfile embxx/io/OutStreamBuf.h
 template <typename TDriver,
           std::size_t TBufSize,
-          typename TWaitHandler = embxx::util::StaticFunction<void ()> >
+          typename TWaitHandler = embxx::util::StaticFunction<void (embxx::io::ErrorStatus)> >
 class OutStreamBuf
 {
 public:
@@ -117,6 +121,9 @@ public:
 
     /// @brief Copy constructor is default
     OutStreamBuf(const OutStreamBuf&) = default;
+
+    /// @brief Move constructor is default
+    OutStreamBuf(OutStreamBuf&&) = default;
 
     /// @brief Copy assignment operator is deleted
     OutStreamBuf& operator=(const OutStreamBuf&) = delete;
@@ -214,6 +221,7 @@ public:
     /// @brief Operator to access element in the "modifiable" (not flushed)
     ///        section of the buffer.
     /// @param idx Index of the element.
+    /// @pre @code idx < size() @endcode
     Reference operator[](std::size_t idx);
 
     /// @brief Const version of operator[]
@@ -222,11 +230,14 @@ public:
     /// @brief Asynchronous wait until requested capacity of the internal
     ///        buffer becomes available.
     /// @details The function records copies the callback object to its internal
-    ///          data structures and returns immediatelly. The callback will
+    ///          data structures and returns immediately. The callback will
     ///          be called in the context of the event loop when requested
     ///          size becomes available.
     /// @param capacity Requested capacity.
-    /// @param func Callback functor object, must have "void ()" signature.
+    /// @param func Callback functor object, must have "void (embxx::io::ErrorStatus)" signature.
+    /// @pre All the previous asynchronous wait request are complete (their
+    ///      callback has been executed).
+    /// @pre @code capacity <= fullCapacity() @endcode
     template <typename TFunc>
     void asyncWaitAvailableCapacity(
         std::size_t capacity,
@@ -308,7 +319,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 std::size_t OutStreamBuf<TDriver, TBufSize, TWaitHandler>::resize(
     std::size_t newSize)
 {
-    auto minSize = std::min(fullCapacity(), size + flushedSize_);
+    auto minSize = std::min(fullCapacity(), newSize + flushedSize_);
     buf_.resize(minSize);
     return size();
 }
@@ -317,6 +328,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::flush(
     std::size_t flushSize)
 {
+    GASSERT(flushSize <= size());
     bool flush = (flushedSize_ == 0);
     std::size_t actualFlushSize = std::min(flushSize, size());
     flushedSize_ += actualFlushSize;
@@ -434,6 +446,7 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 typename OutStreamBuf<TDriver, TBufSize, TWaitHandler>::Reference
 OutStreamBuf<TDriver, TBufSize, TWaitHandler>::operator[](std::size_t idx)
 {
+    GASSERT(idx < size());
     return buf_[idx + flushedSize_];
 }
 
@@ -442,6 +455,7 @@ typename OutStreamBuf<TDriver, TBufSize, TWaitHandler>::ConstReference
 OutStreamBuf<TDriver, TBufSize, TWaitHandler>::operator[](
     std::size_t idx) const
 {
+    GASSERT(idx < size());
     return buf_[idx + flushedSize_];
 }
 
@@ -454,7 +468,9 @@ void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::asyncWaitAvailableCapacity(
     GASSERT(capacity <= fullCapacity());
     GASSERT(!waitHandler_);
     if (capacity <= availableCapacity()) {
-        auto postResult = driver_.eventLoop().post(std::forward<TFunc>(func));
+        auto postResult =
+            driver_.eventLoop().post(
+                std::bind(std::forward<TFunc>(func), embxx::io::ErrorStatus::Success));
         GASSERT((postResult) || (!"Failed to post handler, increase size of Event Loop"));
         static_cast<void>(postResult);
     }
@@ -483,7 +499,13 @@ void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::initiateFlush()
             if ((waitHandler_) &&
                 (waitAvailableCapacity_ <= availableCapacity())) {
                 auto& el = driver_.eventLoop();
-                auto postResult = el.post(std::move(waitHandler_));
+                static_assert(std::is_same<embxx::driver::ErrorStatus, embxx::io::ErrorStatus>::value,
+                    "Status type assumption is incorrect");
+                auto postResult =
+                    el.post(
+                        std::bind(
+                            std::move(waitHandler_),
+                            static_cast<embxx::io::ErrorStatus>(status)));
                 GASSERT((postResult) || (!"Failed to post handler, increase size of Event Loop"));
                 static_cast<void>(postResult);
 

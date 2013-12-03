@@ -1,0 +1,46 @@
+/// @page io_in_stream_buf_page Input Stream Buffer
+/// @section io_in_stream_buf_overview Overview
+/// The device driver, such as embxx::driver::Character 
+/// require the caller to preserve the buffer intact until the read operation is
+/// finished. However sometimes there is a need to process already accumulated
+/// data while keeping accumulation of the new one for future processing.
+/// In this case embxx::io::InStreamBuf may be used. It maintains
+/// internal buffer of serialised data received from the device driver and makes
+/// a portion of it available for read/processing while also accumulating
+/// incoming new data.
+///
+/// @section io_out_stream_buf_tutorial How to use
+/// The input stream buffer depends on the driver ojbect it is going to use:
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// #include "embxx/driver/Character.h"
+/// #include "embxx/io/InStreamBuf.h"
+/// 
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// typedef ... Device;
+/// typedef embxx::driver::Character<Device, EventLoop> Driver;
+/// typedef embxx::io::InStreamBuf<Driver, ...> Buffer;
+/// EventLoop el;
+/// Driver driver(device, el);
+/// Buffer buf(driver);
+/// @endcode
+///
+/// To start data accumulation, just use start() member function:
+/// @code
+/// buf.start();
+/// @endcode
+///
+/// To perform wait until the data becomes available for processing:
+/// @code
+/// buf.asyncWaitDataAvailable(
+///     requestedSize,
+///     [buf, requestedSize](embxx::io::ErrorStatus status)
+///     {
+///         if (status == embxx::io::ErrorStatus::Success) {
+///             /// auto beginIter = buf.begin();
+///             /// auto endIter = beginIter + requestedSize;
+///             ... // processData between iterators
+///             buf.consume(requestedSize); // Remove processed data from buffer
+///         }
+///     });
+/// @endcode

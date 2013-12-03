@@ -2,7 +2,7 @@
 // Copyright 2013 (C). Alex Robenko. All rights reserved.
 //
 
-// This library is free software: you can redistribute it and/or modify
+// This file is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
@@ -15,13 +15,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-/// @file embxx/comms/protocol.h
-/// Common file to include all supported protocol layers.
 
 #pragma once
 
-#include "protocol/MsgDataLayer.h"
-#include "protocol/MsgIdLayer.h"
-#include "protocol/MsgSizeLayer.h"
-#include "protocol/ChecksumLayer.h"
-#include "protocol/SyncPrefixLayer.h"
+#include "embxx/driver/ErrorStatus.h"
+
+namespace embxx
+{
+
+namespace io
+{
+
+/// @brief ErrorStatus of io module is exactly the same as of driver module.
+/// @details The same as embxx::driver::ErrorStatus.
+typedef embxx::driver::ErrorStatus ErrorStatus;
+
+}  // namespace io
+
+}  // namespace embxx
+
+
