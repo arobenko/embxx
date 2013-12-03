@@ -382,7 +382,7 @@ ErrorStatus ChecksumLayer<TTraits, TChecksumCalc, TNextLayer>::readInternal(
     static_cast<void>(behaviour);
 
     ReadIterator firstPosIter(iter);
-    auto status = Base::nextLayer().read(msgPtr, iter, size - ChecksumLen, missingSize);
+    auto status = Base::nextLayer().read(msgPtr, iter, size, missingSize);
     if (status != ErrorStatus::Success) {
         if ((status == ErrorStatus::NotEnoughData) &&
             (missingSize != nullptr)) {
