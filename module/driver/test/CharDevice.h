@@ -110,14 +110,20 @@ public:
     // Required interface
     typedef char CharType;
 
-    void setReadInterruptEnabled(bool enabled)
-    {
-        readInterruptEnabled_ = enabled;
+    void startRead() {
+        setReadInterruptEnabled(true);
     }
 
-    void setWriteInterruptEnabled(bool enabled)
-    {
-        writeInterruptEnabled_ = enabled;
+    void stopRead() {
+        setReadInterruptEnabled(false);
+    }
+
+    void startWrite() {
+        setWriteInterruptEnabled(true);
+    }
+
+    void stopWrite() {
+        setWriteInterruptEnabled(false);
     }
 
     bool canRead() const
@@ -154,6 +160,16 @@ public:
     }
 
 private:
+    void setReadInterruptEnabled(bool enabled)
+    {
+        readInterruptEnabled_ = enabled;
+    }
+
+    void setWriteInterruptEnabled(bool enabled)
+    {
+        writeInterruptEnabled_ = enabled;
+    }
+
     void interruptHandler()
     {
         lock_.lockInterruptCtx();
@@ -164,7 +180,7 @@ private:
             }
             TS_ASSERT(canWrite());
             if (canWriteHandler_) {
-                canWriteHandler_();
+                canWriteHandler_(embxx::error::ErrorCode::Success);
             }
         }
 
@@ -174,7 +190,7 @@ private:
             readString_ = std::move(tempReadString);
             TS_ASSERT(canRead());
             if (canReadHandler_) {
-                canReadHandler_();
+                canReadHandler_(embxx::error::ErrorCode::Success);
             }
         }
 
@@ -213,12 +229,12 @@ private:
     // Read section
     std::list<CharType> readBuf_;
     std::string readString_;
-    std::function<void ()> canReadHandler_;
+    std::function<void (const embxx::error::ErrorStatus&)> canReadHandler_;
 
     // Write section
     std::list<CharType> writeBuf_;
     std::string writeString_;
-    std::function<void ()> canWriteHandler_;
+    std::function<void (const embxx::error::ErrorStatus&)> canWriteHandler_;
 };
 
 

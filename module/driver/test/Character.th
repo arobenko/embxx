@@ -56,10 +56,10 @@ void CharacterDriverTestSuite::test1()
 
     bool asyncReadHandlerCalled = false;
     socket.asyncRead(outArray, ReadString.size(),
-        [&el, &outArray, &asyncReadHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &outArray, &asyncReadHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
+            TS_ASSERT(!es);
             asyncReadHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
             TS_ASSERT_EQUALS(size, ReadString.size());
             TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray[0]));
             el.stop();
@@ -87,10 +87,10 @@ void CharacterDriverTestSuite::test2()
 
     bool asyncWriteHandlerCalled = false;
     socket.asyncWrite(&WriteString[0], WriteString.size(),
-        [&el, &device, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &device, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
+            TS_ASSERT(!es);
             asyncWriteHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
             TS_ASSERT_EQUALS(size, WriteString.size());
             el.stop();
         });
@@ -120,10 +120,10 @@ void CharacterDriverTestSuite::test3()
 
     bool asyncReadHandlerCalled = false;
     socket.asyncReadUntil(outArray, ReadString.size(), '\n',
-        [&el, &outArray, &asyncReadHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &outArray, &asyncReadHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
+            TS_ASSERT(!es);
             asyncReadHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
             TS_ASSERT_EQUALS(size, 6U);
             TS_ASSERT(std::equal(ReadString.begin(), ReadString.begin() + 6U, &outArray[0]));
             el.stop();
@@ -140,7 +140,7 @@ void CharacterDriverTestSuite::test4()
     typedef embxx::driver::Character<
         CharDevice,
         EventLoop,
-        embxx::util::StaticFunction<void(embxx::driver::ErrorStatus, std::size_t), 20> > Socket;
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus& es, std::size_t), 20> > Socket;
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);
@@ -157,10 +157,10 @@ void CharacterDriverTestSuite::test4()
     bool asyncReadHandlerCalled = false;
     bool asyncWriteHandlerCalled = false;
     socket.asyncRead(outArray, CommonString.size(),
-        [&el, &outArray, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &outArray, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
+            TS_ASSERT(!es);
             asyncReadHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
             TS_ASSERT_EQUALS(size, CommonString.size());
             TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), &outArray[0]));
             if (asyncWriteHandlerCalled) {
@@ -169,10 +169,10 @@ void CharacterDriverTestSuite::test4()
         });
 
     socket.asyncWrite(&CommonString[0], CommonString.size(),
-        [&el, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t writtenSize)
+        [&el, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t writtenSize)
         {
+            TS_ASSERT(!es);
             asyncWriteHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
             TS_ASSERT_EQUALS(writtenSize, CommonString.size());
             if (asyncReadHandlerCalled) {
                 el.stop();

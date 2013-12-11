@@ -23,7 +23,7 @@
 #include <functional>
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
-#include "ErrorStatus.h"
+#include "embxx/error/ErrorStatus.h"
 
 namespace embxx
 {
@@ -43,13 +43,23 @@ namespace driver
 ///         // Define each character type as CharType
 ///         typedef char CharType;
 ///
-///         // Enable "read" interrupts, i.e. interrupt when there is
-///         // at least one character to read.
-///         void setReadInterruptEnabled(bool enabled);
+///         // Start read operation. The device will perform some configuration
+///         // if needed and enable read interrupts, i.e. interrupt when there
+///         // is at least one character to read.
+///         void startRead();
 ///
-///         // Enable "write" interrupts, i.e. interrupt when there is
-///         // space for at least one character to be written.
-///         void setWriteInterruptEnabled(bool enabled);
+///         // Stop read operation. The device will perform some configuration
+///         // if needed and disable read interrupts.
+///         void stopRead();
+///
+///         // Start write operation. The device will perform some configuration
+///         // if needed and enable write interrupts, i.e. interrupt when there
+///         // is space for at least one character to be written.
+///         void startWrite();
+///
+///         // Stop write operation. The device will perform some configuration
+///         // if needed and disable write interrupts.
+///         void stopWrite();
 ///
 ///         // Inquiry whether there is at least one character to be
 ///         // read. Will be called in the interrupt context. May be called
@@ -71,17 +81,21 @@ namespace driver
 ///         // multiple times in the same interrupt.
 ///         void write(CharType value);
 ///
-///         // Set the "can read" interrupt callback. Expose signature "void ()".
-///         // The callback must be called when there is at least one byte
-///         // available for read. The callback will perform multiple canRead()
-///         // and read() calls until canRead() returns false.
+///         // Set the "can read" interrupt callback. Expose signature
+///         // "void (const embxx::error::ErrorStatus&)". The callback must be
+///         // called when there is at least one byte available for read
+///         // or hardware protocol error reported. The callback will perform
+///         //  multiple canRead() and read() calls until canRead() returns
+///         // false.
 ///         template <typename TFunc>
 ///         void setCanReadHandler(TFunc&& func);
 ///
-///         // Set the "can write" interrupt callback. Expose signature "void ()".
-///         // The callback must be called when there is a space for at least
-///         // one byte to be written. The callback will perform multiple canWrite()
-///         // and write() calls until canWrite() returns false.
+///         // Set the "can write" interrupt callback. Expose signature
+///         // "void (const embxx::error::ErrorStatus&)".The callback must be
+///         // called when there is a space for at least one byte to be written
+///         // or hardware protocol error reported. The callback will perform
+///         // multiple canWrite() and write() calls until canWrite() returns
+///         // false.
 ///         template <typename TFunc>
 ///         void setCanWriteHandler(TFunc&& func);
 ///         @endcode
@@ -89,19 +103,21 @@ namespace driver
 ///         to execute posted handlers in regular thread context.
 /// @tparam TReadHandler A function class that is supposed to store "read"
 ///         complete callback. Must be either std::function of embxx::util::StaticFunction
-///         and provide "void(ErrorStatus, std::size_t)" calling interface,
-///         where the first parameter is error status of the operation and
-///         second one is how many bytes were actually read in the operation.
+///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
+///         calling interface, where the first parameter is error status of the
+///         operation and second one is how many bytes were actually read in
+///         the operation.
 /// @tparam TWriteHandler A function class that is supposed to store "write"
 ///         complete callback. Must be either std::function of embxx::util::StaticFunction
-///         and provide "void(ErrorStatus, std::size_t)" calling interface,
-///         where the first parameter is error status of the operation and
-///         second one is how many bytes were actually written in the operation.
+///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
+///         calling interface, where the first parameter is error status of the
+///         operation and second one is how many bytes were actually written in
+///         the operation.
 /// @headerfile embxx/driver/Character.h
 template <typename TDevice,
           typename TEventLoop,
-          typename TReadHandler = embxx::util::StaticFunction<void(ErrorStatus, std::size_t)>,
-          typename TWriteHandler = embxx::util::StaticFunction<void(ErrorStatus, std::size_t)> >
+          typename TReadHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
+          typename TWriteHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> >
 class Character
 {
 public:
@@ -152,7 +168,7 @@ public:
     ///            used or destructed until the callback has been called.
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
-    ///        @code void callback(embxx::driver::ErrorStatus status, std::size_t bytesRead); @endcode
+    ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead); @endcode
     /// @pre The callback for any previous asyncRead() request has been called,
     ///      i.e. there is no outstanding asyncRead() request.
     /// @pre The provided buffer must stay valid and unused until the provided
@@ -175,7 +191,7 @@ public:
     /// @param size Size of the buffer.
     /// @param untilChar Character that will terminate read request.
     /// @param func Callback functor that must have following signature:
-    ///        @code void callback(embxx::driver::ErrorStatus status, std::size_t bytesRead);@endcode
+    ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead);@endcode
     /// @pre The callback for any previous asyncRead() request has been called,
     ///      i.e. there is no outstanding asyncRead() request.
     /// @pre The provided buffer must stay valid and unused until the provided
@@ -190,7 +206,7 @@ public:
     /// @brief Cancel previous asynchronous read request (asyncRead())
     /// @details If there is no unfinished asyncRead() operation in progress
     ///          the call to this function will have no effect. Otherwise the
-    ///          callback will be called with embxx::driver::ErrorStatus::Aborted
+    ///          callback will be called with embxx::error::ErrorCode::Aborted
     ///          as status value.
     /// @return true in case the previous asyncRead() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
@@ -205,7 +221,7 @@ public:
     ///            changed or destructed until the callback has been called.
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
-    ///        @code void callback(embxx::driver::ErrorStatus status, std::size_t bytesWritten); @endcode
+    ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesWritten); @endcode
     /// @pre The callback for any previous asyncWrite() request has been called,
     ///      i.e. there is no outstanding asyncWrite() request.
     /// @pre The provided buffer must stay valid and unused until the provided
@@ -219,7 +235,7 @@ public:
     /// @brief Cancel previous asynchronous write request (asyncWrite())
     /// @details If there is no unfinished asyncWrite() operation in progress
     ///          the call to this function will have no effect. Otherwise the
-    ///          callback will be called with embxx::driver::ErrorStatus::Aborted
+    ///          callback will be called with embxx::error::ErrorCode::Aborted
     ///          as status value.
     /// @return true in case the previous asyncWrite() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
@@ -237,8 +253,11 @@ private:
         const CharType* buf,
         std::size_t size);
 
-    void canReadInterruptHandler();
-    void canWriteInterruptHandler();
+    void canReadInterruptHandler(const embxx::error::ErrorStatus& es);
+    void canWriteInterruptHandler(const embxx::error::ErrorStatus& es);
+
+    void invokeReadHandler(const embxx::error::ErrorStatus& es);
+    void invokeWriteHandler(const embxx::error::ErrorStatus& es);
 
     Device& device_;
     EventLoop& el_;
@@ -280,9 +299,9 @@ Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Character(
       writeBufSize_(0)
 {
     device_.setCanReadHandler(
-        std::bind(&Character::canReadInterruptHandler, this));
+        std::bind(&Character::canReadInterruptHandler, this, std::placeholders::_1));
     device_.setCanWriteHandler(
-        std::bind(&Character::canWriteInterruptHandler, this));
+        std::bind(&Character::canWriteInterruptHandler, this, std::placeholders::_1));
 
     GASSERT(!readHandler_); // No read in progress
     GASSERT(!writeHandler_); // No write in progress
@@ -345,7 +364,7 @@ template <typename TDevice,
           typename TWriteHandler>
 bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
 {
-    device_.setReadInterruptEnabled(false);
+    device_.stopRead();
     if (!readHandler_) {
         return false;
     }
@@ -353,7 +372,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
     auto result = el_.post(
         std::bind(
             std::move(readHandler_),
-            ErrorStatus::Aborted,
+            embxx::error::ErrorCode::Aborted,
             static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
     static_cast<void>(result);
 
@@ -384,7 +403,7 @@ template <typename TDevice,
           typename TWriteHandler>
 bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
 {
-    device_.setWriteInterruptEnabled(false);
+    device_.stopWrite();
     if (!writeHandler_) {
         return false;
     }
@@ -392,7 +411,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
     auto result = el_.post(
         std::bind(
             std::move(writeHandler_),
-            ErrorStatus::Aborted,
+            embxx::error::ErrorCode::Aborted,
             static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_)));
     static_cast<void>(result);
 
@@ -413,16 +432,16 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
     CharType untilChar)
 {
     if (size == 0) {
-        el_.post(std::bind(std::move(readHandler_), ErrorStatus::Success, size));
-        GASSERT(!readHandler_);
+        invokeReadHandler(embxx::error::ErrorCode::Success);
         return;
     }
+
     readBufStart_ = buf;
     readBufCurrent_ = buf;
     readBufSize_ = size;
     performingReadUntil_ = performingReadUntil;
     untilChar_ = untilChar;
-    device_.setReadInterruptEnabled(true);
+    device_.startRead();
 }
 
 template <typename TDevice,
@@ -434,24 +453,29 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initWrite(
     std::size_t size)
 {
     if (size == 0) {
-        el_.post(std::bind(std::move(writeHandler_), ErrorStatus::Success, size));
-        GASSERT(!writeHandler_);
+        invokeWriteHandler(embxx::error::ErrorCode::Success);
         return;
     }
 
     writeBufStart_ = buf;
     writeBufCurrent_ = buf;
     writeBufSize_ = size;
-    device_.setWriteInterruptEnabled(true);
+    device_.startWrite();
 }
 
 template <typename TDevice,
           typename TEventLoop,
           typename TReadHandler,
           typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler()
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler(
+    const embxx::error::ErrorStatus& es)
 {
-    GASSERT(readHandler_);
+    if (es) {
+        invokeReadHandler(es);
+        device_.stopRead();
+        return;
+    }
+
     while(device_.canRead()) {
         GASSERT(readBufCurrent_ < (readBufStart_ + readBufSize_));
         auto ch = device_.read();
@@ -459,12 +483,8 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterru
         ++readBufCurrent_;
         if (((readBufStart_ + readBufSize_) <= readBufCurrent_) ||
             ((performingReadUntil_) && (ch == untilChar_))) {
-            el_.postInterruptCtx(
-                std::bind(
-                    std::move(readHandler_),
-                    ErrorStatus::Success,
-                    static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
-            device_.setReadInterruptEnabled(false);
+            invokeReadHandler(embxx::error::ErrorCode::Success);
+            device_.stopRead();
             return;
         }
     }
@@ -474,24 +494,63 @@ template <typename TDevice,
           typename TEventLoop,
           typename TReadHandler,
           typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler()
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler(
+    const embxx::error::ErrorStatus& es)
 {
-    GASSERT(writeHandler_);
+    if (es) {
+        invokeWriteHandler(es);
+        device_.stopWrite();
+        return;
+    }
+
     while(device_.canWrite()) {
         GASSERT(writeBufCurrent_ < (writeBufStart_ + writeBufSize_));
         device_.write(*writeBufCurrent_);
         ++writeBufCurrent_;
         if ((writeBufStart_ + writeBufSize_) <= writeBufCurrent_) {
-            el_.postInterruptCtx(
-                std::bind(
-                    std::move(writeHandler_),
-                    ErrorStatus::Success,
-                    writeBufSize_));
-
-            device_.setWriteInterruptEnabled(false);
+            invokeWriteHandler(embxx::error::ErrorCode::Success);
+            device_.stopWrite();
             return;
         }
     }
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeReadHandler(
+    const embxx::error::ErrorStatus& es)
+{
+    GASSERT(readHandler_);
+    auto postResult =
+        el_.postInterruptCtx(
+            std::bind(
+                std::move(readHandler_),
+                es,
+                static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
+    static_cast<void>(postResult);
+    GASSERT(postResult);
+    GASSERT(!readHandler_);
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeWriteHandler(
+    const embxx::error::ErrorStatus& es)
+{
+    GASSERT(writeHandler_);
+    auto postResult =
+        el_.postInterruptCtx(
+            std::bind(
+                std::move(writeHandler_),
+                es,
+                static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_)));
+    static_cast<void>(postResult);
+    GASSERT(postResult);
+    GASSERT(!writeHandler_);
 }
 
 }  // namespace driver

@@ -56,7 +56,8 @@ void GenericDriverTestSuite::test1()
     typedef Device<embxx::util::StaticFunction<void (), 20> > DummyDevice;
     typedef embxx::driver::Generic<
         DummyDevice,
-        EventLoop> Driver;
+        EventLoop,
+        void ()> Driver;
 
     EventLoop el;
     DummyDevice device;

@@ -39,13 +39,13 @@ public:
 private:
     template <typename TBuf>
     static void stringPushFunc(
-        embxx::io::ErrorStatus status,
+        const embxx::error::ErrorStatus& error,
         TBuf& buf,
         std::size_t count,
         const std::size_t maxCount,
         const std::string& str)
     {
-        TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+        TS_ASSERT(!error)
         if (buf.availableCapacity() < str.size()) {
             buf.asyncWaitAvailableCapacity(
                 str.size(),
@@ -67,15 +67,15 @@ private:
         if (maxCount <= count) {
             buf.asyncWaitAvailableCapacity(
                 buf.fullCapacity(),
-                [&buf](embxx::io::ErrorStatus status)
+                [&buf](const embxx::error::ErrorStatus error)
                 {
-                    TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+                    TS_ASSERT(!error);
                     buf.driver().eventLoop().stop();
                 });
             return;
         }
 
-        stringPushFunc<TBuf>(status, buf, count, maxCount, str);
+        stringPushFunc<TBuf>(error, buf, count, maxCount, str);
     }
 };
 
@@ -105,9 +105,9 @@ void OutStreamBufTestSuite::test1()
 
     buf.asyncWaitAvailableCapacity(
         buf.fullCapacity(),
-        [&el](embxx::io::ErrorStatus status)
+        [&el](const embxx::error::ErrorStatus& error)
         {
-            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT(!error);
             el.stop();
         });
 
@@ -149,9 +149,9 @@ void OutStreamBufTestSuite::test2()
 
     buf.asyncWaitAvailableCapacity(
         buf.fullCapacity(),
-        [&el](embxx::io::ErrorStatus status)
+        [&el](const embxx::error::ErrorStatus& error)
         {
-            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT(!error);
             el.stop();
         });
 
@@ -167,7 +167,7 @@ void OutStreamBufTestSuite::test3()
     typedef embxx::io::OutStreamBuf<
         Driver,
         501,
-        embxx::util::StaticFunction<void (embxx::io::ErrorStatus), 24> > OutStreamBuf;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 24> > OutStreamBuf;
 
     EventLoop el;
     CharDevice device(el.getLock());
@@ -183,7 +183,7 @@ void OutStreamBufTestSuite::test3()
     }
 
     static const std::size_t MaxCount = buf.fullCapacity() * 1.5;
-    stringPushFunc(embxx::io::ErrorStatus::Success, buf, 0, MaxCount, str);
+    stringPushFunc(embxx::error::ErrorCode::Success, buf, 0, MaxCount, str);
     el.run();
     device.stop();
     TS_ASSERT_EQUALS(((MaxCount / str.size()) + 1) * str.size(), device.getWriteString().size());

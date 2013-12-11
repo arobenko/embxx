@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <functional>
 
-#include "embxx/driver/ErrorStatus.h"
+#include "embxx/error/ErrorStatus.h"
 #include "embxx/util/StaticFunction.h"
 #include "embxx/container/StaticQueue.h"
 
@@ -46,7 +46,7 @@ namespace io
 /// @tparam TDriver Driver class that provides the following interface:
 ///         @code
 ///         // Asynchronous write function. "func" callback function must have
-///         // "void (embxx::driver::ErrorStatus, std::size_t)" signature.
+///         // "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
 ///         template <typename TFunc>
 ///         void asyncWrite(const CharType* buf, std::size_t size, TFunc&& func);
 ///
@@ -58,10 +58,10 @@ namespace io
 ///         write requests.
 /// @tparam THandler Handler class. Must be either std::function or
 ///         embxx::util::StaticFunction and have
-///         "void (embxx::driver::ErrorStatus, std::size_t)" signature.
+///         "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
 template <typename TDriver,
           std::size_t TSize,
-          typename THandler = util::StaticFunction<void (embxx::driver::ErrorStatus, std::size_t)> >
+          typename THandler = util::StaticFunction<void (const embxx::error::ErrorStatus&, std::size_t)> >
 class WriteQueue
 {
 public:
@@ -116,7 +116,7 @@ public:
     ///            changed or destructed until the callback has been called.
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
-    ///        @code void callback(embxx::driver::ErrorStatus status, std::size_t bytesWritten); @endcode
+    ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesWritten); @endcode
     /// @return Handle of the write operation which may be used to cancel the
     ///         request in the future. If the queue is full prior to request
     ///         InvalidWriteHandle will be returned and it is the responsibility
@@ -143,8 +143,8 @@ public:
     /// @brief Cancel the write request.
     /// @param handle Write request handle returned by asyncWrite().
     /// @return true in case the request was successfully cancelled and the
-    ///         callback will be invoked with embxx::driver::ErrorStatus::Aborted
-    ///         as the status of operation completion, false otherwise.
+    ///         callback will be invoked with embxx::error::ErrorCode::Aborted
+    ///         as the status value of operation completion, false otherwise.
     bool cancelWrite(WriteHandle handle);
 
     /// @brief Cancel all the outstanding write requests.
@@ -178,7 +178,7 @@ private:
     void findAndCleanCancelledWrite();
     bool invokeHandler(
         Node& node,
-        embxx::driver::ErrorStatus status,
+        const embxx::error::ErrorStatus& status,
         std::size_t bytesWritten);
 
 
@@ -252,7 +252,7 @@ WriteQueue<TDriver, TSize, THandler>::asyncWrite(
     std::size_t size)
 {
     return asyncWrite(buf, size,
-        [](embxx::driver::ErrorStatus es, std::size_t bytesWritten)
+        [](const embxx::error::ErrorStatus& es, std::size_t bytesWritten)
         {
             static_cast<void>(es);
             static_cast<void>(bytesWritten);
@@ -286,7 +286,7 @@ bool WriteQueue<TDriver, TSize, THandler>::cancelWrite(WriteHandle handle)
     }
 
     if (iter != arrayOne.second) {
-        return invokeHandler(*iter, embxx::driver::ErrorStatus::Aborted, 0);
+        return invokeHandler(*iter, embxx::error::ErrorCode::Aborted, 0);
     }
 
     auto arrayTwo = queue_.arrayTwo();
@@ -295,7 +295,7 @@ bool WriteQueue<TDriver, TSize, THandler>::cancelWrite(WriteHandle handle)
         return false;
     }
 
-    return invokeHandler(*iter, embxx::driver::ErrorStatus::Aborted, 0);
+    return invokeHandler(*iter, embxx::error::ErrorCode::Aborted, 0);
 }
 
 template <typename TDriver,
@@ -316,7 +316,7 @@ void WriteQueue<TDriver, TSize, THandler>::cancelAllWrites()
                 [this](Node& node)
                 {
                     auto result =
-                        invokeHandler(node, embxx::driver::ErrorStatus::Aborted, 0);
+                        invokeHandler(node, embxx::error::ErrorCode::Aborted, 0);
                     static_cast<void>(result); // don't care
                 });
         };
@@ -346,7 +346,7 @@ void WriteQueue<TDriver, TSize, THandler>::scheduleNewWrite()
         driver_.asyncWrite(
             nextWait.start_,
             nextWait.size_,
-            [this](embxx::driver::ErrorStatus es, std::size_t bytesWritten)
+            [this](const embxx::error::ErrorStatus& es, std::size_t bytesWritten)
             {
                 if (!queue_.isEmpty()) {
                     auto result =
@@ -392,7 +392,7 @@ template <typename TDriver,
           typename THandler>
 bool WriteQueue<TDriver, TSize, THandler>::invokeHandler(
     Node& node,
-    embxx::driver::ErrorStatus status,
+    const embxx::error::ErrorStatus& status,
     std::size_t bytesWritten)
 {
     if (!node.handler_) {

@@ -29,8 +29,7 @@
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
 #include "embxx/util/ScopeGuard.h"
-
-#include "ErrorStatus.h"
+#include "embxx/error/ErrorStatus.h"
 
 namespace embxx
 {
@@ -91,19 +90,19 @@ namespace driver
 /// @tparam TMaxTimers A number of timers this Timer Manager is supposed to
 ///         be able to allocate.
 /// @tparam TTimeoutHandler The handler type provided with every wait request.
-///         It must be either std::function<void (embxx::driver::ErrorStatus)>
-///         or embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), ...>
+///         It must be either std::function<void (const embxx::error::ErrorStatus&)>
+///         or embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), ...>
 ///         if no dynamic memory allocation is allowed. Every provided handler
 ///         function must have the following signature:
 ///         @code
-///         void timeoutHandler(embxx::driver::TimeoutStatus status);
+///         void timeoutHandler(const embxx::error::ErrorStatus& es);
 ///         @endcode
 /// @headerfile embxx/driver/TimerMgr.h
 /// @related TimerMgr::Timer
 template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
-          typename TTimeoutHandler = embxx::util::StaticFunction<void (ErrorStatus), 20> >
+          typename TTimeoutHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 20> >
 class TimerMgr
 {
 
@@ -205,7 +204,7 @@ public:
         ///            requested wait is over. It must have the following
         ///            signature:
         ///            @code
-        ///            void timeoutHandler(embxx::driver::ErrorStatus status);
+        ///            void timeoutHandler(const embxx::error::ErrorStatus& status);
         ///            @endcode
         /// @pre Timer object is valid (isValid() return true).
         /// @pre The callback from the previous wait request must already be
@@ -331,8 +330,8 @@ private:
     void pushToWaitQueue(TimerInfo& info);
     void recreateWaitQueue();
     void programNewWait();
-    void postHandler(ErrorStatus status, TimerInfo& info, bool interruptContext);
-    void interruptHandler();
+    void postHandler(const embxx::error::ErrorStatus& status, TimerInfo& info, bool interruptContext);
+    void interruptHandler(const embxx::error::ErrorStatus& es);
     void postExpiredHandlers(bool interruptContext);
 
     Device& device_;
@@ -469,7 +468,7 @@ TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerMgr(
       nextEngagementId_(0)
 {
     device_.setHandler(
-        std::bind(&TimerMgr::interruptHandler, this));
+        std::bind(&TimerMgr::interruptHandler, this, std::placeholders::_1));
 }
 
 template <typename TDevice,
@@ -622,7 +621,7 @@ bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
         return false;
     }
 
-    postHandler(ErrorStatus::Aborted, info, false);
+    postHandler(embxx::error::ErrorCode::Aborted, info, false);
     return true;
 }
 
@@ -774,7 +773,7 @@ template <typename TDevice,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
 void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postHandler(
-    ErrorStatus status,
+    const embxx::error::ErrorStatus& status,
     TimerInfo& info,
     bool interruptContext)
 {
@@ -803,10 +802,26 @@ template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::interruptHandler()
+void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::interruptHandler(
+    const embxx::error::ErrorStatus& es)
 {
     // Executed in interrupt context
     device_.stop();
+
+    if (es) {
+        auto beginIter = timers_.begin();
+        auto endIter = beginIter + timersCount_;
+        std::for_each(beginIter, endIter,
+            [this, &es](TimerInfo& info)
+            {
+                if (info.handler_) {
+                    postHandler(es, info, true);
+                }
+            });
+
+        waitQueueCount_ = 0;
+        return;
+    }
 
     GASSERT(0 < waitQueueCount_);
     GASSERT(timeBase_ <= waitQueue_[0].targetTime_);
@@ -839,7 +854,7 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postExpiredHand
             (timerInfoPtr->engagementId_ == waitInfo.engagementId_)) {
             GASSERT(timerInfoPtr->handler_);
 
-            postHandler(ErrorStatus::Success, *timerInfoPtr, interruptContext);
+            postHandler(embxx::error::ErrorCode::Success, *timerInfoPtr, interruptContext);
         }
 
         std::pop_heap(

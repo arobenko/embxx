@@ -54,9 +54,9 @@ void InStreamBufTestSuite::test1()
     buf.start();
     buf.asyncWaitDataAvailable(
         ReadString.size(),
-        [&el, &buf](embxx::io::ErrorStatus status)
+        [&el, &buf](const embxx::error::ErrorStatus& es)
         {
-            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(buf.size(), ReadString.size());
             TS_ASSERT_EQUALS(ReadString, std::string(buf.begin(), buf.end()));
             buf.consume();
@@ -89,16 +89,16 @@ void InStreamBufTestSuite::test2()
     buf.start();
     buf.asyncWaitDataAvailable(
         ReadString1.size(),
-        [&el, &buf](embxx::io::ErrorStatus status)
+        [&el, &buf](const embxx::error::ErrorStatus& es)
         {
-            TS_ASSERT_EQUALS(status, embxx::io::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(buf.size(), ReadString1.size());
 
             buf.asyncWaitDataAvailable(
                 ReadString1.size() + ReadString2.size(),
-                [&el, &buf](embxx::io::ErrorStatus status2)
+                [&el, &buf](const embxx::error::ErrorStatus& es2)
                 {
-                    TS_ASSERT_EQUALS(status2, embxx::io::ErrorStatus::Success);
+                    TS_ASSERT(!es2);
                     TS_ASSERT_EQUALS(buf.size(), ReadString1.size() + ReadString2.size());
                     TS_ASSERT_EQUALS(ReadString1 + ReadString2, std::string(buf.begin(), buf.end()));
 

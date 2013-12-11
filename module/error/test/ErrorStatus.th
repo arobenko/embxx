@@ -16,22 +16,25 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-#pragma once
+#include "embxx/error/ErrorStatus.h"
 
-#include "embxx/driver/ErrorStatus.h"
+#include "cxxtest/TestSuite.h"
 
-namespace embxx
+class ErrorStatusTestSuite : public CxxTest::TestSuite
 {
+public:
+    void test1();
+};
 
-namespace io
+void ErrorStatusTestSuite::test1()
 {
+    embxx::error::ErrorStatus es;
+    TS_ASSERT(!es);
+    TS_ASSERT_EQUALS(es.code(), embxx::error::ErrorCode::Success);
+    es = embxx::error::ErrorCode::Aborted;
+    TS_ASSERT(es);
+    TS_ASSERT_EQUALS(es.code(), embxx::error::ErrorCode::Aborted);
+}
 
-/// @brief ErrorStatus of io module is exactly the same as of driver module.
-/// @details The same as embxx::driver::ErrorStatus.
-typedef embxx::driver::ErrorStatus ErrorStatus;
-
-}  // namespace io
-
-}  // namespace embxx
 
 

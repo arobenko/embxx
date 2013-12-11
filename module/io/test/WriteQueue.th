@@ -53,10 +53,10 @@ void WriteQueueTestSuite::test1()
 
     bool asyncWriteHandlerCalled = false;
     auto handle = socket.asyncWrite(&WriteString[0], WriteString.size(),
-        [&el, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
             asyncWriteHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(size, WriteString.size());
             el.stop();
         });
@@ -88,10 +88,10 @@ void WriteQueueTestSuite::test2()
 
     bool asyncWriteHandlerCalled = false;
     auto handle = socket.asyncWrite(&WriteString[0], WriteString.size(),
-        [&el, &asyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& status, std::size_t size)
         {
             asyncWriteHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+            TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
             TS_ASSERT_EQUALS(size, 0);
             el.stop();
         });
@@ -131,10 +131,10 @@ void WriteQueueTestSuite::test3()
 
     bool lastAsyncWriteHandlerCalled = false;
     handle = socket.asyncWrite(&String3[0], String3.size(),
-        [&el, &lastAsyncWriteHandlerCalled](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &lastAsyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
         {
             lastAsyncWriteHandlerCalled = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(size, String3.size());
             el.stop();
         });
@@ -168,29 +168,29 @@ void WriteQueueTestSuite::test4()
 
     bool handler1called = false;
     auto handle1 = socket.asyncWrite(&String1[0], String1.size(),
-        [&handler1called](embxx::driver::ErrorStatus status, std::size_t size)
+        [&handler1called](const embxx::error::ErrorStatus& es, std::size_t size)
         {
             handler1called = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(size, String3.size());
         });
     static_cast<void>(handle1);
 
     bool handler2called = false;
     auto handle2 = socket.asyncWrite(&String2[0], String2.size(),
-        [&handler2called](embxx::driver::ErrorStatus status, std::size_t size)
+        [&handler2called](const embxx::error::ErrorStatus& status, std::size_t size)
         {
             handler2called = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+            TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
             TS_ASSERT_EQUALS(size, 0);
         });
 
     bool handler3called = false;
     auto handle3 = socket.asyncWrite(&String3[0], String3.size(),
-        [&el, &handler3called](embxx::driver::ErrorStatus status, std::size_t size)
+        [&el, &handler3called](const embxx::error::ErrorStatus& es, std::size_t size)
         {
             handler3called = true;
-            TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+            TS_ASSERT(!es);
             TS_ASSERT_EQUALS(size, String3.size());
             el.stop();
         });

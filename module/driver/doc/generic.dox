@@ -34,7 +34,7 @@
 /// ...
 /// // Set the handler to be executed in "regular" thread context:
 /// driver.setHandler(
-///     []()
+///     [](const embxx::error::ErrorStatus& es)
 ///     {
 ///         ...// Event processing functionality
 ///     });

@@ -98,7 +98,7 @@ private:
                     pending_ = false;
 
                     TS_ASSERT(handler_);
-                    handler_();
+                    handler_(embxx::error::ErrorCode::Success);
                     interruptsLock_.unlockInterruptCtx();
                 });
         }
@@ -140,7 +140,7 @@ private:
         boost::asio::io_service io_;
         boost::asio::io_service::work ioWork_;
         boost::asio::deadline_timer timer_;
-        std::function<void ()> handler_;
+        std::function<void (const embxx::error::ErrorStatus&)> handler_;
         LoopLock& interruptsLock_;
         volatile bool pending_;
         WaitTimeType waitTime_;
@@ -168,13 +168,13 @@ private:
 
         ++counter;
         timer.asyncWait(waitTime,
-            [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](embxx::driver::ErrorStatus status)
+            [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](const embxx::error::ErrorStatus& status)
             {
-                if (status == embxx::driver::ErrorStatus::Aborted) {
+                if (status.code() == embxx::error::ErrorCode::Aborted) {
                     return;
                 }
 
-                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Success);
+                TS_ASSERT(!status);
                 incWaitFunc(el, timer, counter, maxCounter, waitTime, stopAtEnd);
             });
     }
@@ -196,15 +196,15 @@ private:
 
         ++counter;
         timer2.asyncWait(waitTime + 50,
-            [](embxx::driver::ErrorStatus status)
+            [](const embxx::error::ErrorStatus& status)
             {
-                TS_ASSERT_EQUALS(status, embxx::driver::ErrorStatus::Aborted);
+                TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
             });
 
         timer1.asyncWait(waitTime,
-            [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](embxx::driver::ErrorStatus status)
+            [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](const embxx::error::ErrorStatus& status)
             {
-                if (status == embxx::driver::ErrorStatus::Aborted) {
+                if (status.code() == embxx::error::ErrorCode::Aborted) {
                     return;
                 }
 
@@ -225,7 +225,7 @@ void TimerMgrTestSuite::test1()
         TimerDevice,
         EventLoop,
         1,
-        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
     auto timer = timerMgr.allocTimer();
     TS_ASSERT(timer.isValid());
@@ -250,7 +250,7 @@ void TimerMgrTestSuite::test2()
         TimerDevice,
         EventLoop,
         2,
-        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
 
 
@@ -278,7 +278,7 @@ void TimerMgrTestSuite::test3()
         TimerDevice,
         EventLoop,
         TotalTimers,
-        embxx::util::StaticFunction<void (embxx::driver::ErrorStatus), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
     typedef TimerMgr::Timer Timer;
 
     TimerMgr timerMgr(timerDevice, el);
