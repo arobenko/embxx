@@ -30,6 +30,8 @@ public:
     void test2();
     void test3();
     void test4();
+    void test5();
+    void test6();
 
     template <typename T>
     void incFunc(T& value)
@@ -110,6 +112,90 @@ void StaticFunctionTestSuite::test4()
     func(value);
     TS_ASSERT_EQUALS(value, 11);
 }
+
+void StaticFunctionTestSuite::test5()
+{
+    typedef embxx::util::StaticFunction<void (), 28> Func;
+
+    static const int InitValue1 = 1;
+    static const int InitValue2 = 2;
+    static const int InitValue3 = 3;
+    static const int InitValue4 = 4;
+    static const int InitValue5 = 5;
+    static const int InitValue6 = 6;
+
+    int value1 = InitValue1;
+    int value2 = InitValue2;
+    int value3 = InitValue3;
+    int value4 = InitValue4;
+    int value5 = InitValue5;
+    int value6 = InitValue6;
+
+    auto lambdaFunc = [&value1, &value2, &value3, &value4, &value5, &value6]()
+        {
+            ++value1;
+            ++value2;
+            ++value3;
+            ++value4;
+            ++value5;
+            ++value6;
+        };
+
+    Func func(lambdaFunc);
+    func();
+
+    TS_ASSERT_EQUALS(value1, InitValue1 + 1);
+    TS_ASSERT_EQUALS(value2, InitValue2 + 1);
+    TS_ASSERT_EQUALS(value3, InitValue3 + 1);
+    TS_ASSERT_EQUALS(value4, InitValue4 + 1);
+    TS_ASSERT_EQUALS(value5, InitValue5 + 1);
+    TS_ASSERT_EQUALS(value6, InitValue6 + 1);
+}
+
+void StaticFunctionTestSuite::test6()
+{
+    typedef embxx::util::StaticFunction<void (), 28> Func;
+
+    static const int InitValue1 = 1;
+    static const int InitValue2 = 2;
+    static const int InitValue3 = 3;
+    static const int InitValue4 = 4;
+    static const int InitValue5 = 5;
+    static const int InitValue6 = 6;
+
+    int value1 = InitValue1;
+    int value2 = InitValue2;
+    int value3 = InitValue3;
+    int value4 = InitValue4;
+    int value5 = InitValue5;
+    int value6 = InitValue6;
+
+    Func func;
+
+    {
+        auto lambdaFunc = [&value1, &value2, &value3, &value4, &value5, &value6]()
+            {
+                ++value1;
+                ++value2;
+                ++value3;
+                ++value4;
+                ++value5;
+                ++value6;
+            };
+
+
+        func = std::move(lambdaFunc);
+    }
+    func();
+
+    TS_ASSERT_EQUALS(value1, InitValue1 + 1);
+    TS_ASSERT_EQUALS(value2, InitValue2 + 1);
+    TS_ASSERT_EQUALS(value3, InitValue3 + 1);
+    TS_ASSERT_EQUALS(value4, InitValue4 + 1);
+    TS_ASSERT_EQUALS(value5, InitValue5 + 1);
+    TS_ASSERT_EQUALS(value6, InitValue6 + 1);
+}
+
 
 
 
