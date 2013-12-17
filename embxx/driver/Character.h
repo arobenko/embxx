@@ -45,21 +45,72 @@ namespace driver
 ///
 ///         // Start read operation. The device will perform some configuration
 ///         // if needed and enable read interrupts, i.e. interrupt when there
-///         // is at least one character to read.
-///         void startRead();
+///         // is at least one character to read. This function is called in
+///         // NON-interrupt context.
+///         void startRead(std::size_t length);
 ///
-///         // Stop read operation. The device will perform some configuration
-///         // if needed and disable read interrupts.
-///         void stopRead();
+///         // Cancel read operation. The return value indicates whether the
+///         // read operation was cancelled. This function is called in
+///         // NON-interrupt context.
+///         bool cancelRead();
+///
+///         // Same as cancelRead(), but called in interrupt context from within
+///         // the "can read" callback when asyncReadUntil() function is used
+///         // to perform read and requested character is recognised.
+///         bool cancelReadInterruptCtx();
 ///
 ///         // Start write operation. The device will perform some configuration
 ///         // if needed and enable write interrupts, i.e. interrupt when there
-///         // is space for at least one character to be written.
-///         void startWrite();
+///         // is space for at least one character to be written. This function
+///         // is called in NON-interrupt context.
+///         void startWrite(std::size_t length);
 ///
-///         // Stop write operation. The device will perform some configuration
-///         // if needed and disable write interrupts.
-///         void stopWrite();
+///         // Cancel write operation. The return value indicates whether the
+///         // write operation was cancelled. This function is called in
+///         // NON-interrupt context.
+///         bool cancelWrite();
+///
+///         // Set the "can read" interrupt callback. Expose signature
+///         // "void ()". The callback must be
+///         // called when there is at least one byte available for read
+///         // or hardware protocol error reported. The callback will perform
+///         //  multiple canRead() and read() calls until canRead() returns
+///         // false. This function is called in NON-interrupt context, but the
+///         // callback itself will be called by the device control object in
+///         // interrupt context.
+///         template <typename TFunc>
+///         void setCanReadHandler(TFunc&& func);
+///
+///         // Set the "can write" interrupt callback. Expose signature
+///         // "void ()".The callback must be
+///         // called when there is a space for at least one byte to be written
+///         // or hardware protocol error reported. The callback will perform
+///         // multiple canWrite() and write() calls until canWrite() returns
+///         // false. This function is called in NON-interrupt context, but the
+///         // callback itself will be called by the device control object in
+///         // interrupt context.
+///         template <typename TFunc>
+///         void setCanWriteHandler(TFunc&& func);
+///
+///         // Set the "read complete" interrupt callback. Expose signature
+///         // "void (const embxx::error::ErrorStatus&)". The callback must be
+///         // called when read operation is complete and read interrupts are
+///         // disabled, i.e. no more "can read" callback calls will follow
+///         // until next call to startRead(). This function is called in
+///         // NON-interrupt context, but the callback itself will be called
+///         // by the device control object in interrupt context.
+///         template <typename TFunc>
+///         void setReadCompleteHandler(TFunc&& func);
+///
+///         // Set the "write complete" interrupt callback. Expose signature
+///         // "void (const embxx::error::ErrorStatus&)". The callback must be
+///         // called when write operation is complete and write interrupts are
+///         // disabled, i.e. no more "can write" callback calls will follow
+///         // until next call to startWrite(). This function is called in
+///         // NON-interrupt context, but the callback itself will be called
+///         // by the device control object in interrupt context.
+///         template <typename TFunc>
+///         void setWriteCompleteHandler(TFunc&& func);
 ///
 ///         // Inquiry whether there is at least one character to be
 ///         // read. Will be called in the interrupt context. May be called
@@ -80,25 +131,8 @@ namespace driver
 ///         // true. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
 ///         void write(CharType value);
-///
-///         // Set the "can read" interrupt callback. Expose signature
-///         // "void (const embxx::error::ErrorStatus&)". The callback must be
-///         // called when there is at least one byte available for read
-///         // or hardware protocol error reported. The callback will perform
-///         //  multiple canRead() and read() calls until canRead() returns
-///         // false.
-///         template <typename TFunc>
-///         void setCanReadHandler(TFunc&& func);
-///
-///         // Set the "can write" interrupt callback. Expose signature
-///         // "void (const embxx::error::ErrorStatus&)".The callback must be
-///         // called when there is a space for at least one byte to be written
-///         // or hardware protocol error reported. The callback will perform
-///         // multiple canWrite() and write() calls until canWrite() returns
-///         // false.
-///         template <typename TFunc>
-///         void setCanWriteHandler(TFunc&& func);
 ///         @endcode
+///
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
 ///         to execute posted handlers in regular thread context.
 /// @tparam TReadHandler A function class that is supposed to store "read"
@@ -253,11 +287,12 @@ private:
         const CharType* buf,
         std::size_t size);
 
-    void canReadInterruptHandler(const embxx::error::ErrorStatus& es);
-    void canWriteInterruptHandler(const embxx::error::ErrorStatus& es);
-
-    void invokeReadHandler(const embxx::error::ErrorStatus& es);
-    void invokeWriteHandler(const embxx::error::ErrorStatus& es);
+    void canReadInterruptHandler();
+    void canWriteInterruptHandler();
+    void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es);
+    void writeCompleteInterruptHandler(const embxx::error::ErrorStatus& es);
+    void invokeReadHandler(const embxx::error::ErrorStatus& es, bool interruptCtx);
+    void invokeWriteHandler(const embxx::error::ErrorStatus& es, bool interruptCtx);
 
     Device& device_;
     EventLoop& el_;
@@ -299,9 +334,13 @@ Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Character(
       writeBufSize_(0)
 {
     device_.setCanReadHandler(
-        std::bind(&Character::canReadInterruptHandler, this, std::placeholders::_1));
+        std::bind(&Character::canReadInterruptHandler, this));
     device_.setCanWriteHandler(
-        std::bind(&Character::canWriteInterruptHandler, this, std::placeholders::_1));
+        std::bind(&Character::canWriteInterruptHandler, this));
+    device_.setReadCompleteHandler(
+        std::bind(&Character::readCompleteInterruptHandler, this, std::placeholders::_1));
+    device_.setWriteCompleteHandler(
+        std::bind(&Character::writeCompleteInterruptHandler, this, std::placeholders::_1));
 
     GASSERT(!readHandler_); // No read in progress
     GASSERT(!writeHandler_); // No write in progress
@@ -364,21 +403,16 @@ template <typename TDevice,
           typename TWriteHandler>
 bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
 {
-    device_.stopRead();
     if (!readHandler_) {
         return false;
     }
 
-    auto result = el_.post(
-        std::bind(
-            std::move(readHandler_),
-            embxx::error::ErrorCode::Aborted,
-            static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
-    static_cast<void>(result);
+    if (!device_.cancelRead()) {
+        return false;
+    }
 
-    GASSERT(result);
-    GASSERT(!readHandler_);
     GASSERT(readBufCurrent_ < (readBufStart_ + readBufSize_));
+    invokeReadHandler(embxx::error::ErrorCode::Aborted, false);
     return true;
 }
 
@@ -403,21 +437,16 @@ template <typename TDevice,
           typename TWriteHandler>
 bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
 {
-    device_.stopWrite();
     if (!writeHandler_) {
         return false;
     }
 
-    auto result = el_.post(
-        std::bind(
-            std::move(writeHandler_),
-            embxx::error::ErrorCode::Aborted,
-            static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_)));
-    static_cast<void>(result);
+    if (!device_.cancelWrite()) {
+        return false;
+    }
 
-    GASSERT(result);
-    GASSERT(!writeHandler_);
     GASSERT(writeBufCurrent_ < (writeBufStart_ + writeBufSize_));
+    invokeWriteHandler(embxx::error::ErrorCode::Aborted, false);
     return true;
 }
 
@@ -432,7 +461,7 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
     CharType untilChar)
 {
     if (size == 0) {
-        invokeReadHandler(embxx::error::ErrorCode::Success);
+        invokeReadHandler(embxx::error::ErrorCode::Success, false);
         return;
     }
 
@@ -441,7 +470,7 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
     readBufSize_ = size;
     performingReadUntil_ = performingReadUntil;
     untilChar_ = untilChar;
-    device_.startRead();
+    device_.startRead(size);
 }
 
 template <typename TDevice,
@@ -453,39 +482,37 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initWrite(
     std::size_t size)
 {
     if (size == 0) {
-        invokeWriteHandler(embxx::error::ErrorCode::Success);
+        invokeWriteHandler(embxx::error::ErrorCode::Success, false);
         return;
     }
 
     writeBufStart_ = buf;
     writeBufCurrent_ = buf;
     writeBufSize_ = size;
-    device_.startWrite();
+    device_.startWrite(size);
 }
 
 template <typename TDevice,
           typename TEventLoop,
           typename TReadHandler,
           typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler(
-    const embxx::error::ErrorStatus& es)
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler()
 {
-    if (es) {
-        invokeReadHandler(es);
-        device_.stopRead();
-        return;
-    }
-
     while(device_.canRead()) {
-        GASSERT(readBufCurrent_ < (readBufStart_ + readBufSize_));
+        if ((readBufStart_ + readBufSize_) <= readBufCurrent_) {
+            // The device control object mustn't allow it.
+            GASSERT(0);
+            break;
+        }
+
         auto ch = device_.read();
         *readBufCurrent_ = ch;
         ++readBufCurrent_;
-        if (((readBufStart_ + readBufSize_) <= readBufCurrent_) ||
-            ((performingReadUntil_) && (ch == untilChar_))) {
-            invokeReadHandler(embxx::error::ErrorCode::Success);
-            device_.stopRead();
-            return;
+
+        if ((performingReadUntil_) && (ch == untilChar_)) {
+            if (device_.cancelReadInterruptCtx()) {
+                invokeReadHandler(embxx::error::ErrorCode::Success, true);
+            }
         }
     }
 }
@@ -494,25 +521,38 @@ template <typename TDevice,
           typename TEventLoop,
           typename TReadHandler,
           typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler(
-    const embxx::error::ErrorStatus& es)
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler()
 {
-    if (es) {
-        invokeWriteHandler(es);
-        device_.stopWrite();
-        return;
-    }
-
     while(device_.canWrite()) {
-        GASSERT(writeBufCurrent_ < (writeBufStart_ + writeBufSize_));
+        if ((writeBufStart_ + writeBufSize_) <= writeBufCurrent_) {
+            // The device control object mustn't allow it.
+            GASSERT(0);
+            break;
+        }
+
         device_.write(*writeBufCurrent_);
         ++writeBufCurrent_;
-        if ((writeBufStart_ + writeBufSize_) <= writeBufCurrent_) {
-            invokeWriteHandler(embxx::error::ErrorCode::Success);
-            device_.stopWrite();
-            return;
-        }
     }
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::readCompleteInterruptHandler(
+    const embxx::error::ErrorStatus& es)
+{
+    invokeReadHandler(es, true);
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
+void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::writeCompleteInterruptHandler(
+    const embxx::error::ErrorStatus& es)
+{
+    invokeWriteHandler(es, true);
 }
 
 template <typename TDevice,
@@ -520,15 +560,29 @@ template <typename TDevice,
           typename TReadHandler,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeReadHandler(
-    const embxx::error::ErrorStatus& es)
+    const embxx::error::ErrorStatus& es,
+    bool interruptCtx)
 {
     GASSERT(readHandler_);
-    auto postResult =
-        el_.postInterruptCtx(
-            std::bind(
-                std::move(readHandler_),
-                es,
-                static_cast<std::size_t>(readBufCurrent_ - readBufStart_)));
+    bool postResult = false;
+    auto reportedSize = static_cast<std::size_t>(readBufCurrent_ - readBufStart_);
+    if (interruptCtx) {
+        postResult =
+            el_.postInterruptCtx(
+                std::bind(
+                    std::move(readHandler_),
+                    es,
+                    reportedSize));
+    }
+    else {
+        postResult =
+            el_.post(
+                std::bind(
+                    std::move(readHandler_),
+                    es,
+                    reportedSize));
+    }
+
     static_cast<void>(postResult);
     GASSERT(postResult);
     GASSERT(!readHandler_);
@@ -539,15 +593,28 @@ template <typename TDevice,
           typename TReadHandler,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeWriteHandler(
-    const embxx::error::ErrorStatus& es)
+    const embxx::error::ErrorStatus& es,
+    bool interruptCtx)
 {
     GASSERT(writeHandler_);
-    auto postResult =
-        el_.postInterruptCtx(
-            std::bind(
-                std::move(writeHandler_),
-                es,
-                static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_)));
+    bool postResult = false;
+    auto reportedSize = static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_);
+    if (interruptCtx) {
+        postResult =
+            el_.postInterruptCtx(
+                std::bind(
+                    std::move(writeHandler_),
+                    es,
+                    reportedSize));
+    }
+    else {
+        postResult =
+            el_.post(
+                std::bind(
+                    std::move(writeHandler_),
+                    es,
+                    reportedSize));
+    }
     static_cast<void>(postResult);
     GASSERT(postResult);
     GASSERT(!writeHandler_);

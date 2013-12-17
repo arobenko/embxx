@@ -42,7 +42,9 @@ public:
           readInterruptEnabled_(false),
           writeInterruptEnabled_(false),
           maxBufSize_(5),
-          delayMs_(10)
+          delayMs_(10),
+          readLen_(0),
+          writeLen_(0)
     {
 
         thread_.reset(
@@ -110,41 +112,66 @@ public:
     // Required interface
     typedef char CharType;
 
-    void startRead() {
-        setReadInterruptEnabled(true);
+    void startRead(std::size_t length) {
+        std::lock_guard<LoopLock> guard(lock_);
+        TS_ASSERT(0 < length);
+        TS_ASSERT_EQUALS(readLen_, 0);
+        readLen_ = length;
+        readInterruptEnabled_ = true;
     }
 
-    void stopRead() {
-        setReadInterruptEnabled(false);
+    bool cancelRead() {
+        std::lock_guard<LoopLock> guard(lock_);
+        return cancelReadInterruptCtx();
     }
 
-    void startWrite() {
-        setWriteInterruptEnabled(true);
+    bool cancelReadInterruptCtx() {
+        readInterruptEnabled_ = false;
+        bool result = (readLen_ != 0);
+        readLen_ = 0;
+        return result;
     }
 
-    void stopWrite() {
-        setWriteInterruptEnabled(false);
+
+    void startWrite(std::size_t length) {
+        std::lock_guard<LoopLock> guard(lock_);
+        TS_ASSERT(0 < length);
+        TS_ASSERT_EQUALS(writeLen_, 0);
+        writeLen_ = length;
+        writeInterruptEnabled_ = true;
+    }
+
+    bool cancelWrite() {
+        std::lock_guard<LoopLock> guard(lock_);
+        writeInterruptEnabled_ = false;
+        bool result = (writeLen_ != 0);
+        writeLen_ = 0;
+        return result;
     }
 
     bool canRead() const
     {
-        return (!readBuf_.empty());
+        return ((!readBuf_.empty()) && (0 < readLen_));
     }
 
     bool canWrite() const
     {
-        return (writeBuf_.size() < maxBufSize_);
+        return ((writeBuf_.size() < maxBufSize_) && (0 < writeLen_));
     }
 
     CharType read() {
+        TS_ASSERT(canRead());
         auto ch = readBuf_.front();
         readBuf_.pop_front();
+        --readLen_;
         return ch;
     }
 
     void write(CharType value)
     {
+        TS_ASSERT(canWrite());
         writeBuf_.push_back(value);
+        --writeLen_;
     }
 
     template <typename TFunc>
@@ -159,16 +186,19 @@ public:
         canWriteHandler_ = std::forward<TFunc>(func);
     }
 
-private:
-    void setReadInterruptEnabled(bool enabled)
+    template <typename TFunc>
+    void setReadCompleteHandler(TFunc&& func)
     {
-        readInterruptEnabled_ = enabled;
+        readCompleteHandler_ = std::forward<TFunc>(func);
     }
 
-    void setWriteInterruptEnabled(bool enabled)
+    template <typename TFunc>
+    void setWriteCompleteHandler(TFunc&& func)
     {
-        writeInterruptEnabled_ = enabled;
+        writeCompleteHandler_ = std::forward<TFunc>(func);
     }
+
+private:
 
     void interruptHandler()
     {
@@ -179,8 +209,13 @@ private:
                 writeBuf_.pop_front();
             }
             TS_ASSERT(canWrite());
-            if (canWriteHandler_) {
-                canWriteHandler_(embxx::error::ErrorCode::Success);
+            TS_ASSERT(canWriteHandler_);
+            canWriteHandler_();
+
+            if (writeLen_ == 0) {
+                writeInterruptEnabled_ = false;
+                TS_ASSERT(writeCompleteHandler_);
+                writeCompleteHandler_(embxx::error::ErrorCode::Success);
             }
         }
 
@@ -189,8 +224,14 @@ private:
             std::string tempReadString(readString_.begin() + 1U, readString_.end());
             readString_ = std::move(tempReadString);
             TS_ASSERT(canRead());
-            if (canReadHandler_) {
-                canReadHandler_(embxx::error::ErrorCode::Success);
+            TS_ASSERT(canReadHandler_);
+            canReadHandler_();
+
+            if ((readLen_ == 0) && (readInterruptEnabled_)) {
+                // Not cancelled yet
+                readInterruptEnabled_ = false;
+                TS_ASSERT(readCompleteHandler_);
+                readCompleteHandler_(embxx::error::ErrorCode::Success);
             }
         }
 
@@ -219,8 +260,8 @@ private:
     boost::asio::io_service::work work_;
     boost::asio::deadline_timer timer_;
     std::unique_ptr<std::thread> thread_;
-    bool readInterruptEnabled_;
-    bool writeInterruptEnabled_;
+    volatile bool readInterruptEnabled_;
+    volatile bool writeInterruptEnabled_;
 
     // Control
     volatile unsigned maxBufSize_;
@@ -229,12 +270,16 @@ private:
     // Read section
     std::list<CharType> readBuf_;
     std::string readString_;
-    std::function<void (const embxx::error::ErrorStatus&)> canReadHandler_;
+    std::function<void ()> canReadHandler_;
+    std::function<void (const embxx::error::ErrorStatus&)> readCompleteHandler_;
+    std::size_t readLen_;
 
     // Write section
     std::list<CharType> writeBuf_;
     std::string writeString_;
-    std::function<void (const embxx::error::ErrorStatus&)> canWriteHandler_;
+    std::function<void ()> canWriteHandler_;
+    std::function<void (const embxx::error::ErrorStatus&)> writeCompleteHandler_;
+    std::size_t writeLen_;
 };
 
 
