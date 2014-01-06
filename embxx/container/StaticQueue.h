@@ -571,6 +571,19 @@ public:
     ///       of the internal elements do not throw, Basic otherwise.
     LinearisedIterator erase(LinearisedIterator pos);
 
+    /// @brief Erase element.
+    /// @details Erases element from specified position
+    /// @param[in] pos Iterator to the element to be erased
+    /// @return Iterator pointing to new location of
+    ///         the next element after the erased one.
+    /// @pre (pos != end())
+    /// @pre pos is in range [begin(), end())
+    /// @note Thread safety: Unsafe
+    /// @note Exception guarantee: No throw in case copy assignment operator
+    ///       of the internal elements do not throw, Basic otherwise.
+    Iterator erase(Iterator pos);
+
+
     /// @brief Returns iterator to the beginning.
     /// @details This iterator works on the non-linearised queue. It has extra
     ///          overhead to check for wrap arounds.
@@ -1741,7 +1754,8 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
     auto rangeOne = arrayOne();
     auto rangeTwo = arrayTwo();
 
-    auto isInRangeFunc = [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
+    auto isInRangeFunc =
+        [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
         {
             return ((range.first <= pos) && (pos < range.second));
         };
@@ -1753,7 +1767,8 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
         std::move_backward(rangeOne.first, pos, pos + 1);
 
         popFront();
-        if (!isEmpty()) {
+        rangeOne = arrayOne();
+        if (isInRangeFunc(pos, rangeOne)) {
             return pos + 1;
         }
 
@@ -1771,6 +1786,50 @@ BasicStaticQueueBase<T, TSize>::erase(LinearisedIterator pos)
 
     GASSERT(!"Invalid iterator is used");
     return invalidIter();
+}
+
+template <typename T, std::size_t TSize>
+typename BasicStaticQueueBase<T, TSize>::Iterator
+BasicStaticQueueBase<T, TSize>::erase(Iterator pos)
+{
+    GASSERT(pos != end());
+    GASSERT(!isEmpty());
+    Pointer elem = &(*pos);
+    auto rangeOne = arrayOne();
+    auto rangeTwo = arrayTwo();
+
+    auto isInRangeFunc =
+        [](Pointer elemPtr, const LinearisedIteratorRange range) -> bool
+        {
+            return ((&(*range.first) <= elemPtr) && (elemPtr < &(*range.second)));
+        };
+
+    GASSERT(isInRangeFunc(elem, rangeOne) ||
+            isInRangeFunc(elem, rangeTwo));
+
+    if (isInRangeFunc(elem, rangeOne)) {
+        std::move_backward(rangeOne.first, elem, elem + 1);
+
+        popFront();
+        rangeOne = arrayOne();
+        if (isInRangeFunc(elem, rangeOne)) {
+            return pos + 1;
+        }
+
+        return begin();
+    }
+
+    if (isInRangeFunc(elem, rangeTwo)) {
+        std::move(elem + 1, rangeTwo.second, elem);
+        popBack();
+        if (!isLinearised()) {
+            return pos;
+        }
+        return end();
+    }
+
+    GASSERT(!"Invalid iterator is used");
+    return end();
 }
 
 template <typename T, std::size_t TSize>
