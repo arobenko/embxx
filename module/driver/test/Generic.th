@@ -19,13 +19,21 @@
 #include "embxx/util/StaticFunction.h"
 #include "embxx/driver/Generic.h"
 #include "cxxtest/TestSuite.h"
-#include "CommonEventLoopDefs.h"
+#include "module/device/test/EventLoopLock.h"
+#include "module/device/test/EventLoopCond.h"
 
 class GenericDriverTestSuite : public CxxTest::TestSuite
 {
 public:
     void test1();
     void test2();
+
+private:
+
+    typedef embxx::util::EventLoop<
+        132,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
 
     template <typename THandler>
     class Device
@@ -48,12 +56,13 @@ public:
     private:
         THandler handler_;
     };
+
 };
 
 void GenericDriverTestSuite::test1()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef Device<embxx::util::StaticFunction<void (), 20> > DummyDevice;
+
     typedef embxx::driver::Generic<
         DummyDevice,
         EventLoop,
@@ -80,8 +89,8 @@ void GenericDriverTestSuite::test1()
 
 void GenericDriverTestSuite::test2()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef Device<embxx::util::StaticFunction<void (char), 20> > DummyDevice;
+
     typedef embxx::driver::Generic<
         DummyDevice,
         EventLoop,

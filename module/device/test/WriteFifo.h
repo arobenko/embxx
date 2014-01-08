@@ -91,11 +91,16 @@ public:
         io_.post(std::bind(&WriteFifo::charWritten, this));
     }
 
-    void clear()
+    void stopWrite()
     {
         timer_.cancel();
+    }
+
+    void clear()
+    {
         data_.clear();
         fifo_.clear();
+        timer_.cancel();
     }
 
     bool canWrite() const

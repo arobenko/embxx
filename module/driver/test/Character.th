@@ -22,8 +22,9 @@
 #include "embxx/driver/Character.h"
 #include "cxxtest/TestSuite.h"
 
-#include "CommonEventLoopDefs.h"
-#include "CharDevice.h"
+#include "module/device/test/EventLoopLock.h"
+#include "module/device/test/EventLoopCond.h"
+#include "module/device/test/UartDevice.h"
 
 class CharacterDriverTestSuite : public CxxTest::TestSuite
 {
@@ -34,12 +35,16 @@ public:
     void test4();
 
 private:
+    typedef embxx::util::EventLoop<
+        512,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
 
+    typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
 };
 
 void CharacterDriverTestSuite::test1()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef embxx::driver::Character<CharDevice, EventLoop> Socket;
     EventLoop el;
     CharDevice device(el.getLock());
@@ -50,9 +55,7 @@ void CharacterDriverTestSuite::test1()
         "abcdefghijklmnopqrstuvwxyz");
 
     char outArray[256] = {};
-    device.setReadString(ReadString);
-    device.setOpDelay(2);
-    device.start();
+    device.setDataToRead(&ReadString[0], ReadString.size());
 
     bool asyncReadHandlerCalled = false;
     socket.asyncRead(outArray, ReadString.size(),
@@ -67,12 +70,10 @@ void CharacterDriverTestSuite::test1()
 
     el.run();
     TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
-    device.stop();
 }
 
 void CharacterDriverTestSuite::test2()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef embxx::driver::Character<CharDevice, EventLoop> Socket;
     EventLoop el;
     CharDevice device(el.getLock());
@@ -81,9 +82,6 @@ void CharacterDriverTestSuite::test2()
     static const std::string WriteString(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz");
-
-    device.setOpDelay(2);
-    device.start();
 
     bool asyncWriteHandlerCalled = false;
     socket.asyncWrite(&WriteString[0], WriteString.size(),
@@ -97,13 +95,11 @@ void CharacterDriverTestSuite::test2()
 
     el.run();
     TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
-    device.stop();
-    TS_ASSERT_EQUALS(WriteString, device.getWriteString());
+    TS_ASSERT(std::equal(WriteString.begin(), WriteString.end(), device.getWrittenData().begin()));
 }
 
 void CharacterDriverTestSuite::test3()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef embxx::driver::Character<CharDevice, EventLoop> Socket;
     EventLoop el;
     CharDevice device(el.getLock());
@@ -114,9 +110,7 @@ void CharacterDriverTestSuite::test3()
         "abcdefghijklmnopqrstuvwxyz");
 
     char outArray[256] = {};
-    device.setReadString(ReadString);
-    device.setOpDelay(2);
-    device.start();
+    device.setDataToRead(&ReadString[0], ReadString.size());
 
     bool asyncReadHandlerCalled = false;
     socket.asyncReadUntil(outArray, ReadString.size(), '\n',
@@ -131,12 +125,10 @@ void CharacterDriverTestSuite::test3()
 
     el.run();
     TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
-    device.stop();
 }
 
 void CharacterDriverTestSuite::test4()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
     typedef embxx::driver::Character<
         CharDevice,
         EventLoop,
@@ -150,9 +142,7 @@ void CharacterDriverTestSuite::test4()
         "abcdefghijklmnopqrstuvwxyz");
 
     char outArray[256] = {};
-    device.setReadString(CommonString);
-    device.setOpDelay(2);
-    device.start();
+    device.setDataToRead(&CommonString[0], CommonString.size());
 
     bool asyncReadHandlerCalled = false;
     bool asyncWriteHandlerCalled = false;
@@ -182,6 +172,5 @@ void CharacterDriverTestSuite::test4()
     el.run();
     TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
     TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
-    device.stop();
-    TS_ASSERT_EQUALS(CommonString, device.getWriteString());
+    TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), device.getWrittenData().begin()));
 }

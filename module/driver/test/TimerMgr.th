@@ -25,7 +25,8 @@
 #include "embxx/driver/TimerMgr.h"
 #include "cxxtest/TestSuite.h"
 
-#include "CommonEventLoopDefs.h"
+#include "module/device/test/EventLoopLock.h"
+#include "module/device/test/EventLoopCond.h"
 
 class TimerMgrTestSuite : public CxxTest::TestSuite
 {
@@ -40,6 +41,7 @@ private:
     {
     public:
         typedef unsigned WaitTimeType;
+        typedef embxx::device::test::EventLoopLock LoopLock;
 
         TimerDevice(LoopLock& lock)
             : ioWork_(io_),
@@ -216,7 +218,10 @@ private:
 
 void TimerMgrTestSuite::test1()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+    typedef embxx::util::EventLoop<
+        132,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
 
     EventLoop el;
     TimerDevice timerDevice(el.getLock());
@@ -241,7 +246,10 @@ void TimerMgrTestSuite::test1()
 
 void TimerMgrTestSuite::test2()
 {
-    typedef embxx::util::EventLoop<132, LoopLock, EventCondition> EventLoop;
+    typedef embxx::util::EventLoop<
+        132,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
 
     EventLoop el;
     TimerDevice timerDevice(el.getLock());
@@ -268,7 +276,11 @@ void TimerMgrTestSuite::test2()
 
 void TimerMgrTestSuite::test3()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+    typedef embxx::util::EventLoop<
+        1024,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
+
 
     EventLoop el;
     TimerDevice timerDevice(el.getLock());

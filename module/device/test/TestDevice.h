@@ -56,12 +56,19 @@ public:
 
     ~TestDevice()
     {
-        io_.stop();
-        thread_->join();
-        thread_.reset();
+        stopThread();
     }
 
 protected:
+
+    void stopThread()
+    {
+        if (thread_) {
+            io_.stop();
+            thread_->join();
+            thread_.reset();
+        }
+    }
     boost::asio::io_service io_;
     boost::asio::io_service::work work_;
     std::unique_ptr<std::thread> thread_;

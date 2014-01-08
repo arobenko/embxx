@@ -95,11 +95,16 @@ public:
         io_.post(std::bind(&ReadFifo::charArrived, this));
     }
 
-    void clear()
+    void stopRead()
     {
         timer_.cancel();
+    }
+
+    void clear()
+    {
         data_.clear();
         fifo_.clear();
+        timer_.cancel();
     }
 
     bool canRead() const

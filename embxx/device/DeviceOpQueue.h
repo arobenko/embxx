@@ -53,7 +53,7 @@ public:
 
     explicit DeviceOpQueue(Device& device);
     DeviceOpQueue(const DeviceOpQueue&) = default;
-    ~DeviceOpQueue() = default;
+    ~DeviceOpQueue();
 
     DeviceOpQueue& operator=(const DeviceOpQueue&) = delete;
 
@@ -283,6 +283,18 @@ DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::DeviceOpQueu
     device_.setCanWriteHandler(std::bind(&DeviceOpQueue::canWriteHandler, this));
     device_.setReadCompleteHandler(std::bind(&DeviceOpQueue::readCompleteHandler, this, std::placeholders::_1));
     device_.setWriteCompleteHandler(std::bind(&DeviceOpQueue::writeCompleteHandler, this, std::placeholders::_1));
+}
+
+template <typename TDevice,
+          std::size_t TSize,
+          typename TCanDoOpHandler,
+          typename TOpCompleteHandler>
+DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::~DeviceOpQueue()
+{
+    device_.setCanReadHandler(nullptr);
+    device_.setCanWriteHandler(nullptr);
+    device_.setReadCompleteHandler(nullptr);
+    device_.setWriteCompleteHandler(nullptr);
 }
 
 template <typename TDevice,

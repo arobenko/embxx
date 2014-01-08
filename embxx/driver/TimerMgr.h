@@ -240,6 +240,9 @@ public:
     /// @brief Move construction is deleted
     TimerMgr(TimerMgr&&) = delete;
 
+    /// @brief Destructor
+    ~TimerMgr();
+
     /// @brief Copy assignment is deleted
     TimerMgr& operator=(const TimerMgr&) = delete;
 
@@ -469,6 +472,15 @@ TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerMgr(
 {
     device_.setHandler(
         std::bind(&TimerMgr::interruptHandler, this, std::placeholders::_1));
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          std::size_t TMaxTimers,
+          typename TTimeoutHandler>
+TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::~TimerMgr()
+{
+    device_.setHandler(nullptr);
 }
 
 template <typename TDevice,

@@ -24,6 +24,7 @@
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
 #include "embxx/error/ErrorStatus.h"
+#include "embxx/device/context.h"
 
 namespace embxx
 {
@@ -182,6 +183,9 @@ public:
     /// @brief MoveConstrutor is deleted
     Character(Character&&) = delete;
 
+    /// @brief Destructor
+    ~Character();
+
     /// @brief Copy assignment is deleted
     Character& operator=(const Character&) = delete;
 
@@ -277,6 +281,8 @@ public:
     bool cancelWrite();
 
 private:
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
     void initRead(
         CharType* buf,
         std::size_t size,
@@ -350,6 +356,21 @@ template <typename TDevice,
           typename TEventLoop,
           typename TReadHandler,
           typename TWriteHandler>
+Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::~Character()
+{
+    device_.setCanReadHandler(nullptr);
+    device_.setCanWriteHandler(nullptr);
+    device_.setReadCompleteHandler(nullptr);
+    device_.setWriteCompleteHandler(nullptr);
+
+    GASSERT(!readHandler_); // No read in progress
+    GASSERT(!writeHandler_); // No write in progress
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename TReadHandler,
+          typename TWriteHandler>
 typename Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Device&
 Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::device()
 {
@@ -407,7 +428,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
         return false;
     }
 
-    if (!device_.cancelRead()) {
+    if (!device_.cancelRead(EventLoopContext())) {
         return false;
     }
 
@@ -441,7 +462,7 @@ bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
         return false;
     }
 
-    if (!device_.cancelWrite()) {
+    if (!device_.cancelWrite(EventLoopContext())) {
         return false;
     }
 
@@ -470,7 +491,7 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
     readBufSize_ = size;
     performingReadUntil_ = performingReadUntil;
     untilChar_ = untilChar;
-    device_.startRead(size);
+    device_.startRead(size, EventLoopContext());
 }
 
 template <typename TDevice,
@@ -489,7 +510,7 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initWrite(
     writeBufStart_ = buf;
     writeBufCurrent_ = buf;
     writeBufSize_ = size;
-    device_.startWrite(size);
+    device_.startWrite(size, EventLoopContext());
 }
 
 template <typename TDevice,
@@ -498,19 +519,19 @@ template <typename TDevice,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler()
 {
-    while(device_.canRead()) {
+    while(device_.canRead(InterruptContext())) {
         if ((readBufStart_ + readBufSize_) <= readBufCurrent_) {
             // The device control object mustn't allow it.
             GASSERT(0);
             break;
         }
 
-        auto ch = device_.read();
+        auto ch = device_.read(InterruptContext());
         *readBufCurrent_ = ch;
         ++readBufCurrent_;
 
         if ((performingReadUntil_) && (ch == untilChar_)) {
-            if (device_.cancelReadInterruptCtx()) {
+            if (device_.cancelRead(InterruptContext())) {
                 invokeReadHandler(embxx::error::ErrorCode::Success, true);
             }
         }
@@ -523,14 +544,14 @@ template <typename TDevice,
           typename TWriteHandler>
 void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler()
 {
-    while(device_.canWrite()) {
+    while(device_.canWrite(InterruptContext())) {
         if ((writeBufStart_ + writeBufSize_) <= writeBufCurrent_) {
             // The device control object mustn't allow it.
             GASSERT(0);
             break;
         }
 
-        device_.write(*writeBufCurrent_);
+        device_.write(*writeBufCurrent_, InterruptContext());
         ++writeBufCurrent_;
     }
 }
