@@ -69,6 +69,7 @@ protected:
             thread_.reset();
         }
     }
+
     boost::asio::io_service io_;
     boost::asio::io_service::work work_;
     std::unique_ptr<std::thread> thread_;

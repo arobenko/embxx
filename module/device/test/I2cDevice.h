@@ -28,9 +28,6 @@
 #include <mutex>
 #include <cassert>
 
-#include <boost/asio.hpp>
-#include <boost/date_time.hpp>
-
 #include "cxxtest/TestSuite.h"
 
 #include "embxx/error/ErrorStatus.h"

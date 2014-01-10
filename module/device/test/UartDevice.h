@@ -18,10 +18,6 @@
 
 #pragma once
 
-
-
-#pragma once
-
 #include <functional>
 #include <algorithm>
 #include <vector>
@@ -31,9 +27,6 @@
 #include <map>
 #include <mutex>
 #include <cassert>
-
-#include <boost/asio.hpp>
-#include <boost/date_time.hpp>
 
 #include "cxxtest/TestSuite.h"
 
@@ -65,7 +58,6 @@ class UartDevice : public TestDevice
 public:
 
     // Required definitions
-    typedef embxx::device::op_category::ParallelReadWrite OpCategory;
     typedef TCharType CharType;
 
     // Implementation specific definitions
@@ -179,14 +171,6 @@ public:
         startReadInternal(length);
     }
 
-    void startRead(
-        std::size_t length,
-        embxx::device::context::Interrupt context)
-    {
-        static_cast<void>(context);
-        startReadInternal(length);
-    }
-
     bool cancelRead(
         embxx::device::context::EventLoop context)
     {
@@ -211,77 +195,12 @@ public:
         startWriteInternal(length);
     }
 
-    void startWrite(
-        std::size_t length,
-        embxx::device::context::Interrupt context)
-    {
-        static_cast<void>(context);
-        startWriteInternal(length);
-    }
-
     bool cancelWrite(
         embxx::device::context::EventLoop context)
     {
         static_cast<void>(context);
         std::lock_guard<EventLoopLock> guard(lock_);
         return cancelWriteInternal();
-    }
-
-    bool cancelWrite(
-        embxx::device::context::Interrupt context)
-    {
-        static_cast<void>(context);
-        return cancelWriteInternal();
-    }
-
-    bool suspendRead(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-
-        std::lock_guard<EventLoopLock> guard(lock_);
-
-        assert(!readSuspended_);
-        if (!readInProgress_) {
-            return false;
-        }
-
-        readSuspended_ = true;
-        return true;
-    }
-
-    void resumeRead(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-        std::lock_guard<EventLoopLock> guard(lock_);
-        assert(readSuspended_);
-        assert(readInProgress_);
-        readSuspended_ = false;
-        readSuspendCond_.notify_all();
-    }
-
-    bool suspendWrite(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-
-        std::lock_guard<EventLoopLock> guard(lock_);
-
-        assert(!writeSuspended_);
-        if (!writeInProgress_) {
-            return false;
-        }
-
-        writeSuspended_ = true;
-        return true;
-    }
-
-    void resumeWrite(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-        std::lock_guard<EventLoopLock> guard(lock_);
-        assert(writeSuspended_);
-        assert(writeInProgress_);
-        writeSuspended_ = false;
-        writeSuspendCond_.notify_all();
     }
 
     bool canRead(embxx::device::context::Interrupt context)

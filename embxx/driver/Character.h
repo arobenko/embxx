@@ -44,94 +44,102 @@ namespace driver
 ///         // Define each character type as CharType
 ///         typedef char CharType;
 ///
-///         // Start read operation. The device will perform some configuration
-///         // if needed and enable read interrupts, i.e. interrupt when there
-///         // is at least one character to read. This function is called in
-///         // NON-interrupt context.
-///         void startRead(std::size_t length);
-///
-///         // Cancel read operation. The return value indicates whether the
-///         // read operation was cancelled. This function is called in
-///         // NON-interrupt context.
-///         bool cancelRead();
-///
-///         // Same as cancelRead(), but called in interrupt context from within
-///         // the "can read" callback when asyncReadUntil() function is used
-///         // to perform read and requested character is recognised.
-///         bool cancelReadInterruptCtx();
-///
-///         // Start write operation. The device will perform some configuration
-///         // if needed and enable write interrupts, i.e. interrupt when there
-///         // is space for at least one character to be written. This function
-///         // is called in NON-interrupt context.
-///         void startWrite(std::size_t length);
-///
-///         // Cancel write operation. The return value indicates whether the
-///         // write operation was cancelled. This function is called in
-///         // NON-interrupt context.
-///         bool cancelWrite();
-///
-///         // Set the "can read" interrupt callback. Expose signature
-///         // "void ()". The callback must be
-///         // called when there is at least one byte available for read
-///         // or hardware protocol error reported. The callback will perform
-///         //  multiple canRead() and read() calls until canRead() returns
-///         // false. This function is called in NON-interrupt context, but the
-///         // callback itself will be called by the device control object in
-///         // interrupt context.
+///         // Set the "can read" interrupt callback which has "void ()"
+///         // signature. The callback must be called when there is at least
+///         // one byte available. The callback will perform multiple canRead()
+///         // and read() calls until canRead() returns false. This function is
+///         // called in NON-interrupt (event loop) context when the driver
+///         // object is constructed, but the callback itself is expected to
+///         // be called by the device control object in interrupt context.
 ///         template <typename TFunc>
 ///         void setCanReadHandler(TFunc&& func);
 ///
-///         // Set the "can write" interrupt callback. Expose signature
-///         // "void ()".The callback must be
-///         // called when there is a space for at least one byte to be written
-///         // or hardware protocol error reported. The callback will perform
-///         // multiple canWrite() and write() calls until canWrite() returns
-///         // false. This function is called in NON-interrupt context, but the
-///         // callback itself will be called by the device control object in
-///         // interrupt context.
+///         // Set the "can write" interrupt callback which has "void ()"
+///         // signature. The callback must be called when there is a space for
+///         // at least one byte to be written. The callback will perform multiple
+///         // canWrite() and write() calls until canWrite() returns false. This
+///         // function is called in NON-interrupt (event loop) context when
+///         // the driver object is constructed, but the callback itself is
+///         // expected to be called by the device control object in interrupt
+///         // context.
 ///         template <typename TFunc>
-///         void setCanWriteHandler(TFunc&& func);
+///         void setCanReadHandler(TFunc&& func);
 ///
-///         // Set the "read complete" interrupt callback. Expose signature
-///         // "void (const embxx::error::ErrorStatus&)". The callback must be
-///         // called when read operation is complete and read interrupts are
-///         // disabled, i.e. no more "can read" callback calls will follow
-///         // until next call to startRead(). This function is called in
-///         // NON-interrupt context, but the callback itself will be called
-///         // by the device control object in interrupt context.
+///         // Set the "read complete" interrupt callback which has
+///         // "void (const embxx::error::ErrorStatus&)" signature. The callback
+///         // must be called when read operation is complete (either successfully
+///         // or with errors) and read interrupts are disabled, i.e. no more
+///         // "can read" callback calls will follow until next call to startRead().
+///         // The error status passed as a parameter must indicate the status
+///         // of the read operation. This function is called in NON-interrupt
+///         // (event loop) context, but the callback itself is expected
+///         // to be called by the device control object in interrupt context.
 ///         template <typename TFunc>
 ///         void setReadCompleteHandler(TFunc&& func);
 ///
-///         // Set the "write complete" interrupt callback. Expose signature
-///         // "void (const embxx::error::ErrorStatus&)". The callback must be
-///         // called when write operation is complete and write interrupts are
-///         // disabled, i.e. no more "can write" callback calls will follow
-///         // until next call to startWrite(). This function is called in
-///         // NON-interrupt context, but the callback itself will be called
-///         // by the device control object in interrupt context.
+///         // Set the "write complete" interrupt callback which has
+///         // "void (const embxx::error::ErrorStatus&)" signature. The callback
+///         // must be called when write operation is complete (either successfully
+///         // or with errors) and write interrupts are disabled, i.e. no more
+///         // "can write" callback calls will follow until next call to startWrite().
+///         // The error status passed as a parameter must indicate the status
+///         // of the write operation. This function is called in NON-interrupt
+///         // (event loop) context, but the callback itself is expected
+///         // to be called by the device control object in interrupt context.
 ///         template <typename TFunc>
 ///         void setWriteCompleteHandler(TFunc&& func);
+///
+///         // Start read operation. The device will perform some configuration
+///         // if needed and enable read interrupts, i.e. interrupt when there
+///         // is at least one character to read. The "context" is a dummy
+///         // parameter that indicates whether the function is executed in
+///         // NON-interrupt (event loop) or interrupt contexts. The function
+///         // is called only in event loop context.
+///         void startRead(std::size_t length, embxx::device::context::EventLoop context);
+///
+///         // Cancel read operation. The return value indicates whether the
+///         // read operation was cancelled. The "context" is a dummy
+///         // parameter that indicates whether the function is executed in
+///         // NON-interrupt (event loop) or interrupt contexts. The read
+///         // canellation in interrupt context may happen only when readUntil()
+///         // request is used.
+///         bool cancelRead(embxx::device::context::EventLoop context);
+///         bool cancelRead(embxx::device::context::Interrupt context)
+///
+///         // Start write operation. The device will perform some configuration
+///         // if needed and enable write interrupts, i.e. interrupt when there
+///         // is space for at least one character to be written. The "context"
+///         // is a dummy parameter that indicates whether the function is
+///         // executed in NON-interrupt (event loop) or interrupt contexts.
+///         // The function is called only in event loop context.
+///         void startWrite(std::size_t length, embxx::device::context::EventLoop context);
+///
+///         // Cancel write operation. The return value indicates whether the
+///         // read operation was cancelled. The "context" is a dummy
+///         // parameter that indicates whether the function is executed in
+///         // NON-interrupt (event loop) or interrupt contexts.
+///         // The function is called only in event loop context.
+///         bool cancelWrite(embxx::device::context::EventLoop context);
 ///
 ///         // Inquiry whether there is at least one character to be
 ///         // read. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
-///         bool canRead();
+///         bool canRead(embxx::device::context::Interrupt context);
 ///
 ///         // Inquiry whether there is a space for at least one character to
 ///         // be written. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
-///         bool canWrite();
+///         bool canWrite(embxx::device::context::Interrupt context);
 ///
 ///         // Read one character. Precondition to this call: canRead() returns
 ///         // true. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
-///         CharType read();
+///         CharType read(embxx::device::context::Interrupt context);
 ///
 ///         // Write one character. Precondition to this call: canWrite() returns
 ///         // true. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
-///         void write(CharType value);
+///         void write(CharType value, embxx::device::context::Interrupt context);
 ///         @endcode
 ///
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used

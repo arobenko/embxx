@@ -31,6 +31,8 @@
 #include "embxx/util/ScopeGuard.h"
 #include "embxx/error/ErrorStatus.h"
 
+#include "embxx/device/context.h"
+
 namespace embxx
 {
 
@@ -51,39 +53,43 @@ namespace driver
 ///         @code
 ///         typedef unsigned WaitTimeType;
 ///         @endcode
-///         @li Function to enable timer interrupts.
-///         @code
-///         void enableInterrupts();
-///         @endcode
-///         @li Function to disable timer interrupts.
-///         @code
-///         void disableInterrupts();
-///         @endcode
-///         @li Function to inquire whether there are pending interrupts.
-///         @code
-///         bool hasPendingInterrupt() const;
-///         @endcode
-///         @li Function to start timer countdown.
-///         @code
-///         void start();
-///         @endcode
-///         @li Function to stop timer countdown.
-///         @code
-///         void stop();
-///         @endcode
-///         @li Function to configure next wait time.
-///         @code
-///         void configWait(WaitTimeType waitTime);
-///         @endcode
-///         @li Function to retrieve elapsed time since first
-///             call to start() after last call to configWait().
-///         @code
-///         WaitTimeType getElapsed() const;
-///         @endcode
-///         @li Function to set timer interrupt callback handler.
+///         @li Function to set timer interrupt callback handler. The function
+///             is called diring the construction of TimerMgr object in
+///             non-interrupt context.
 ///         @code
 ///         template <typename TFunc>
 ///         void setHandler(TFunc&& func);
+///         @endcode
+///         @li Functions to start timer countdown in both event loop
+///             (non-interrupt) and interrupt contexts.
+///         @code
+///         void startWait(WaitTimeType waitTime, embxx::device::context::EventLoop context);
+///         void startWait(WaitTimeType waitTime, embxx::device::context::Interrupt context);
+///         @endcode
+///         @li Function to cancel timer countdown in event loop (non-interrupt)
+///             context. The function must return true in case the wait was
+///             actually cancelled and false and false when there is no wait
+///             in progress.
+///         @code
+///         bool cancelWait(embxx::device::context::EventLoop context);
+///         @endcode
+///         @li Function to suspend countdown in event loop (non-interrupt)
+///             context. The function must return true in case the wait was
+///             actually suspended and false when there is no wait in progress.
+///             The call to this function will be followed either by
+///             resumeWait() or by cancelWait().
+///         @code
+///         bool suspendWait(embxx::device::context::EventLoop context);
+///         @endcode
+///         @li Function to resume countdown in event loop (non-interrupt)
+///             context.
+///         @code
+///         void resumeWait(embxx::device::context::EventLoop context);
+///         @endcode
+///         @li Function to retrieve elapsed time of the last executed wait. It
+///             will be called right after the cancelWait().
+///         @code
+///         WaitTimeType getElapsed(embxx::device::context::EventLoop context) const;
 ///         @endcode
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
 ///         to execute posted handlers in regular thread context.
@@ -95,7 +101,7 @@ namespace driver
 ///         if no dynamic memory allocation is allowed. Every provided handler
 ///         function must have the following signature:
 ///         @code
-///         void timeoutHandler(const embxx::error::ErrorStatus& es);
+///         void timeoutHandler(const embxx::error::ErrorStatus& err);
 ///         @endcode
 /// @headerfile embxx/driver/TimerMgr.h
 /// @related TimerMgr::Timer
@@ -317,6 +323,8 @@ private:
     static const std::size_t ScheduleQueueScale = 2;
     typedef std::array<ScheduledWaitInfo, MaxTimers * ScheduleQueueScale> WaitQueue;
     typedef std::array<TimerInfo, MaxTimers> Timers;
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
 
     // Functions to be invoked by Timer object
     void deleteTimer(unsigned idx);
@@ -332,7 +340,6 @@ private:
     void addToScheduledWaits(TimerInfo& info);
     void pushToWaitQueue(TimerInfo& info);
     void recreateWaitQueue();
-    void programNewWait();
     void postHandler(const embxx::error::ErrorStatus& status, TimerInfo& info, bool interruptContext);
     void interruptHandler(const embxx::error::ErrorStatus& es);
     void postExpiredHandlers(bool interruptContext);
@@ -617,12 +624,17 @@ bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
 {
     GASSERT(idx < timersCount_);
     auto& info = timers_[idx];
-    device_.disableInterrupts();
+    if (!device_.suspendWait(EventLoopContext())) {
+        // No wait in progress at all
+        GASSERT(!info.isWaitInProgress());
+        GASSERT(waitQueueCount_ == 0);
+        return false;
+    }
 
     auto interruptsGuard = embxx::util::makeScopeGuard(
         [this]()
         {
-            device_.enableInterrupts();
+            device_.resumeWait(EventLoopContext());
         });
     static_cast<void>(interruptsGuard);
 
@@ -646,26 +658,28 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::scheduleWait(
     WaitTimeType timeUnits,
     TimeoutHandler&& func)
 {
-    GASSERT(idx < timersCount_);
-    auto& info = timers_[idx];
-    if (0 < waitQueueCount_) {
-        // Some waits are already scheduled
-        device_.disableInterrupts();
+    if (device_.cancelWait(EventLoopContext())) {
+        // Wait was in progress
+        GASSERT(0 < waitQueueCount_);
+        timeBase_ += device_.getElapsed(EventLoopContext());
     }
 
-    auto interruptsGuard = embxx::util::makeScopeGuard(
+    auto startGuard = embxx::util::makeScopeGuard(
         [this]()
         {
-            device_.enableInterrupts();
+            GASSERT(0 < waitQueueCount_);
+            device_.startWait(waitQueue_[0].targetTime_ - timeBase_, EventLoopContext());
         });
-    static_cast<void>(interruptsGuard);
-
-    GASSERT(info.isAllocated());
-    GASSERT(!info.isWaitInProgress());
-    GASSERT(!info.handler_); // Handler must be already invoked and cleared.
+    static_cast<void>(startGuard);
 
     ++nextEngagementId_;
     auto targetTime = timeBase_ + timeUnits;
+
+    GASSERT(idx < timersCount_);
+    auto& info = timers_[idx];
+    GASSERT(info.isAllocated());
+    GASSERT(!info.isWaitInProgress());
+    GASSERT(!info.handler_); // Handler must be already invoked and cleared.
 
     info.targetTime_ = targetTime;
     info.engagementId_ = nextEngagementId_;
@@ -674,39 +688,14 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::scheduleWait(
 
     if (waitQueue_.size() <= waitQueueCount_) {
         // Wait queue overflow, contains lots of invalid waits, clean required.
-        device_.stop();
-        auto elapsed = device_.getElapsed();
-        timeBase_ += elapsed;
         recreateWaitQueue();
-        programNewWait();
-        device_.start();
-        return; // interrupts enabled on exit
     }
-
-    if (waitQueueCount_ == 0) {
-        // first wait
-        GASSERT(!device_.hasPendingInterrupt());
+    else {
         pushToWaitQueue(info);
-        programNewWait();
-        device_.start();
-        return; // interrupts enabled on exit
     }
 
-    auto& currentWait = waitQueue_[0];
-    if (currentWait.targetTime_ <= targetTime) {
-        // Current wait remains in progress, no need to stop/start
-        pushToWaitQueue(info);
-        return;  // interrupts enabled on exit
-    }
-
-    // Current wait needs to be replaced
-    device_.stop();
-    auto elapsed = device_.getElapsed();
-    timeBase_ += elapsed;
-    pushToWaitQueue(info);
-    programNewWait();
-    device_.start();
-    // interrupts enabled on exit
+    postExpiredHandlers(false);
+    // starts on exit
 }
 
 template <typename TDevice,
@@ -764,26 +753,6 @@ template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
           typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::programNewWait()
-{
-    if (device_.hasPendingInterrupt()) {
-        // The only time it can happen is when latest wait has expired
-        // between disabling interrupts and stopping the timer.
-        // Will be programmed in interrupt context
-        return;
-    }
-
-    postExpiredHandlers(false);
-
-    if (0 < waitQueueCount_) {
-        device_.configWait(waitQueue_[0].targetTime_ - timeBase_);
-    }
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
 void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postHandler(
     const embxx::error::ErrorStatus& status,
     TimerInfo& info,
@@ -818,7 +787,6 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::interruptHandle
     const embxx::error::ErrorStatus& es)
 {
     // Executed in interrupt context
-    device_.stop();
 
     if (es) {
         auto beginIter = timers_.begin();
@@ -842,8 +810,7 @@ void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::interruptHandle
     postExpiredHandlers(true);
 
     if (0 < waitQueueCount_) {
-        device_.configWait(waitQueue_[0].targetTime_ - timeBase_);
-        device_.start();
+        device_.startWait(waitQueue_[0].targetTime_ - timeBase_, InterruptContext());
     }
 }
 

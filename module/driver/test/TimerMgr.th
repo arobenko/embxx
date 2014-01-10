@@ -27,6 +27,7 @@
 
 #include "module/device/test/EventLoopLock.h"
 #include "module/device/test/EventLoopCond.h"
+#include "module/device/test/TimerDevice.h"
 
 class TimerMgrTestSuite : public CxxTest::TestSuite
 {
@@ -36,120 +37,6 @@ public:
     void test3();
 
 private:
-
-    class TimerDevice
-    {
-    public:
-        typedef unsigned WaitTimeType;
-        typedef embxx::device::test::EventLoopLock LoopLock;
-
-        TimerDevice(LoopLock& lock)
-            : ioWork_(io_),
-              timer_(io_),
-              interruptsLock_(lock),
-              pending_(false),
-              waitTime_(0)
-        {
-            disableInterrupts();
-            thread_.reset(
-                new std::thread(
-                    [this]()
-                    {
-                        try {
-                            io_.run();
-                        }
-                        catch (const std::exception& e)
-                        {
-                            TS_FAIL(e.what());
-                            assert(!"Mustn't happen");
-                        }
-                    }));
-
-        }
-
-        void enableInterrupts()
-        {
-            interruptsLock_.unlock();
-        }
-
-        void disableInterrupts()
-        {
-            interruptsLock_.lock();
-        }
-
-        bool hasPendingInterrupt() const
-        {
-            return pending_;
-        }
-
-        void start()
-        {
-            startTime_ = boost::posix_time::microsec_clock::local_time();
-            stopTime_ = boost::posix_time::not_a_date_time;
-            TS_ASSERT(0 < waitTime_);
-            timer_.expires_from_now(boost::posix_time::milliseconds(waitTime_));
-            timer_.async_wait(
-                [this](const boost::system::error_code& ec)
-                {
-                    if (ec == boost::asio::error::operation_aborted) {
-                        return;
-                    }
-
-                    pending_ = true;
-                    interruptsLock_.lockInterruptCtx();
-                    pending_ = false;
-
-                    TS_ASSERT(handler_);
-                    handler_(embxx::error::ErrorCode::Success);
-                    interruptsLock_.unlockInterruptCtx();
-                });
-        }
-
-        void stop()
-        {
-            stopTime_ = boost::posix_time::microsec_clock::local_time();
-            timer_.cancel();
-        }
-
-        WaitTimeType getElapsed() const
-        {
-            TS_ASSERT(!startTime_.is_not_a_date_time());
-            TS_ASSERT(!stopTime_.is_not_a_date_time());
-            auto duration = stopTime_ - startTime_;
-            return duration.total_milliseconds();
-        }
-
-        void configWait(WaitTimeType milliseconds)
-        {
-            waitTime_ = milliseconds;
-        }
-
-        template <typename TFunc>
-        void setHandler(TFunc&& func)
-        {
-            handler_ = std::forward<TFunc>(func);
-        }
-
-        void exit()
-        {
-            io_.stop();
-            thread_->join();
-            thread_.reset();
-        }
-
-
-    private:
-        boost::asio::io_service io_;
-        boost::asio::io_service::work ioWork_;
-        boost::asio::deadline_timer timer_;
-        std::function<void (const embxx::error::ErrorStatus&)> handler_;
-        LoopLock& interruptsLock_;
-        volatile bool pending_;
-        WaitTimeType waitTime_;
-        boost::posix_time::ptime startTime_;
-        boost::posix_time::ptime stopTime_;
-        std::unique_ptr<std::thread> thread_;
-    };
 
     template <typename TEventLoop,
               typename TTimer>
@@ -223,6 +110,8 @@ void TimerMgrTestSuite::test1()
         embxx::device::test::EventLoopLock,
         embxx::device::test::EventLoopCond> EventLoop;
 
+    typedef embxx::device::test::TimerDevice<EventLoop::LockType> TimerDevice;
+
     EventLoop el;
     TimerDevice timerDevice(el.getLock());
 
@@ -241,7 +130,6 @@ void TimerMgrTestSuite::test1()
     const unsigned Delay = 200;
     incWaitFunc(el, timer, counter, MaxCounter, Delay);
     el.run();
-    timerDevice.exit();
 }
 
 void TimerMgrTestSuite::test2()
@@ -250,6 +138,8 @@ void TimerMgrTestSuite::test2()
         132,
         embxx::device::test::EventLoopLock,
         embxx::device::test::EventLoopCond> EventLoop;
+
+    typedef embxx::device::test::TimerDevice<EventLoop::LockType> TimerDevice;
 
     EventLoop el;
     TimerDevice timerDevice(el.getLock());
@@ -271,7 +161,6 @@ void TimerMgrTestSuite::test2()
     const unsigned Delay = 100;
     cancelOtherFunc(el, timer1, timer2, counter, MaxCounter, Delay);
     el.run();
-    timerDevice.exit();
 }
 
 void TimerMgrTestSuite::test3()
@@ -281,6 +170,7 @@ void TimerMgrTestSuite::test3()
         embxx::device::test::EventLoopLock,
         embxx::device::test::EventLoopCond> EventLoop;
 
+    typedef embxx::device::test::TimerDevice<EventLoop::LockType> TimerDevice;
 
     EventLoop el;
     TimerDevice timerDevice(el.getLock());
@@ -308,7 +198,6 @@ void TimerMgrTestSuite::test3()
         incWaitFunc(el, timers[i], counters[i], MaxCounter, Delay + (i * 10), stopAtEnd);
     }
     el.run();
-    timerDevice.exit();
     for (unsigned i = 0; i < TotalTimers; ++i) {
         TS_ASSERT(counters[i] == MaxCounter);
     }
