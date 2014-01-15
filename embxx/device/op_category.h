@@ -27,8 +27,18 @@ namespace device
 namespace op_category
 {
 
+/// @ingroup device
+/// @brief Sequential read/write operation category tag class.
+/// @details This is empty struct that is used to indicate that device uses
+///          sequential read and write operations, i.e. cannot execute them
+///          in parallel.
 struct SequentialReadWrite {};
 
+/// @ingroup device
+/// @brief Parallel read/write operation category tag class.
+/// @details This is empty struct that is used to indicate that device may
+///          execute parallel (independent) read and write operations at the
+///          same time.
 struct ParallelReadWrite {};
 
 }  // namespace op_category

@@ -235,60 +235,26 @@ public:
         return cancelWriteInternal();
     }
 
-    bool suspendRead(
+    bool suspend(
         embxx::device::context::EventLoop context) {
         static_cast<void>(context);
 
         std::lock_guard<EventLoopLock> guard(lock_);
 
-        assert((!suspended_) || (op_ != OpType::Read));
-
-        if (op_ != OpType::Read) {
+        if (op_ == OpType::Invalid) {
             return false;
         }
 
-        if (remainingLen_ == 0) {
-            return false;
-        }
+        assert(!suspended_);
 
         suspended_ = true;
         return true;
     }
 
-    void resumeRead(
+    void resume(
         embxx::device::context::EventLoop context) {
         static_cast<void>(context);
         std::lock_guard<EventLoopLock> guard(lock_);
-        assert(op_ == OpType::Read);
-        assert(suspended_);
-        suspended_ = false;
-        suspendCond_.notify_all();
-    }
-
-    bool suspendWrite(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-
-        std::lock_guard<EventLoopLock> guard(lock_);
-        assert((!suspended_) || (op_ != OpType::Write));
-
-        if (op_ != OpType::Write) {
-            return false;
-        }
-
-        if (remainingLen_ == 0) {
-            return false;
-        }
-
-        suspended_ = true;
-        return true;
-    }
-
-    void resumeWrite(
-        embxx::device::context::EventLoop context) {
-        static_cast<void>(context);
-        std::lock_guard<EventLoopLock> guard(lock_);
-        assert(op_ == OpType::Write);
         assert(suspended_);
         suspended_ = false;
         suspendCond_.notify_all();

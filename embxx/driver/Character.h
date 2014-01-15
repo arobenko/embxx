@@ -42,7 +42,7 @@ namespace driver
 ///         must expose the following interface:
 ///         @code
 ///         // Define each character type as CharType
-///         typedef char CharType;
+///         typedef ... CharType;
 ///
 ///         // Set the "can read" interrupt callback which has "void ()"
 ///         // signature. The callback must be called when there is at least
@@ -145,13 +145,13 @@ namespace driver
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
 ///         to execute posted handlers in regular thread context.
 /// @tparam TReadHandler A function class that is supposed to store "read"
-///         complete callback. Must be either std::function of embxx::util::StaticFunction
+///         complete callback. Must be either std::function or embxx::util::StaticFunction
 ///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
 ///         calling interface, where the first parameter is error status of the
 ///         operation and second one is how many bytes were actually read in
 ///         the operation.
 /// @tparam TWriteHandler A function class that is supposed to store "write"
-///         complete callback. Must be either std::function of embxx::util::StaticFunction
+///         complete callback. Must be either std::function or embxx::util::StaticFunction
 ///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
 ///         calling interface, where the first parameter is error status of the
 ///         operation and second one is how many bytes were actually written in

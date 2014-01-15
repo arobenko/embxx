@@ -1,0 +1,46 @@
+/// @page id_device_char_adapter_page Device Operation Queue Interface Adapter
+/// @section id_device_char_adapter_overview Overview
+/// embxx::device::DeviceOpQueue provided a convenient interface to issue 
+/// read/write requests to the device that require some kind of slave 
+/// identefication. The embxx::device::DeviceOpQueue is a character device, i.e.
+/// provides an ability to read/write characters one by one. However its interface
+/// is not suitable to be used as a character device with embxx::driver::Character
+/// driver. To adapt its interface embxx::device::IdDeviceCharAdapter class
+/// may be used.
+///
+/// @section id_device_char_adapter_tutorial How to use
+/// Define and create instance of low level device that controls a peripheral.
+/// For example I2C device:
+/// @code
+/// class I2cDevice
+/// {
+/// public:
+///     ... // Required interface. See documentation of embxx::device::DeviceOpQueue for details. 
+///
+/// private:
+///     ...
+/// };
+///
+//// I2cDevice i2cDevice(...);
+/// @endcode 
+/// Then wrap the device with a queue:
+/// @code
+/// typedef embxx::device::DeviceOptQueue<...> DeviceOpQueue;
+/// DeviceOpQueue opQueue(i2cDevice);
+/// @endcode
+/// 
+/// Wrap the queue with an adapter:
+/// @code
+/// typedef embxx::device::IdDeviceCharAdapter<DeviceOpQueue> DevOpQueueAdapter;
+/// DevOpQueueAdapter::DeviceTypeId devId = ...;
+/// DevOpQueueAdapter adapter(opQueue, devId);
+/// @endcode
+///
+/// Now it is possible to use the adapter object with embxx::driver::Character
+/// driver (see @ref driver_character_page for details of how tho use the driver):
+/// @code
+/// typedef embxx::driver::Character<DevOpQueueAdapter, ...> CharDriver;
+/// CharDriver charDriver(adapter, ...);
+/// 
+/// charDriver.asyncRead(...);
+/// @endcode
