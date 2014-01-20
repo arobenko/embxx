@@ -140,7 +140,7 @@ void CharacterDriverTestSuite::test4()
     typedef embxx::driver::Character<
         CharDevice,
         EventLoop,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus& es, std::size_t), 20> > Socket;
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus& es, std::size_t), sizeof(void*) * 4> > Socket;
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);

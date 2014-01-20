@@ -61,7 +61,7 @@ private:
 
 void GenericDriverTestSuite::test1()
 {
-    typedef Device<embxx::util::StaticFunction<void (), 20> > DummyDevice;
+    typedef Device<embxx::util::StaticFunction<void ()> > DummyDevice;
 
     typedef embxx::driver::Generic<
         DummyDevice,
@@ -89,7 +89,7 @@ void GenericDriverTestSuite::test1()
 
 void GenericDriverTestSuite::test2()
 {
-    typedef Device<embxx::util::StaticFunction<void (char), 20> > DummyDevice;
+    typedef Device<embxx::util::StaticFunction<void (char)> > DummyDevice;
 
     typedef embxx::driver::Generic<
         DummyDevice,

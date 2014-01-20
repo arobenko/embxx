@@ -99,7 +99,7 @@ void StaticFunctionTestSuite::test3()
 
 void StaticFunctionTestSuite::test4()
 {
-    typedef embxx::util::StaticFunction<void (int&), 20> Func;
+    typedef embxx::util::StaticFunction<void (int&), sizeof(void*) * 4> Func;
 
     int value = 10;
     Func func(
@@ -115,7 +115,7 @@ void StaticFunctionTestSuite::test4()
 
 void StaticFunctionTestSuite::test5()
 {
-    typedef embxx::util::StaticFunction<void (), 28> Func;
+    typedef embxx::util::StaticFunction<void (), sizeof(void*) * 6> Func;
 
     static const int InitValue1 = 1;
     static const int InitValue2 = 2;
@@ -154,7 +154,7 @@ void StaticFunctionTestSuite::test5()
 
 void StaticFunctionTestSuite::test6()
 {
-    typedef embxx::util::StaticFunction<void (), 28> Func;
+    typedef embxx::util::StaticFunction<void (), sizeof(void*) * 6> Func;
 
     static const int InitValue1 = 1;
     static const int InitValue2 = 2;

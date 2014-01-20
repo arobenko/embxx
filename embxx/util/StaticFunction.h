@@ -33,7 +33,7 @@ namespace util
 /// @addtogroup util
 /// @{
 
-template <typename TSignature, std::size_t TSize = 16>
+template <typename TSignature, std::size_t TSize = sizeof(void*) * 3>
 class StaticFunction;
 
 /// @brief Static Function.
@@ -154,9 +154,10 @@ private:
     };
     /// @endcond
 
+    static const std::size_t StorageAreaSize = TSize + sizeof(Invoker);
     typedef typename
         std::aligned_storage<
-            TSize,
+            StorageAreaSize,
             std::alignment_of<Invoker>::value
         >::type StorageType;
 
@@ -267,7 +268,7 @@ template <typename TFunc>
 StaticFunction<TRet (TArgs...), TSize>&
 StaticFunction<TRet (TArgs...), TSize>::operator=(TFunc&& func)
 {
-    static_assert(sizeof(InvokerBound<TFunc>) <= TSize,
+    static_assert(sizeof(InvokerBound<TFunc>) <= StorageAreaSize,
         "Increase the TSize template argument of the StaticFucntion");
     destroyHandler();
     auto invoker = new (&handler_) InvokerBound<TFunc>(std::forward<TFunc>(func));
@@ -404,7 +405,7 @@ void StaticFunction<TRet (TArgs...), TSize>::assignHandler(TFunc&& func)
     typedef typename std::decay<TFunc>::type DecayedFuncType;
     typedef InvokerBound<DecayedFuncType> InvokerBoundType;
 
-    static_assert(sizeof(InvokerBound<TFunc>) <= TSize,
+    static_assert(sizeof(InvokerBound<TFunc>) <= StorageAreaSize,
         "Increase the TSize template argument of the StaticFucntion");
     auto handlerPtr = new (&handler_) InvokerBoundType(std::forward<TFunc>(func));
     static_cast<void>(handlerPtr);

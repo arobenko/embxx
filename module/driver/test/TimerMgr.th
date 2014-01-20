@@ -119,7 +119,7 @@ void TimerMgrTestSuite::test1()
         TimerDevice,
         EventLoop,
         1,
-        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), sizeof(void*) * 7> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
     auto timer = timerMgr.allocTimer();
     TS_ASSERT(timer.isValid());
@@ -148,7 +148,7 @@ void TimerMgrTestSuite::test2()
         TimerDevice,
         EventLoop,
         2,
-        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), sizeof(void*) * 7> > TimerMgr;
     TimerMgr timerMgr(timerDevice, el);
 
 
@@ -180,7 +180,7 @@ void TimerMgrTestSuite::test3()
         TimerDevice,
         EventLoop,
         TotalTimers,
-        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 32> > TimerMgr;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), sizeof(void*) * 7> > TimerMgr;
     typedef TimerMgr::Timer Timer;
 
     TimerMgr timerMgr(timerDevice, el);

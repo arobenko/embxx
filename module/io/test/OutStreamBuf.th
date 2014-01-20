@@ -169,7 +169,7 @@ void OutStreamBufTestSuite::test3()
     typedef embxx::io::OutStreamBuf<
         Driver,
         501,
-        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 24> > OutStreamBuf;
+        embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), sizeof(void*) * 5> > OutStreamBuf;
 
     EventLoop el;
     CharDevice device(el.getLock());
