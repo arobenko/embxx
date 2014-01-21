@@ -70,6 +70,9 @@ public:
     /// @brief Const version of the device().
     const Device& device() const;
 
+    /// @brief Get device ID.
+    const DeviceIdType id() const;
+
     /// @brief Set "can read" handler.
     /// @details Calls setCanReadHandler() of the underlying device with
     ///          stored ID information.
@@ -157,6 +160,13 @@ const typename IdDeviceCharAdapter<TDevice>::Device&
 IdDeviceCharAdapter<TDevice>::device() const
 {
     return device_;
+}
+
+template <typename TDevice>
+const typename IdDeviceCharAdapter<TDevice>::DeviceIdType
+IdDeviceCharAdapter<TDevice>::id() const
+{
+    return id_;
 }
 
 template <typename TDevice>
