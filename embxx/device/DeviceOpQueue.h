@@ -426,6 +426,7 @@ cancelRead(
     DeviceIdType id,
     const context::Interrupt& context)
 {
+    static_cast<void>(id);
     static_cast<void>(context);
     GASSERT(currDevInfo_ != Base::infos_.end());
     GASSERT(currDevInfo_->id_ == id);
