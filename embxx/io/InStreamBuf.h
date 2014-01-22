@@ -24,7 +24,7 @@
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/StaticFunction.h"
-#include "embxx/io/ErrorStatus.h"
+#include "embxx/error/ErrorStatus.h"
 
 namespace embxx
 {
@@ -54,14 +54,14 @@ namespace io
 /// @tparam TWaitHandler Callback functor class to be called when requested
 ///         data amount becomes available. Must be either
 ///         std::function or embxx::util::StaticFunction and have
-///         "void (embxx::io::ErrorStatus)" signature. It is used to store
-///         callback handler provided in asyncWaitDataAvailable() request.
+///         "void (const embxx::error::ErrorStatus&)" signature. It is used to
+///         store callback handler provided in asyncWaitDataAvailable() request.
 /// @pre No other components performs asynchronous read requests to the same
 ///      driver.
 /// @headerfile embxx/io/InStreamBuf.h
 template <typename TDriver,
           std::size_t TBufSize,
-          typename TWaitHandler = embxx::util::StaticFunction<void (embxx::io::ErrorStatus)> >
+          typename TWaitHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&)> >
 class InStreamBuf
 {
 public:
@@ -171,7 +171,7 @@ public:
     ///          data size becomes available.
     /// @param reqSize Requested available data size
     /// @param func Callback functor object,
-    ///        must have "void (embxx::io::ErrorStatus)" signature.
+    ///        must have "void (const embxx::error::ErrorStatus&)" signature.
     /// @pre The data accumulation has been started earlier using start()
     ///      member function.
     /// @pre All the previous asynchronous wait request are complete (their
@@ -204,7 +204,7 @@ public:
 
 private:
     void startAsyncRead();
-    void invokeHandler(ErrorStatus status);
+    void invokeHandler(const embxx::error::ErrorStatus& status);
 
     Driver& driver_;
     Buffer buf_;
@@ -292,7 +292,7 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::stop()
 {
     GASSERT(isRunning());
     driver_.cancelRead();
-    invokeHandler(ErrorStatus::Aborted);
+    invokeHandler(embxx::error::ErrorCode::Aborted);
     running_ = false;;
 }
 
@@ -313,7 +313,7 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::asyncWaitDataAvailable(
     GASSERT(reqSize <= fullCapacity());
     waitHandler_ = std::forward<TFunc>(func);
     if (reqSize <= availableSize_) {
-        invokeHandler(ErrorStatus::Success);
+        invokeHandler(embxx::error::ErrorCode::Success);
         return;
     }
 
@@ -395,15 +395,22 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
     GASSERT(readPtr != nullptr);
 
     driver_.asyncRead(readPtr, nextReadSize,
-        [this](embxx::driver::ErrorStatus status, std::size_t bytesRead)
+        [this](const embxx::error::ErrorStatus& es, std::size_t bytesRead)
         {
-            static_cast<void>(status);
             GASSERT(availableSize_ + bytesRead <= buf_.capacity());
             availableSize_ += bytesRead;
 
-            if ((waitHandler_) &&
-                (waitAvailableDataSize_ <= availableSize_)) {
-                invokeHandler(ErrorStatus::Success);
+            if (waitHandler_) {
+                if (waitAvailableDataSize_ <= availableSize_) {
+                    invokeHandler(embxx::error::ErrorCode::Success);
+                }
+                else if (es && (es.code() != embxx::error::ErrorCode::Aborted)) {
+                    invokeHandler(es);
+                }
+                else {
+                    // The remaining cases are not enough data and/or read operation
+                    // aborted should not be reported back.
+                }
             }
 
             if (!isRunning()) {
@@ -417,7 +424,7 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
 
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 void InStreamBuf<TDriver, TBufSize, TWaitHandler>::invokeHandler(
-    ErrorStatus status)
+    const embxx::error::ErrorStatus& status)
 {
     if (waitHandler_) {
         auto postResult = driver_.eventLoop().post(

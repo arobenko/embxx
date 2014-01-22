@@ -24,7 +24,7 @@
 /// ...
 /// auto handle = 
 ///     socket.asyncWrite(buf, bufSize,
-///         [](embxx::driver::ErrorStatus status, std::size_t bytesWritten)
+///         [](const embxx::error::ErrorStatus& status, std::size_t bytesWritten)
 ///         {
 ///             ... // Code to be executed when write is complete or cancelled.
 ///         });

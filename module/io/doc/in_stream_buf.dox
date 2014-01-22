@@ -34,13 +34,16 @@
 /// @code
 /// buf.asyncWaitDataAvailable(
 ///     requestedSize,
-///     [buf, requestedSize](embxx::io::ErrorStatus status)
+///     [buf, requestedSize](const embxx::error::ErrorStatus& es)
 ///     {
-///         if (status == embxx::io::ErrorStatus::Success) {
-///             /// auto beginIter = buf.begin();
-///             /// auto endIter = beginIter + requestedSize;
-///             ... // processData between iterators
-///             buf.consume(requestedSize); // Remove processed data from buffer
+///         if (es) {
+///             // Error occurred, handle it.
+///             ...
 ///         }
+///
+///         auto beginIter = buf.begin();
+///         auto endIter = beginIter + requestedSize;
+///         ... // processData between iterators
+///         buf.consume(requestedSize); // Remove processed data from buffer
 ///     });
 /// @endcode

@@ -28,8 +28,9 @@
 #include "embxx/io/OutStream.h"
 #include "cxxtest/TestSuite.h"
 
-#include "module/driver/test/CommonEventLoopDefs.h"
-#include "module/driver/test/CharDevice.h"
+#include "module/device/test/EventLoopLock.h"
+#include "module/device/test/EventLoopCond.h"
+#include "module/device/test/UartDevice.h"
 
 class OutStreamTestSuite : public CxxTest::TestSuite
 {
@@ -45,8 +46,20 @@ public:
     void test9();
     void test10();
     void test11();
+    void test12();
 
 private:
+    typedef embxx::util::EventLoop<
+            1024,
+            embxx::device::test::EventLoopLock,
+            embxx::device::test::EventLoopCond> EventLoop;
+
+    typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
+    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
+    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
+
+
     template <typename T, typename TStream, typename TMod, typename TStdMod>
     void checkIteration(
         TStream& stream,
@@ -84,11 +97,6 @@ private:
 
 void OutStreamTestSuite::test1()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -104,15 +112,17 @@ void OutStreamTestSuite::test1()
     TS_ASSERT(std::equal(CombString.begin(), CombString.end(), buf.begin()));
     stream << embxx::io::endl;
     TS_ASSERT_EQUALS(buf.size(), 0U);
+    buf.asyncWaitAvailableCapacity(
+        buf.fullCapacity(),
+        [&el](const embxx::error::ErrorStatus&)
+        {
+            el.stop();
+        });
+    el.run();
 }
 
 void OutStreamTestSuite::test2()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -125,11 +135,6 @@ void OutStreamTestSuite::test2()
 
 void OutStreamTestSuite::test3()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -142,11 +147,6 @@ void OutStreamTestSuite::test3()
 
 void OutStreamTestSuite::test4()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -160,11 +160,6 @@ void OutStreamTestSuite::test4()
 
 void OutStreamTestSuite::test5()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -177,11 +172,6 @@ void OutStreamTestSuite::test5()
 
 void OutStreamTestSuite::test6()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -194,11 +184,6 @@ void OutStreamTestSuite::test6()
 
 void OutStreamTestSuite::test7()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -211,11 +196,6 @@ void OutStreamTestSuite::test7()
 
 void OutStreamTestSuite::test8()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -228,11 +208,6 @@ void OutStreamTestSuite::test8()
 
 void OutStreamTestSuite::test9()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -245,11 +220,6 @@ void OutStreamTestSuite::test9()
 
 void OutStreamTestSuite::test10()
 {
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
-
     EventLoop el;
     CharDevice device(el.getLock());
     Driver driver(device, el);
@@ -264,10 +234,6 @@ void OutStreamTestSuite::test11()
 {
     namespace log = embxx::util::log;
 
-    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
-    typedef embxx::io::OutStreamBuf<Driver, 1024> OutStreamBuf;
-    typedef embxx::io::OutStream<OutStreamBuf> OutStream;
     typedef embxx::util::StreamLogger<log::Trace, OutStream> Logger;
 
     EventLoop el;
@@ -284,3 +250,18 @@ void OutStreamTestSuite::test11()
     TS_ASSERT_EQUALS(WriteString1 + WriteString2, std::string(buf.begin(), buf.end()));
 }
 
+void OutStreamTestSuite::test12()
+{
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    stream << embxx::io::hex << "0x" << embxx::io::fill('0') <<
+        embxx::io::width(4) << 0xa;
+
+    static const std::string ExpectedString("0x000a");
+
+    TS_ASSERT_EQUALS(ExpectedString, std::string(buf.begin(), buf.end()));
+}

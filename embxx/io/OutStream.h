@@ -191,6 +191,15 @@ public:
     /// @return *this
     OutStream& operator<<(Base manip);
 
+    /// @brief Width of the field manipulator.
+    /// @details Use embxx::io::width() function to create the manipulator object.
+    OutStream& operator<<(WidthManip manip);
+
+    /// @brief Fill character manipulator.
+    /// @details Use embxx::io::fill() function to create the manipulator object.
+    template <typename T>
+    OutStream& operator<<(FillManip<T> manip);
+
 private:
     template <typename T, typename TPromotedUnsigned = typename std::make_unsigned<T>::type>
     OutStream& signedToStream(T value);
@@ -398,6 +407,24 @@ OutStream<TStreamBuf>::operator<<(Base manip)
     base_ = manip;
     return *this;
 }
+
+template <typename TStreamBuf>
+OutStream<TStreamBuf>&
+OutStream<TStreamBuf>::operator<<(WidthManip manip)
+{
+    width(manip.value());
+    return *this;
+}
+
+template <typename TStreamBuf>
+template <typename T>
+OutStream<TStreamBuf>&
+OutStream<TStreamBuf>::operator<<(FillManip<T> manip)
+{
+    fill(static_cast<CharType>(manip.value()));
+    return *this;
+}
+
 
 template <typename TStreamBuf>
 template <typename T>

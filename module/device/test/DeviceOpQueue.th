@@ -1,0 +1,737 @@
+//
+// Copyright 2014 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#pragma once
+
+#include <vector>
+#include <algorithm>
+
+#include <boost/asio.hpp>
+#include <boost/date_time.hpp>
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/device/DeviceOpQueue.h"
+
+#include "cxxtest/TestSuite.h"
+
+#include "EventLoopCond.h"
+#include "EventLoopLock.h"
+#include "I2cDevice.h"
+
+class DeviceOpQueueTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+    void test3();
+    void test4();
+    void test5();
+    void test6();
+    void test7();
+    void test8();
+
+private:
+    template <typename TDevice>
+    static void canRead(
+        TDevice& device,
+        std::vector<typename TDevice::CharType>& readBuf)
+    {
+        while (device.canRead(embxx::device::context::Interrupt())) {
+            readBuf.push_back(device.read(embxx::device::context::Interrupt()));
+        }
+
+    }
+
+    template <typename TDevice>
+    static void canWrite(
+        TDevice& device,
+        const typename TDevice::CharType* buf,
+        std::size_t& bufCount)
+    {
+        while (device.canWrite(embxx::device::context::Interrupt())) {
+            device.write(buf[bufCount], embxx::device::context::Interrupt());
+            ++bufCount;
+        }
+    }
+
+    template <typename TEventLoop>
+    static void opComplete(
+        const embxx::error::ErrorStatus& err,
+        TEventLoop& el)
+    {
+        TS_ASSERT(!err);
+        el.postInterruptCtx(
+            [&el]()
+            {
+                el.stop();
+            });
+    }
+
+    typedef embxx::util::EventLoop<
+        512,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
+
+    typedef EventLoop::LockType EventLoopLockType;
+
+};
+
+void DeviceOpQueueTestSuite::test1()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<I2cDevice, 1> DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id = 1;
+    static const CharType Buf[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize = sizeof(Buf)/sizeof(Buf[0]);
+
+    std::vector<CharType> readBuf;
+
+    device.setDataToRead(Id, Buf, BufSize);
+    opQueue.setCanReadHandler(
+        Id,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf)));
+
+    opQueue.setReadCompleteHandler(
+        Id,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.startRead(Id, BufSize, embxx::device::context::EventLoop());
+    el.run();
+    TS_ASSERT_EQUALS(readBuf.size(), BufSize);
+    TS_ASSERT(std::equal(readBuf.begin(), readBuf.end(), Buf));
+}
+
+void DeviceOpQueueTestSuite::test2()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<I2cDevice, 2> DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 1;
+    const I2cDevice::DeviceIdType Id2 = 10;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    std::vector<CharType> readBuf1;
+
+    static const CharType Buf2[] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+    std::vector<CharType> readBuf2;
+
+    device.setDataToRead(Id1, Buf1, BufSize1);
+    device.setDataToRead(Id2, Buf2, BufSize2);
+
+    opQueue.setCanReadHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf1)));
+
+    opQueue.setCanReadHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf2)));
+
+
+    opQueue.setReadCompleteHandler(
+        Id1,
+        [](const embxx::error::ErrorStatus&)
+        {
+        });
+
+    opQueue.setReadCompleteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+
+    opQueue.startRead(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startRead(Id2, BufSize2, embxx::device::context::EventLoop());
+    el.run();
+
+    TS_ASSERT_EQUALS(readBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(readBuf1.begin(), readBuf1.end(), Buf1));
+    TS_ASSERT_EQUALS(readBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(readBuf2.begin(), readBuf2.end(), Buf2));
+}
+
+void DeviceOpQueueTestSuite::test3()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<
+        I2cDevice,
+        1,
+        std::function<void()> >DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id = 100;
+    static const CharType Buf[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize = sizeof(Buf)/sizeof(Buf[0]);
+
+    std::size_t bufCount = 0;
+    opQueue.setCanWriteHandler(
+        Id,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf[0], std::ref(bufCount)));
+
+    opQueue.setWriteCompleteHandler(
+        Id,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.startWrite(Id, BufSize, embxx::device::context::EventLoop());
+    el.run();
+
+    auto& writtenBuf = device.getWrittenData(Id);
+    TS_ASSERT_EQUALS(writtenBuf.size(), BufSize);
+    TS_ASSERT(std::equal(writtenBuf.begin(), writtenBuf.end(), Buf));
+}
+
+void DeviceOpQueueTestSuite::test4()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<
+        I2cDevice,
+        2,
+        std::function<void()> >DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 100;
+    const I2cDevice::DeviceIdType Id2 = 111;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    static const CharType Buf2[] = {
+        0x0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+
+    std::size_t bufCount1 = 0;
+    std::size_t bufCount2 = 0;
+
+    opQueue.setCanWriteHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf1[0], std::ref(bufCount1)));
+
+
+
+    opQueue.setWriteCompleteHandler(
+        Id1,
+        [](const embxx::error::ErrorStatus&)
+        {
+        });
+
+    opQueue.setCanWriteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf2[0], std::ref(bufCount2)));
+
+    opQueue.setWriteCompleteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.startWrite(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startWrite(Id2, BufSize2, embxx::device::context::EventLoop());
+
+    el.run();
+
+    auto& writtenBuf1 = device.getWrittenData(Id1);
+    auto& writtenBuf2 = device.getWrittenData(Id2);
+
+    TS_ASSERT_EQUALS(writtenBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(writtenBuf1.begin(), writtenBuf1.end(), Buf1));
+
+    TS_ASSERT_EQUALS(writtenBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(writtenBuf2.begin(), writtenBuf2.end(), Buf2));
+}
+
+void DeviceOpQueueTestSuite::test5()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<
+        I2cDevice,
+        3,
+        std::function<void()>,
+        std::function<void(const embxx::error::ErrorStatus&)> >DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 100;
+    const I2cDevice::DeviceIdType Id2 = 111;
+    const I2cDevice::DeviceIdType Id3 = 200;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    static const CharType Buf2[] = {
+        0x0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+    static const CharType Buf3[] = {
+        0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6
+    };
+
+    static const std::size_t BufSize3 = sizeof(Buf3)/sizeof(Buf3[0]);
+
+    device.setDataToRead(Id1, Buf1, BufSize1);
+    device.setDataToRead(Id2, Buf2, BufSize2);
+    device.setDataToRead(Id3, Buf3, BufSize3);
+
+    std::vector<CharType> readBuf1;
+    std::vector<CharType> readBuf2;
+    std::vector<CharType> readBuf3;
+
+    opQueue.setCanReadHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf1)));
+
+    opQueue.setCanReadHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf2)));
+
+    opQueue.setCanReadHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf3)));
+
+    opQueue.setReadCompleteHandler(
+        Id1,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startWrite(Id1, BufSize1, embxx::device::context::EventLoop());
+                });
+        });
+
+    opQueue.setReadCompleteHandler(
+        Id2,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startWrite(Id2, BufSize2, embxx::device::context::EventLoop());
+                });
+        });
+
+    opQueue.setReadCompleteHandler(
+        Id3,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startWrite(Id3, BufSize3, embxx::device::context::EventLoop());
+                });
+        });
+
+    std::size_t bufCount1 = 0;
+    std::size_t bufCount2 = 0;
+    std::size_t bufCount3 = 0;
+
+    opQueue.setCanWriteHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf1[0], std::ref(bufCount1)));
+
+    opQueue.setCanWriteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf2[0], std::ref(bufCount2)));
+
+    opQueue.setCanWriteHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf3[0], std::ref(bufCount3)));
+
+
+    opQueue.setWriteCompleteHandler(
+        Id1,
+        [](const embxx::error::ErrorStatus&)
+        {
+        });
+
+    opQueue.setWriteCompleteHandler(
+        Id2,
+        [](const embxx::error::ErrorStatus&)
+        {
+        });
+
+    opQueue.setWriteCompleteHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.startRead(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startRead(Id2, BufSize2, embxx::device::context::EventLoop());
+    opQueue.startRead(Id3, BufSize3, embxx::device::context::EventLoop());
+
+    el.run();
+
+    TS_ASSERT_EQUALS(readBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(readBuf1.begin(), readBuf1.end(), Buf1));
+
+    TS_ASSERT_EQUALS(readBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(readBuf2.begin(), readBuf2.end(), Buf2));
+
+    TS_ASSERT_EQUALS(readBuf3.size(), BufSize3);
+    TS_ASSERT(std::equal(readBuf3.begin(), readBuf3.end(), Buf3));
+
+
+    auto& writtenBuf1 = device.getWrittenData(Id1);
+    auto& writtenBuf2 = device.getWrittenData(Id2);
+    auto& writtenBuf3 = device.getWrittenData(Id3);
+
+    TS_ASSERT_EQUALS(writtenBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(writtenBuf1.begin(), writtenBuf1.end(), Buf1));
+
+    TS_ASSERT_EQUALS(writtenBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(writtenBuf2.begin(), writtenBuf2.end(), Buf2));
+
+    TS_ASSERT_EQUALS(writtenBuf3.size(), BufSize3);
+    TS_ASSERT(std::equal(writtenBuf3.begin(), writtenBuf3.end(), Buf3));
+}
+
+void DeviceOpQueueTestSuite::test6()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<I2cDevice, 2> DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 1;
+    const I2cDevice::DeviceIdType Id2 = 10;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    std::vector<CharType> readBuf1;
+
+    static const CharType Buf2[] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+    std::vector<CharType> readBuf2;
+
+    device.setDataToRead(Id1, Buf1, BufSize1);
+    device.setDataToRead(Id2, Buf2, BufSize2);
+
+    opQueue.setCanReadHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf1)));
+
+    opQueue.setCanReadHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf2)));
+
+
+    opQueue.setReadCompleteHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.setReadCompleteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+
+    opQueue.startRead(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startRead(Id2, BufSize2, embxx::device::context::EventLoop());
+    TS_ASSERT(opQueue.cancelRead(Id2, embxx::device::context::EventLoop()));
+
+    el.run();
+
+    TS_ASSERT_EQUALS(readBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(readBuf1.begin(), readBuf1.end(), Buf1));
+}
+
+void DeviceOpQueueTestSuite::test7()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<I2cDevice, 2> DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 1;
+    const I2cDevice::DeviceIdType Id2 = 10;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    std::vector<CharType> readBuf1;
+
+    static const CharType Buf2[] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+    std::vector<CharType> readBuf2;
+
+    device.setDataToRead(Id1, Buf1, BufSize1);
+    device.setDataToRead(Id2, Buf2, BufSize2);
+
+    opQueue.setCanReadHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf1)));
+
+    opQueue.setCanReadHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf2)));
+
+
+    opQueue.setReadCompleteHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+    opQueue.setReadCompleteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+
+    opQueue.startRead(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startRead(Id2, BufSize2, embxx::device::context::EventLoop());
+    TS_ASSERT(opQueue.cancelRead(Id1, embxx::device::context::EventLoop()));
+
+    el.run();
+
+    TS_ASSERT_EQUALS(readBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(readBuf2.begin(), readBuf2.end(), Buf2));
+}
+
+void DeviceOpQueueTestSuite::test8()
+{
+    typedef embxx::device::test::I2cDevice<EventLoopLockType> I2cDevice;
+    typedef I2cDevice::CharType CharType;
+
+    typedef embxx::device::DeviceOpQueue<
+        I2cDevice,
+        3,
+        std::function<void()>,
+        std::function<void(const embxx::error::ErrorStatus&)> >DeviceOpQueue;
+
+    EventLoop el;
+    I2cDevice device(el.getLock());
+    DeviceOpQueue opQueue(device);
+
+    const I2cDevice::DeviceIdType Id1 = 100;
+    const I2cDevice::DeviceIdType Id2 = 111;
+    const I2cDevice::DeviceIdType Id3 = 200;
+
+    static const CharType Buf1[] = {
+        0x0, 0x1, 0x2, 0x3, 0x4
+    };
+
+    static const std::size_t BufSize1 = sizeof(Buf1)/sizeof(Buf1[0]);
+
+    static const CharType Buf2[] = {
+        0x0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa
+    };
+
+    static const std::size_t BufSize2 = sizeof(Buf2)/sizeof(Buf2[0]);
+
+    static const CharType Buf3[] = {
+        0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6
+    };
+
+    static const std::size_t BufSize3 = sizeof(Buf3)/sizeof(Buf3[0]);
+
+    std::size_t bufCount1 = 0;
+    std::size_t bufCount2 = 0;
+    std::size_t bufCount3 = 0;
+
+    opQueue.setCanWriteHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf1[0], std::ref(bufCount1)));
+
+    opQueue.setCanWriteHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf2[0], std::ref(bufCount2)));
+
+    opQueue.setCanWriteHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::canWrite<I2cDevice>, std::ref(device), &Buf3[0], std::ref(bufCount3)));
+
+
+    opQueue.setWriteCompleteHandler(
+        Id1,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startRead(Id1, BufSize1, embxx::device::context::EventLoop());
+                });
+        });
+
+    opQueue.setWriteCompleteHandler(
+        Id2,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startRead(Id2, BufSize2, embxx::device::context::EventLoop());
+                });
+        });
+
+    opQueue.setWriteCompleteHandler(
+        Id3,
+        [&opQueue, &el](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+            el.postInterruptCtx(
+                [&opQueue]()
+                {
+                    opQueue.startRead(Id3, BufSize3, embxx::device::context::EventLoop());
+                });
+        });
+
+
+    device.setDataToRead(Id1, Buf1, BufSize1);
+    device.setDataToRead(Id2, Buf2, BufSize2);
+    device.setDataToRead(Id3, Buf3, BufSize3);
+
+    std::vector<CharType> readBuf1;
+    std::vector<CharType> readBuf2;
+    std::vector<CharType> readBuf3;
+
+    opQueue.setCanReadHandler(
+        Id1,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf1)));
+
+    opQueue.setCanReadHandler(
+        Id2,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf2)));
+
+    opQueue.setCanReadHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::canRead<I2cDevice>, std::ref(device), std::ref(readBuf3)));
+
+    opQueue.setReadCompleteHandler(
+        Id1,
+        [](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+        });
+
+    opQueue.setReadCompleteHandler(
+        Id2,
+        [](const embxx::error::ErrorStatus& err)
+        {
+            TS_ASSERT(!err);
+        });
+
+    opQueue.setReadCompleteHandler(
+        Id3,
+        std::bind(&DeviceOpQueueTestSuite::opComplete<EventLoop>, std::placeholders::_1, std::ref(el)));
+
+
+    opQueue.startWrite(Id1, BufSize1, embxx::device::context::EventLoop());
+    opQueue.startWrite(Id2, BufSize2, embxx::device::context::EventLoop());
+    opQueue.startWrite(Id3, BufSize3, embxx::device::context::EventLoop());
+
+    el.run();
+
+    auto& writtenBuf1 = device.getWrittenData(Id1);
+    auto& writtenBuf2 = device.getWrittenData(Id2);
+    auto& writtenBuf3 = device.getWrittenData(Id3);
+
+    TS_ASSERT_EQUALS(writtenBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(writtenBuf1.begin(), writtenBuf1.end(), Buf1));
+
+    TS_ASSERT_EQUALS(writtenBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(writtenBuf2.begin(), writtenBuf2.end(), Buf2));
+
+    TS_ASSERT_EQUALS(writtenBuf3.size(), BufSize3);
+    TS_ASSERT(std::equal(writtenBuf3.begin(), writtenBuf3.end(), Buf3));
+
+    TS_ASSERT_EQUALS(readBuf1.size(), BufSize1);
+    TS_ASSERT(std::equal(readBuf1.begin(), readBuf1.end(), Buf1));
+
+    TS_ASSERT_EQUALS(readBuf2.size(), BufSize2);
+    TS_ASSERT(std::equal(readBuf2.begin(), readBuf2.end(), Buf2));
+
+    TS_ASSERT_EQUALS(readBuf3.size(), BufSize3);
+    TS_ASSERT(std::equal(readBuf3.begin(), readBuf3.end(), Buf3));
+}
+
+
+
+

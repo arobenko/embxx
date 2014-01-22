@@ -1,0 +1,106 @@
+/// @page device_op_queue_page Device Operation Queue
+/// @section device_op_queue_overview Overview
+/// There are multiple hardware protocols that can be used to communicate to
+/// several indipendent units using the same built in device (peripheral). The
+/// examples of such protocols are I2C and SPI. In I2C the address of the slave
+/// is specified prior to communication and in SPI the appropriate "chip select"
+/// GPIO line is toggled. The embxx::device::DeviceOpQueue provides a 
+/// convenient interface to perform independent read/write operations to 
+/// independent entities without worrying whether some operation to some other
+/// entity on the same bus is being performed at the same time. In other words
+/// it keeps all the read/write requests in an internal queue and issues them
+/// into the device in sequential order.
+///
+/// @section device_op_queue_tutorial How to use
+/// The embxx::device::DeviceOpQueue should be used as a wrapper to some
+/// other device control class. The device control class must expose a particular
+/// interface desribed in documentation page of the embxx::device::DeviceOpQueue
+/// class. Below is example of using I2C device control object:
+/// @code
+/// class I2cDevice
+/// {
+/// public:
+///     // Definition of ID type
+///     typedef std::uint8_t DeviceIdType; // only 7 bit addresses are supported
+///
+///     // Definition of operation category: The read/write are sequential.
+///     typedef embxx::device::op_category::SequentialReadWrite OpCategory;
+///
+///     // Definition of single character type
+///     typedef std::uint8_t CharType;
+///
+///     // Setting callback handlers.
+///     template <typename TFunc>
+///     void setCanReadHandler(TFunc&& func) { ... }
+///
+///     template <typename TFunc>
+///     void setCanWriteHandler(TFunc&& func) { ... }
+///
+///     template <typename TFunc>
+///     void setReadCompleteHandler(TFunc&& func) { ... }
+///
+///     template <typename TFunc>
+///     void setWriteCompleteHandler(TFunc&& func) { ... }
+///
+///     // Start read operation functions. 
+///     void startRead(DeviceIdType id, std::size_t length, embxx::device::context::EventLoop context) { ... }
+///     void startRead(DeviceIdType id, std::size_t length, embxx::device::context::Interrupt context) { ... }
+///
+///     // Cancel current read operation. 
+///     bool cancelRead(embxx::device::context::EventLoop context) { ... }
+///     bool cancelRead(embxx::device::context::Interrupt context) { ... }
+///
+///     // Start write operation functions. 
+///     void startWrite(DeviceIdType id, std::size_t length, embxx::device::context::EventLoop context) { ... }
+///     void startWrite(DeviceIdType id, std::size_t length, embxx::device::context::Interrupt context) { ... }
+///
+///     // Cancel current write operation. 
+///     bool cancelWrite(embxx::device::context::EventLoop context) { ... }
+///
+///     // Suspend current read/write operation. 
+///     bool suspend(embxx::device::context::EventLoop context) { ... }
+///
+///     // Resume recently suspended operation. 
+///     void resume(embxx::device::context::EventLoop context) { ... }
+///
+///     // Inquiry whether there is at least one character to be read. 
+///     bool canRead(embxx::device::context::Interrupt context) { ... }
+///
+///     // Inquiry whether there is a space for at least one character to
+///     // be written. 
+///     bool canWrite(embxx::device::context::Interrupt context) { ... }
+///
+///     // Read one character. 
+///     CharType read(embxx::device::context::Interrupt context) { ... }
+///
+///     // Write one character. 
+///     void write(CharType value, embxx::device::context::Interrupt context) { ... }
+///
+/// private:
+///     ...
+/// };
+///
+//// I2cDevice i2cDevice(...);
+/// @endcode 
+///
+/// Then use embxx::device::DeviceOpQueue as a wrapper to the actual device 
+/// control class:
+/// @code
+/// typedef embxx::device::DeviceOpQueue <I2cDevice, 3> WrappedI2cDevice;
+/// WrappedI2cDevice wrappedI2cDevice(i2cDevice);
+/// @endcode
+/// Now it is possible to issue independent read/write requests to different
+/// entities (differentiated by their ID).
+/// @code
+/// wrappedI2cDevice.startRead(Id1, length1, embxx::device::context::EventLoop());
+/// wrappedI2cDevice.startWrite(Id2, length2, embxx::device::context::EventLoop());
+/// @endcode
+///
+/// When the size of the device operations queue is 1, then the code of 
+/// embxx::device::DeviceOpQueue is optimised (using template specialisation) to
+/// forward all the operations directly to the underlying device object saving
+/// the overhead of queue management.
+///
+/// NOTE: Issueing request to the same ID while previous request hasn't been
+/// handled yet will cause run time failure.
+ 

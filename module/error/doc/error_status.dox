@@ -1,0 +1,22 @@
+/// @page error_error_status_page Error Status
+/// @section error_error_status_overview Overview
+/// embxx::error::ErrorCode enum provides numeric values for vaious error
+/// indications. However it could be convenient to use high level indication
+/// of whether the operation is successful or not. For this purpose 
+/// embxx::error::ErrorStatus class was created. It wraps embxx::error::ErrorCode
+/// in a convenient abstraction and provides boolean operators to check whether
+/// any error occurred:
+/// @code
+/// void callbackFunc(const embxx::error::ErrorStatus& error)
+/// {
+///     if (error) {
+///         // Handle error
+///         if (error.code() == embxx::error::ErrorCode::Aborted) {
+///             // Nothing to do
+///             return;
+///         }
+///         ... // hande other errors
+///     }
+///     ...
+/// }
+/// @endcode  

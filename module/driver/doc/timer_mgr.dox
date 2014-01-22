@@ -25,33 +25,39 @@
 /// {
 /// public:
 ///     // Define type for wait time units.
-///     typedef unsigned WaitTimeType; 
-/// 
-///     //Function to enable timer interrupts.
-///     void enableInterrupts() { ... }
+///     typedef unsigned WaitTimeType;
 ///
-///     // Function to disable timer interrupts.
-///     void disableInterrupts() { ... }
-///
-///     // Function to inquire whether there are pending interrupts.
-///     bool hasPendingInterrupt() const { ... }
-///
-///     // Function to start timer countdown.
-///     void start() { ... }
-///
-///     // Function to stop timer countdown.
-///     void stop() { ... }
-///
-///     Function to configure next wait time.
-///     void configWait(WaitTimeType waitTime) { ... }
-///
-///     // Function to retrieve elapsed time since first call to start() after 
-///     // last call to configWait().
-///     WaitTimeType getElapsed() const { ... }
-///
-///     // Function to set timer interrupt callback handler.
+///     // Function to set timer interrupt callback handler. The function
+///     // is called diring the construction of TimerMgr object in
+///     // non-interrupt context.
 ///     template <typename TFunc>
-///     void setHandler(TFunc&& func) { ... }
+///     void setHandler(TFunc&& func) {...}
+///
+///     // Functions to start timer countdown in both event loop
+///     // (non-interrupt) and interrupt contexts.
+///     void startWait(WaitTimeType waitTime, embxx::device::context::EventLoop context) {...}
+///     void startWait(WaitTimeType waitTime, embxx::device::context::Interrupt context) {...}
+///
+///     // Function to cancel timer countdown in event loop (non-interrupt)
+///     // context. The function must return true in case the wait was
+///     // actually cancelled and false and false when there is no wait
+///     // in progress.
+///     bool cancelWait(embxx::device::context::EventLoop context) {...}
+///
+///     // Function to suspend countdown in event loop (non-interrupt)
+///     // context. The function must return true in case the wait was
+///     // actually suspended and false when there is no wait in progress.
+///     // The call to this function will be followed either by
+///     // resumeWait() or by cancelWait().
+///     bool suspendWait(embxx::device::context::EventLoop context) {...}
+///
+///     // Function to resume countdown in event loop (non-interrupt)
+///     // context.
+///     void resumeWait(embxx::device::context::EventLoop context) {...}
+///
+///     // Function to retrieve elapsed time of the last executed wait. It
+///     // will be called right after the cancelWait().
+///     WaitTimeType getElapsed(embxx::device::context::EventLoop context) const {...}
 ///
 /// private:
 ///     ...
@@ -82,10 +88,10 @@
 /// @code
 /// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
 ///
-/// void timeoutFunc(embxx::driver::ErrorStatus status)
+/// void timeoutFunc(const embxx::error::ErrorStatus& es)
 /// {
-///     if (status == embxx::driver::ErrorStatus::Aborted) {
-///         // timer wait was canelled
+///     if (es.code() == embxx::error::ErrorCode::Aborted) {
+///         // timer wait was cancelled
 ///         return;
 ///     }
 ///     ...
@@ -107,9 +113,9 @@
 /// @code
 /// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
 ///
-/// void timeoutFunc(embxx::driver::ErrorStatus status, Timer& timer)
+/// void timeoutFunc(const embxx::error::ErrorStatus& es, Timer& timer)
 /// {
-///     if (status == embxx::driver::ErrorStatus::Aborted) {
+///     if (status.code() == embxx::error::ErrorCode::Aborted) {
 ///         // timer wait was canelled
 ///         return;
 ///     }
@@ -138,10 +144,14 @@
 ///
 /// If there is a need to cancel existing scheduled wait. Use cancel() member
 /// function of the timer object. If there is a wait in progress, the handler
-/// will be scheduled for execution and embxx::driver::ErrorStatus::Aborted 
-/// will be passed to it as an argument.
+/// will be scheduled for execution and embxx::error::ErrorCode::Aborted 
+/// will be used to report error status.
 /// @code
-/// timer.cancel();
+/// bool cancelResult = timer.cancel();
+/// if (!cancelResult) {
+///    // Cancel failed, the handler was already scheduled for execution in event loop.
+///    ...
+/// }
 /// @endcode
 ///
 /// It is possible to schedule a new wait immediatelly after cancelling the

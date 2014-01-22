@@ -18,19 +18,28 @@
 
 #pragma once
 
-#include "embxx/driver/ErrorStatus.h"
-
 namespace embxx
 {
 
-namespace io
+namespace device
 {
 
-/// @brief ErrorStatus of io module is exactly the same as of driver module.
-/// @details The same as embxx::driver::ErrorStatus.
-typedef embxx::driver::ErrorStatus ErrorStatus;
+namespace context
+{
 
-}  // namespace io
+/// @ingroup device
+/// @brief Event loop context tag class.
+/// @details This is empty struct that is used to indicate event loop execution context.
+struct EventLoop {};
+
+/// @ingroup device
+/// @brief Interrupt context tag class.
+/// @details This is empty struct that is used to indicate interrupt execution context.
+struct Interrupt {};
+
+}  // namespace context
+
+}  // namespace device
 
 }  // namespace embxx
 

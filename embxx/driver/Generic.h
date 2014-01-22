@@ -23,6 +23,7 @@
 
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
+#include "embxx/error/ErrorStatus.h"
 
 namespace embxx
 {
@@ -35,7 +36,7 @@ namespace driver
 
 template <typename TDevice,
           typename TEventLoop,
-          typename TSignature = void (),
+          typename TSignature = void (const embxx::error::ErrorStatus&),
           typename THandler = embxx::util::StaticFunction<TSignature> >
 class Generic;
 
@@ -43,12 +44,12 @@ class Generic;
 /// @details Provides a facility to forward data from interrupt context
 ///          to be processed in the "regular" execution thread. It is useful to
 ///          process non-critical data, such as button press, in non-interrupt
-///          context. This is the template specialization of the following
+///          context. This is the template specialisation of the following
 ///          class declaration:
 ///          @code
 ///          template <typename TDevice,
 ///                    typename TEventLoop,
-///                    typename TSignature = void (),
+///                    typename TSignature = void (const embxx::error::ErrorStatus&),
 ///                    typename THandler = embxx::util::StaticFunction<TSignature> >
 ///          class Generic;
 ///          @endcode

@@ -1,0 +1,34 @@
+/// @defgroup device Device - Generic devices or device wrappers.
+/// @brief Device module provides generic devices or device wrapper classes as
+///        well as various device related tag structs.
+/// @details 
+/// Although every platform has more or less unique way to control its 
+/// devices (peripherals), there still could be a common functionality that
+/// can be generic. The "device" module provides an implementation for such
+/// common functionality. The module also defines several tag classes:
+/// @li embxx::device::context::EventLoop and embxx::device::context::Interrupt
+///     tags may be used as dummy parameters to the functions to specify the
+///     context in which the function is called: event loop (NON-interrupt) or
+///     interrupt.
+/// @li embxx::device::op_category::SequentialReadWrite and 
+///     embxx::device::op_category::ParallelReadWrite is served to specify the
+///     operation category of the device, i.e. the read/write operation must
+///     be sequential or can be executed in parallel. These tag classes must
+///     be typedefed to OpCategory type inside the definition of device class.
+///
+/// Currenty "device" module provides implementation of following common devices:
+/// @li @ref device_op_queue_page
+/// @li @ref id_device_char_adapter_page
+
+/// @namespace embxx::device
+/// @ingroup device
+/// @brief Provides scope for device classes.
+
+/// @namespace embxx::device::context
+/// @ingroup device
+/// @brief Provides scope for operation context definitions.
+
+/// @namespace embxx::device::op_category
+/// @ingroup device
+/// @brief Provides scope for operation category definitions.
+

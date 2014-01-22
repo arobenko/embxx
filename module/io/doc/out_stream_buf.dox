@@ -79,9 +79,9 @@
 /// @code
 /// buf.asyncWaitAvailableCapacity(
 ///     capacity,
-///     [&buf](embxx::io::ErrorStatus status)
+///     [&buf](const embxx::error::ErrorStatus& error)
 ///     {
-///         if (status != embxx::io::ErrorStatus) {
+///         if (error) {
 ///             ... // handle error
 ///         }
 ///

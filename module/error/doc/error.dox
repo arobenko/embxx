@@ -1,0 +1,11 @@
+/// @defgroup error Error - Common error codes.
+/// @brief This module provides a definition of common error codes 
+/// (embxx::error::ErrorCode) and wraps them into the embxx::error::ErrorStatus
+/// class to make it easy to check for error condition.
+///
+/// See @ref error_error_status_page page for details.
+
+/// @namespace embxx::error
+/// @ingroup error
+/// @brief Provides scope for common error codes.
+
