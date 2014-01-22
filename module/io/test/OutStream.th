@@ -46,6 +46,7 @@ public:
     void test9();
     void test10();
     void test11();
+    void test12();
 
 private:
     typedef embxx::util::EventLoop<
@@ -249,3 +250,18 @@ void OutStreamTestSuite::test11()
     TS_ASSERT_EQUALS(WriteString1 + WriteString2, std::string(buf.begin(), buf.end()));
 }
 
+void OutStreamTestSuite::test12()
+{
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    stream << embxx::io::hex << "0x" << embxx::io::fill('0') <<
+        embxx::io::width(4) << 0xa;
+
+    static const std::string ExpectedString("0x000a");
+
+    TS_ASSERT_EQUALS(ExpectedString, std::string(buf.begin(), buf.end()));
+}

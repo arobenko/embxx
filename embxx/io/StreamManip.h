@@ -24,6 +24,23 @@ namespace embxx
 namespace io
 {
 
+namespace details
+{
+
+template <typename TValueType>
+class ValueManipBase
+{
+public:
+    typedef TValueType ValueType;
+    ValueType value() const { return value_; }
+protected:
+    ValueManipBase(ValueType value) : value_(value) {}
+private:
+    ValueType value_;
+};
+
+}  // namespace details
+
 /// @addtogroup io
 /// @{
 
@@ -48,6 +65,42 @@ enum Base
     hex, ///< Hexadecimal numeric base stream manipulator
     Base_NumOfBases ///< Must be last
 };
+
+/// @brief Output stream manipulator class that sets the width of the next fields.
+/// @details Use embxx::io::width() function to create object of this class.
+class WidthManip : public details::ValueManipBase<std::size_t>
+{
+    typedef details::ValueManipBase<std::size_t> Base;
+public:
+    WidthManip(std::size_t value) : Base(value) {}
+};
+
+/// @brief Creates output stream manipulator object that sets width value of the stream
+/// @details "stream << embxx::io::width(2)" is equivalent to "stream.width(2)".
+inline
+WidthManip width(std::size_t value)
+{
+    return WidthManip(value);
+}
+
+/// @brief Output stream manipulator class that sets the fill character.
+/// @details Use embxx::io::fill() function to create object of this class.
+template <typename T>
+class FillManip : public details::ValueManipBase<T>
+{
+    typedef details::ValueManipBase<T> Base;
+public:
+    FillManip(std::size_t value) : Base(value) {}
+};
+
+/// @brief Creates output stream manipulator object that sets fill character of the stream.
+/// @details "stream << embxx::io::fill('0')" is equivalent to "stream.fill('0')".
+template <typename T>
+inline
+FillManip<T> fill(T value)
+{
+    return FillManip<T>(value);
+}
 
 /// @}
 
