@@ -21,6 +21,7 @@
 #pragma once
 
 #include <type_traits>
+#include <new>
 
 #include "embxx/util/Assert.h"
 

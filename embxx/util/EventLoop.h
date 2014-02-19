@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <mutex>
+#include <new>
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/ScopeGuard.h"
