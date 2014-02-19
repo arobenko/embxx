@@ -64,35 +64,47 @@ private:
 };
 
 /// @cond DOCUMENT_ASSERT_MANAGER
-template <class T>
-class BasicAssertManager
+class AssertManager
 {
 public:
 
-    static BasicAssertManager& instance();
+    static AssertManager& instance()
+    {
+        static AssertManager mgr;
+        return mgr;
+    }
 
-    BasicAssertManager(const BasicAssertManager& other) = delete;
-    BasicAssertManager& operator=(const BasicAssertManager& other) = delete;
+    AssertManager(const AssertManager&) = delete;
 
-    Assert* reset(Assert* newAssert = nullptr);
+    AssertManager& operator=(const AssertManager&) = delete;
 
-    Assert* getAssert();
+    Assert* reset(Assert* newAssert = nullptr)
+    {
+        auto prevAssert = assert_;
+        assert_ = newAssert;
+        return prevAssert;
+    }
 
-    bool hasAssertRegistered() const;
+    Assert* getAssert()
+    {
+        return assert_;
+    }
 
-    static inline
-    void infiniteLoop()
+    bool hasAssertRegistered() const
+    {
+        return (assert_ != nullptr);
+    }
+
+    static void infiniteLoop()
     {
         while (true) {};
     }
 
 private:
-    BasicAssertManager();
+    AssertManager() : assert_(nullptr) {}
 
     Assert* assert_;
 };
-
-typedef BasicAssertManager<void> AssertManager;
 
 /// @endcond
 
@@ -122,8 +134,12 @@ public:
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Depends on exception guarantee of the
     ///       TAssert's constructor.
-    template<typename ...Params>
-    EnableAssert(Params... args);
+    template<typename... TParams>
+    EnableAssert(TParams&&... args)
+        : assert_(std::forward<TParams>(args)...),
+          prevAssert_(AssertManager::instance().reset(&assert_))
+    {
+    }
 
     /// @brief Destructor
     /// @details Restores the assertion behaviour that was recorded during
@@ -131,14 +147,20 @@ public:
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Depends on exception guarantee of the
     ///       TAssert's destructor.
-    ~EnableAssert();
+    ~EnableAssert()
+    {
+        AssertManager::instance().reset(prevAssert_);
+    }
 
 
     /// @brief Provides reference to internal Assert object
     /// @return Reference to object of type TAssert.
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw.
-    AssertType& getAssert();
+    AssertType& getAssert()
+    {
+        return assert_;
+    }
 
 private:
     AssertType assert_;
@@ -184,68 +206,6 @@ private:
 #endif // #ifndef NDEBUG
 
 /// @}
-
-// Implementation
-
-/// @cond DOCUMENT_ASSERT_MANAGER
-template <typename T>
-BasicAssertManager<T>& BasicAssertManager<T>::instance()
-{
-    static AssertManager mgr;
-    return mgr;
-}
-
-template <typename T>
-Assert* BasicAssertManager<T>::reset(Assert* newAssert)
-{
-    Assert* old = assert_;
-    assert_ = newAssert;
-    return old;
-}
-
-template <typename T>
-Assert* BasicAssertManager<T>::getAssert()
-{
-    return assert_;
-}
-
-template <typename T>
-bool BasicAssertManager<T>::hasAssertRegistered() const
-{
-    return (assert_ != nullptr);
-}
-
-template <typename T>
-BasicAssertManager<T>::BasicAssertManager()
-    : assert_(nullptr)
-{
-}
-
-
-
-/// @endcond
-
-template <typename TAssert>
-template<typename ...Params>
-EnableAssert<TAssert>::EnableAssert(Params... args)
-    : assert_(std::forward<Params>(args)...),
-      prevAssert_(AssertManager::instance().reset(&assert_))
-{
-}
-
-template < typename TAssert>
-EnableAssert<TAssert>::~EnableAssert()
-{
-    AssertManager::instance().reset(prevAssert_);
-}
-
-template < typename TAssert>
-typename EnableAssert<TAssert>::AssertType&
-EnableAssert<TAssert>::getAssert()
-{
-    return assert_;
-}
-
 
 }  // namespace util
 
