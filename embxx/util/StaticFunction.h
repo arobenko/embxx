@@ -22,6 +22,7 @@
 
 #include <type_traits>
 #include <new>
+#include <functional>
 
 #include "embxx/util/Assert.h"
 
@@ -81,6 +82,9 @@ public:
 
     /// @brief Copy assignment operator
     StaticFunction& operator=(const StaticFunction& other);
+
+    /// @brief Non-const param copy assignment operator
+    StaticFunction& operator=(StaticFunction& other);
 
     /// @brief Move assignment operator
     /// @post Other function becomes invalid: @code (!other) == true @endcode
@@ -238,6 +242,13 @@ StaticFunction<TRet (TArgs...), TSize>::operator=(const StaticFunction& other)
 
 template <std::size_t TSize, typename TRet, typename... TArgs>
 StaticFunction<TRet (TArgs...), TSize>&
+StaticFunction<TRet (TArgs...), TSize>::operator=(StaticFunction& other)
+{
+    return operator=(static_cast<const StaticFunction&>(other));
+}
+
+template <std::size_t TSize, typename TRet, typename... TArgs>
+StaticFunction<TRet (TArgs...), TSize>&
 StaticFunction<TRet (TArgs...), TSize>::operator=(StaticFunction&& other)
 {
     if (&other == this) {
@@ -269,11 +280,8 @@ template <typename TFunc>
 StaticFunction<TRet (TArgs...), TSize>&
 StaticFunction<TRet (TArgs...), TSize>::operator=(TFunc&& func)
 {
-    static_assert(sizeof(InvokerBound<TFunc>) <= StorageAreaSize,
-        "Increase the TSize template argument of the StaticFucntion");
     destroyHandler();
-    auto invoker = new (&handler_) InvokerBound<TFunc>(std::forward<TFunc>(func));
-    static_cast<void>(invoker);
+    assignHandler(std::forward<TFunc>(func));
     valid_ = true;
     return *this;
 }
@@ -403,11 +411,20 @@ template <std::size_t TSize, typename TRet, typename... TArgs>
 template <typename TFunc>
 void StaticFunction<TRet (TArgs...), TSize>::assignHandler(TFunc&& func)
 {
+    typedef StaticFunction<TRet (TArgs...), TSize> ThisType;
     typedef typename std::decay<TFunc>::type DecayedFuncType;
     typedef InvokerBound<DecayedFuncType> InvokerBoundType;
 
-    static_assert(sizeof(InvokerBound<TFunc>) <= StorageAreaSize,
+    static_assert(!std::is_same<ThisType, DecayedFuncType>::value,
+        "Wrong function invocation");
+
+    static_assert(sizeof(InvokerBoundType) <= StorageAreaSize,
         "Increase the TSize template argument of the StaticFucntion");
+
+    static_assert(alignof(Invoker) == alignof(InvokerBoundType),
+        "Alignment requirement for Invoker object must be the same as "
+        "alignment requirement for InvokerBoundType type object");
+
     auto handlerPtr = new (&handler_) InvokerBoundType(std::forward<TFunc>(func));
     static_cast<void>(handlerPtr);
 
