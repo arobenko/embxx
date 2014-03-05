@@ -30,8 +30,7 @@
 
 #include "cxxtest/TestSuite.h"
 
-class StaticQueueTestSuite : public CxxTest::TestSuite,
-                             public embxx::util::EnableAssert<embxx::util::assert::CxxTestAssert>
+class StaticQueueTestSuite : public CxxTest::TestSuite
 {
 public:
     void testQueueCreation();
@@ -62,34 +61,6 @@ private:
     template <typename TQueue>
     static
     void checkQueueSize(const TQueue& queue, std::size_t size);
-
-    template <typename TQueue>
-    static
-    void checkOverflowFront(
-        const TQueue& queue,
-        const typename TQueue::ValueType& formerFront,
-        const embxx::container::static_queue_traits::IgnoreError& overflowBehaviour);
-
-    template <typename TQueue>
-    static
-    void checkOverflowFront(
-        const TQueue& queue,
-        const typename TQueue::ValueType& formerFront,
-        const embxx::container::static_queue_traits::Overwrite& overflowBehaviour);
-
-    template <typename TQueue>
-    static
-    void checkOverflowBack(
-        const TQueue& queue,
-        const typename TQueue::ValueType& formerBack,
-        const embxx::container::static_queue_traits::IgnoreError& overflowBehaviour);
-
-    template <typename TQueue>
-    static
-    void checkOverflowBack(
-        const TQueue& queue,
-        const typename TQueue::ValueType& formerBack,
-        const embxx::container::static_queue_traits::Overwrite& overflowBehaviour);
 
     template <typename TQueue>
     static
@@ -145,10 +116,6 @@ void StaticQueueTestSuite::testQueueCreation()
     const std::size_t QueueSize = 4U;
     embxx::container::StaticQueue<TestObject, QueueSize> queue;
     checkQueueEmpty(queue);
-
-    embxx::container::StaticCircularBuffer<TestObject, QueueSize> buffer;
-    checkQueueEmpty(buffer);
-
 }
 
 void StaticQueueTestSuite::testSimpleFill()
@@ -156,9 +123,6 @@ void StaticQueueTestSuite::testSimpleFill()
     const std::size_t QueueSize = 10U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestSimpleFill<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestSimpleFill<Buffer>();
 }
 
 void StaticQueueTestSuite::testAsDeque()
@@ -166,9 +130,6 @@ void StaticQueueTestSuite::testAsDeque()
     const std::size_t QueueSize = 11U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestAsDeque<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestAsDeque<Buffer>();
 }
 
 void StaticQueueTestSuite::testAsReverseDeque()
@@ -176,9 +137,6 @@ void StaticQueueTestSuite::testAsReverseDeque()
     const std::size_t QueueSize = 13U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestAsReverseDeque<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestAsReverseDeque<Buffer>();
 }
 
 void StaticQueueTestSuite::testOverAndUnderflow()
@@ -186,9 +144,6 @@ void StaticQueueTestSuite::testOverAndUnderflow()
     const std::size_t QueueSize = 15U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestOverAndUnderflow<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestOverAndUnderflow<Buffer>();
 }
 
 void StaticQueueTestSuite::testIteration()
@@ -196,9 +151,6 @@ void StaticQueueTestSuite::testIteration()
     const std::size_t QueueSize = 16U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestIteration<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestIteration<Buffer>();
 }
 
 void StaticQueueTestSuite::testEquality()
@@ -206,9 +158,6 @@ void StaticQueueTestSuite::testEquality()
     const std::size_t QueueSize = 17U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestEquality<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestEquality<Buffer>();
 }
 
 void StaticQueueTestSuite::testConstructionAssignment()
@@ -216,9 +165,6 @@ void StaticQueueTestSuite::testConstructionAssignment()
     const std::size_t QueueSize = 8U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestConstructionAssignment<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestConstructionAssignment<Buffer>();
 }
 
 void StaticQueueTestSuite::testResize()
@@ -226,9 +172,6 @@ void StaticQueueTestSuite::testResize()
     const std::size_t QueueSize = 8U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestResize<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestResize<Buffer>();
 }
 
 void StaticQueueTestSuite::testInsert()
@@ -236,9 +179,6 @@ void StaticQueueTestSuite::testInsert()
     const std::size_t QueueSize = 10U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestInsert<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestInsert<Buffer>();
 }
 
 void StaticQueueTestSuite::testErase()
@@ -246,9 +186,6 @@ void StaticQueueTestSuite::testErase()
     const std::size_t QueueSize = 11U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestErase<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestErase<Buffer>();
 }
 
 void StaticQueueTestSuite::testNonLinearisedIteration()
@@ -256,9 +193,6 @@ void StaticQueueTestSuite::testNonLinearisedIteration()
     const std::size_t QueueSize = 13U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestNonLinearisedIteration<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestNonLinearisedIteration<Buffer>();
 }
 
 void StaticQueueTestSuite::testBackInserter()
@@ -266,9 +200,6 @@ void StaticQueueTestSuite::testBackInserter()
     const std::size_t QueueSize = 13U;
     typedef embxx::container::StaticQueue<TestObject, QueueSize> Queue;
     internalTestNonLinearisedIteration<Queue>();
-
-    typedef embxx::container::StaticCircularBuffer<TestObject, QueueSize> Buffer;
-    internalTestNonLinearisedIteration<Buffer>();
 }
 
 void StaticQueueTestSuite::testPriorityQueue()
@@ -347,46 +278,6 @@ void StaticQueueTestSuite::checkQueueSize(
     TS_ASSERT_EQUALS(queue.size(), size);
     TS_ASSERT((!queue.isEmpty()) || (size == 0U));
     TS_ASSERT((!queue.isFull()) || (size == queue.capacity()));
-}
-
-template <typename TQueue>
-void StaticQueueTestSuite::checkOverflowFront(
-    const TQueue& queue,
-    const typename TQueue::ValueType& formerFront,
-    const embxx::container::static_queue_traits::IgnoreError& overflowBehaviour)
-{
-    static_cast<void>(overflowBehaviour);
-    TS_ASSERT(formerFront == queue.front());
-}
-
-template <typename TQueue>
-void StaticQueueTestSuite::checkOverflowFront(
-    const TQueue& queue,
-    const typename TQueue::ValueType& formerFront,
-    const embxx::container::static_queue_traits::Overwrite& overflowBehaviour)
-{
-    static_cast<void>(overflowBehaviour);
-    TS_ASSERT(!(formerFront == queue.front()));
-}
-
-template <typename TQueue>
-void StaticQueueTestSuite::checkOverflowBack(
-    const TQueue& queue,
-    const typename TQueue::ValueType& formerBack,
-    const embxx::container::static_queue_traits::IgnoreError& overflowBehaviour)
-{
-    static_cast<void>(overflowBehaviour);
-    TS_ASSERT(formerBack == queue.back());
-}
-
-template <typename TQueue>
-void StaticQueueTestSuite::checkOverflowBack(
-    const TQueue& queue,
-    const typename TQueue::ValueType& formerBack,
-    const embxx::container::static_queue_traits::Overwrite& overflowBehaviour)
-{
-    static_cast<void>(overflowBehaviour);
-    TS_ASSERT(!(formerBack == queue.back()));
 }
 
 template <typename TQueue>
@@ -541,7 +432,6 @@ template <typename TQueue>
 void StaticQueueTestSuite::internalTestOverAndUnderflow()
 {
     typedef typename TQueue::ValueType ValueType;
-    typedef typename TQueue::OverflowBehaviour OverflowBehaviour;
     {
         embxx::util::EnableAssert<embxx::util::assert::DoNothingAssert> doNothingAssertEnabled;
 
@@ -587,12 +477,6 @@ void StaticQueueTestSuite::internalTestOverAndUnderflow()
         TS_ASSERT(constQueue.back() == constQueue.at(constQueue.size() - 1));
         TS_ASSERT_THROWS(queue.at(queue.size()), std::out_of_range);
         TS_ASSERT_THROWS(constQueue.at(constQueue.size()), std::out_of_range);
-
-        queue.pushFront(ValueType());
-        checkOverflowFront(queue, first, OverflowBehaviour());
-        auto& newLast = queue.back();
-        queue.pushBack(ValueType());
-        checkOverflowBack(queue, newLast, OverflowBehaviour());
 
         for (std::size_t i = 0; i < queue.capacity() / 2; ++i){
             queue.popBack();
@@ -938,11 +822,6 @@ void StaticQueueTestSuite::internalTestResize()
     TS_ASSERT(!queue.isFull());
     TS_ASSERT_EQUALS(queue.size(), newSize);
     TS_ASSERT_EQUALS(ValueType::getObjectCount(), queue.size());
-
-    queue.resize(queue.capacity() + 1);
-    // Make sure resize didn't occur
-    TS_ASSERT_EQUALS(queue.size(), newSize);
-    TS_ASSERT_EQUALS(ValueType::getObjectCount(), queue.size());
 }
 
 template <typename TQueue>
@@ -967,16 +846,6 @@ void StaticQueueTestSuite::internalTestInsert()
     TS_ASSERT_EQUALS(front, queue.front());
     TS_ASSERT_EQUALS(back, queue.back());
     TS_ASSERT(queue.isLinearised());
-
-    ValueType newValue;
-    auto newPos = queue.insert(queue.arrayOne().first, newValue);
-    if (newPos != queue.invalidIter()) {
-        TS_ASSERT_EQUALS(newPos, queue.arrayOne().first);
-        TS_ASSERT_EQUALS(newValue, *newPos);
-        TS_ASSERT_EQUALS(newValue, queue.front());
-        TS_ASSERT_DIFFERS(back, queue.back());
-        TS_ASSERT_EQUALS(front, queue[1]);
-    }
 }
 
 template <typename TQueue>

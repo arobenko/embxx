@@ -38,22 +38,6 @@ namespace embxx
 namespace container
 {
 
-namespace static_queue_traits
-{
-
-/// @ingroup container
-/// @brief Ignore error behaviour trait class of the BasicStaticQueue
-/// @headerfile embxx/container/StaticQueue.h
-class IgnoreError {};
-
-/// @ingroup container
-/// @brief Overwrite behaviour trait class of the BasicStaticQueue
-/// @headerfile embxx/container/StaticQueue.h
-class Overwrite {};
-
-
-}  // namespace static_queue_traits
-
 
 /// @addtogroup container
 /// @{
@@ -758,18 +742,12 @@ private:
 /// @headerfile embxx/container/StaticQueue.h
 template <
     typename T,
-    std::size_t TSize,
-    typename TTraits>
+    std::size_t TSize>
 class BasicStaticQueue : public BasicStaticQueueBase<T, TSize>
 {
     typedef BasicStaticQueueBase<T, TSize> Base;
 public:
     // Types
-    /// @brief Behaviour traits of the queue
-    typedef TTraits Traits;
-
-    /// @brief Overflow behaviour defined in the traits.
-    typedef typename Traits::OverflowBehaviour OverflowBehaviour;
 
     /// @brief Type of the stored elements.
     typedef typename Base::ValueType ValueType;
@@ -938,36 +916,6 @@ public:
 private:
 
     // Member functions
-
-    /// Push back. Nothing is inserted if the queue is full.
-    template <typename U>
-    void pushBack(U&& value, const static_queue_traits::IgnoreError& behaviour);
-
-    /// Push back. First element is overwritten if the queue is full.
-    template <typename U>
-    void pushBack(U&& value, const static_queue_traits::Overwrite& behaviour);
-
-    /// Push front. Nothing is inserted if the queue is full.
-    template <typename U>
-    void pushFront(U&& value, const static_queue_traits::IgnoreError& behaviour);
-
-    /// Push front. First element is overwritten if the queue is full.
-    template <typename U>
-    void pushFront(U&& value, const static_queue_traits::Overwrite& behaviour);
-
-    /// Insert. Pop the last element if the queue is full.
-    template <typename U>
-    LinearisedIterator insert(
-        LinearisedIterator pos,
-        U&& value,
-        const static_queue_traits::IgnoreError& behaviour);
-
-    /// Insert. Pop the first element if the queue is full.
-    template <typename U>
-    LinearisedIterator insert(
-        LinearisedIterator pos,
-        U&& value,
-        const static_queue_traits::Overwrite& behaviour);
 };
 
 /// @brief Base class for both Iterator and ConstIterator classes of
@@ -1186,34 +1134,9 @@ public:
     operator ConstIterator() const;
 };
 
-
-/// @brief behaviour traits to enforce double ended queue functionality
-/// for BasicStaticQueue.
-/// @details It is used as TTraits template parameter for BasicStaticQueue.
-class DefaultStaticQueueTraits
-{
-public:
-    typedef static_queue_traits::IgnoreError OverflowBehaviour;
-};
-
 /// @brief Partial template typedef for static double ended queue.
 template <typename T, std::size_t TSize>
-using StaticQueue = BasicStaticQueue<T, TSize, DefaultStaticQueueTraits>;
-
-/// @brief behaviour traits to enforce circular buffer functionality
-/// for BasicStaticQueue.
-/// @details It is used as TTraits template parameter for BasicStaticQueue.
-class DefaultCircularBufferTraits
-{
-public:
-    typedef static_queue_traits::Overwrite OverflowBehaviour;
-};
-
-/// @brief Partial template typedef for static circular buffer.
-template <typename T, std::size_t TSize>
-using StaticCircularBuffer =
-    BasicStaticQueue<T, TSize, DefaultCircularBufferTraits>;
-
+using StaticQueue = BasicStaticQueue<T, TSize>;
 /// @}
 
 // Implementation part
@@ -1334,10 +1257,10 @@ void BasicStaticQueueBase<T, TSize>::pop_back(std::size_t count)
 template <typename T, std::size_t TSize>
 void BasicStaticQueueBase<T, TSize>::popFront()
 {
+    GASSERT(!isEmpty()); // Queue musn't be empty
     if (isEmpty())
     {
         // Do nothing
-        GASSERT(!"popFront() on empty queue");
         return;
     }
 
@@ -1402,12 +1325,12 @@ template <typename T, std::size_t TSize>
 typename BasicStaticQueueBase<T, TSize>::ConstReference
 BasicStaticQueueBase<T, TSize>::back() const
 {
-    if (!isEmpty()) {
-        return (*this)[count_ - 1];
+    GASSERT(!isEmpty());
+    if (isEmpty()) {
+        return (*this)[0]; // Back() on empty queue
     }
 
-    GASSERT(!"back() when queue is empty.");
-    return (*this)[0];
+    return (*this)[count_ - 1];
 }
 
 template <typename T, std::size_t TSize>
@@ -1729,6 +1652,7 @@ BasicStaticQueueBase<T, TSize>::arrayTwo() const
 template <typename T, std::size_t TSize>
 void BasicStaticQueueBase<T, TSize>::resize(std::size_t newSize)
 {
+    GASSERT(newSize <= capacity());
     if (capacity() < newSize) {
         return;
     }
@@ -2020,43 +1944,43 @@ void BasicStaticQueueBase<T, TSize>::assign(
     pushBackFunc(queue.arrayTwo());
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>::BasicStaticQueue()
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>::BasicStaticQueue()
     : Base()
 {
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>::BasicStaticQueue(
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>::BasicStaticQueue(
     const BasicStaticQueue& queue)
     : Base(queue)
 {
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>::BasicStaticQueue(
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>::BasicStaticQueue(
     BasicStaticQueue&& queue)
     : Base(std::move(queue))
 {
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>::~BasicStaticQueue()
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>::~BasicStaticQueue()
 {
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>&
-BasicStaticQueue<T, TSize, TTraits>::operator=(
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>&
+BasicStaticQueue<T, TSize>::operator=(
     const BasicStaticQueue& queue)
 {
     Base::operator=(queue);
     return *this;
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-BasicStaticQueue<T, TSize, TTraits>&
-BasicStaticQueue<T, TSize, TTraits>::operator=(
+template <typename T, std::size_t TSize>
+BasicStaticQueue<T, TSize>&
+BasicStaticQueue<T, TSize>::operator=(
     BasicStaticQueue&& queue)
 {
     Base::operator=(std::move(queue));
@@ -2064,169 +1988,99 @@ BasicStaticQueue<T, TSize, TTraits>::operator=(
 }
 
 
-template <typename T, std::size_t TSize, typename TTraits>
-void BasicStaticQueue<T, TSize, TTraits>::pushBack(ConstReference value)
+template <typename T, std::size_t TSize>
+void BasicStaticQueue<T, TSize>::pushBack(ConstReference value)
 {
-    pushBack(value, typename TTraits::OverflowBehaviour());
+    GASSERT(!Base::isFull());
+    if (Base::isFull()) {
+        return;
+    }
+    Base::pushBackNotFull(value);
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
+template <typename T, std::size_t TSize>
 inline
-void BasicStaticQueue<T, TSize, TTraits>::push_back(ConstReference value)
+void BasicStaticQueue<T, TSize>::push_back(ConstReference value)
 {
     pushBack(value);
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-void BasicStaticQueue<T, TSize, TTraits>::pushBack(ValueType&& value)
+template <typename T, std::size_t TSize>
+void BasicStaticQueue<T, TSize>::pushBack(ValueType&& value)
 {
-    pushBack(std::move(value), typename TTraits::OverflowBehaviour());
+    GASSERT(!Base::isFull());
+    if (Base::isFull()) {
+        return;
+    }
+    Base::pushBackNotFull(std::move(value));
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
+template <typename T, std::size_t TSize>
 inline
-void BasicStaticQueue<T, TSize, TTraits>::push_back(ValueType&& value)
+void BasicStaticQueue<T, TSize>::push_back(ValueType&& value)
 {
     pushBack(std::move(value));
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-void BasicStaticQueue<T, TSize, TTraits>::pushFront(ConstReference value)
+template <typename T, std::size_t TSize>
+void BasicStaticQueue<T, TSize>::pushFront(ConstReference value)
 {
-    pushFront(value, typename TTraits::OverflowBehaviour());
+    GASSERT(!Base::isFull());
+    if (Base::isFull()) {
+        return;
+    }
+
+    Base::pushFrontNotFull(value);
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
+template <typename T, std::size_t TSize>
 inline
-void BasicStaticQueue<T, TSize, TTraits>::push_front(ConstReference value)
+void BasicStaticQueue<T, TSize>::push_front(ConstReference value)
 {
     pushFront(value);
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-void BasicStaticQueue<T, TSize, TTraits>::pushFront(ValueType&& value)
+template <typename T, std::size_t TSize>
+void BasicStaticQueue<T, TSize>::pushFront(ValueType&& value)
 {
-    pushFront(std::move(value), typename TTraits::OverflowBehaviour());
+    GASSERT(!Base::isFull());
+    if (Base::isFull()) {
+        return;
+    }
+
+    Base::pushFrontNotFull(std::move(value));
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
+template <typename T, std::size_t TSize>
 inline
-void BasicStaticQueue<T, TSize, TTraits>::push_front(ValueType&& value)
+void BasicStaticQueue<T, TSize>::push_front(ValueType&& value)
 {
     pushFront(std::move(value));
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
-BasicStaticQueue<T, TSize, TTraits>::insert(LinearisedIterator pos, ConstReference value)
+template <typename T, std::size_t TSize>
+typename BasicStaticQueue<T, TSize>::LinearisedIterator
+BasicStaticQueue<T, TSize>::insert(LinearisedIterator pos, ConstReference value)
 {
-    return insert(pos, value, typename TTraits::OverflowBehaviour());
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
-BasicStaticQueue<T, TSize, TTraits>::insert(LinearisedIterator pos, ValueType&& value)
-{
-    return insert(pos, std::move(value), typename TTraits::OverflowBehaviour());
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-void BasicStaticQueue<T, TSize, TTraits>::pushBack(
-    U&& value,
-    const static_queue_traits::IgnoreError& behaviour)
-{
-    static_cast<void>(behaviour);
-
-    if (Base::isFull()) {
-        return;
-    }
-
-    Base::pushBackNotFull(std::forward<U>(value));
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-void BasicStaticQueue<T, TSize, TTraits>::pushBack(
-    U&& value,
-    const static_queue_traits::Overwrite& behaviour)
-{
-    static_cast<void>(behaviour);
-
-    if (Base::isFull()) {
-        Base::popFront();
-    }
-
-    Base::pushBackNotFull(std::forward<U>(value));
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-void BasicStaticQueue<T, TSize, TTraits>::pushFront(
-    U&& value,
-    const static_queue_traits::IgnoreError& behaviour)
-{
-    static_cast<void>(behaviour);
-
-    if (Base::isFull()) {
-        return;
-    }
-
-    Base::pushFrontNotFull(std::forward<U>(value));
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-void BasicStaticQueue<T, TSize, TTraits>::pushFront(
-    U&& value,
-    const static_queue_traits::Overwrite& behaviour)
-{
-    static_cast<void>(behaviour);
-
-    if (Base::isFull()) {
-        Base::popBack();
-    }
-
-    Base::pushFrontNotFull(std::forward<U>(value));
-}
-
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
-BasicStaticQueue<T, TSize, TTraits>::insert(
-    LinearisedIterator pos,
-    U&& value,
-    const static_queue_traits::IgnoreError& behaviour)
-{
-    static_cast<void>(behaviour);
-
+    GASSERT(!Base::isFull());
     if (Base::isFull()) {
         return Base::invalidIter();
     }
 
-    return Base::insertNotFull(pos, std::forward<U>(value));
+    return Base::insertNotFull(pos, value);
 }
 
-template <typename T, std::size_t TSize, typename TTraits>
-template <typename U>
-typename BasicStaticQueue<T, TSize, TTraits>::LinearisedIterator
-BasicStaticQueue<T, TSize, TTraits>::insert(
-    LinearisedIterator pos,
-    U&& value,
-    const static_queue_traits::Overwrite& behaviour)
+template <typename T, std::size_t TSize>
+typename BasicStaticQueue<T, TSize>::LinearisedIterator
+BasicStaticQueue<T, TSize>::insert(LinearisedIterator pos, ValueType&& value)
 {
-    static_cast<void>(behaviour);
-
+    GASSERT(!Base::isFull());
     if (Base::isFull()) {
-        if (pos == Base::arrayTwo().second) {
-            return Base::invalidIter();
-        }
-        Base::popBack();
+        return Base::invalidIter();
     }
 
-    return Base::insertNotFull(pos, std::forward<U>(value));
+    return Base::insertNotFull(pos, std::move(value));
 }
-
 
 template <typename T, std::size_t TSize>
 template <typename TDerived, typename TQueueType>
