@@ -47,6 +47,8 @@ public:
     void testNonLinearisedIteration();
     void testBackInserter();
     void testPriorityQueue();
+    void testLinearisation1();
+    void testLinearisation2();
 
 private:
 
@@ -250,6 +252,76 @@ void StaticQueueTestSuite::testPriorityQueue()
     TS_ASSERT_EQUALS(queue2.size(), MaxQueueSize);
     TS_ASSERT(queue.empty());
 
+}
+
+void StaticQueueTestSuite::testLinearisation1()
+{
+    const std::size_t MaxQueueSize = 11;
+    typedef embxx::container::StaticQueue<TestObject, MaxQueueSize> Queue;
+    {
+        Queue queue;
+
+        queue.pushBack(TestObject());
+        queue.pushFront(TestObject());
+
+        Queue queueCopy(queue);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+        auto countBefore = TestObject::getObjectCount();
+        TS_ASSERT(!queue.linearised());
+        queue.linearise();
+        TS_ASSERT(queue.linearised());
+        auto countAfter = TestObject::getObjectCount();
+        TS_ASSERT_EQUALS(countBefore, countAfter);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+
+        queueCopy = queue;
+        TS_ASSERT_EQUALS(queue, queueCopy);
+        countBefore = TestObject::getObjectCount();
+        TS_ASSERT(!queue.linearised());
+        queue.linearise();
+        TS_ASSERT(queue.linearised());
+        countAfter = TestObject::getObjectCount();
+        TS_ASSERT_EQUALS(countBefore, countAfter);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+    }
+
+    TS_ASSERT(TestObject::getObjectCount() == 0U);
+}
+
+void StaticQueueTestSuite::testLinearisation2()
+{
+    const std::size_t MaxQueueSize = 11;
+    typedef embxx::container::StaticQueue<TestObject, MaxQueueSize> Queue;
+    {
+        Queue queue;
+
+        queue.pushBack(TestObject());
+        queue.pushBack(TestObject());
+        queue.pushBack(TestObject());
+        queue.pushBack(TestObject());
+        queue.pushBack(TestObject());
+        queue.pushFront(TestObject());
+        queue.pushFront(TestObject());
+
+        Queue queueCopy(queue);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+        auto countBefore = TestObject::getObjectCount();
+        TS_ASSERT(!queue.linearised());
+        queue.linearise();
+        TS_ASSERT(queue.linearised());
+        auto countAfter = TestObject::getObjectCount();
+        TS_ASSERT_EQUALS(countBefore, countAfter);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+    }
+
+    TS_ASSERT(TestObject::getObjectCount() == 0U);
 }
 
 template <typename TQueue>
@@ -643,7 +715,7 @@ void StaticQueueTestSuite::internalTestEquality()
         queue.linearise();
         TS_ASSERT(queue.isLinearised());
 
-        // Iterators are valid before linearisation
+        // Iterators are valid after linearisation
         TS_ASSERT(queue.lbegin() != queue.lend());
         TS_ASSERT(queue.clbegin() != queue.clend());
         TS_ASSERT(queue.rlbegin() != queue.rlend());

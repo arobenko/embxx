@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <string>
+#include <cassert>
 
 #include "cxxtest/TestSuite.h"
 
@@ -34,18 +35,20 @@ TestObject::TestObject()
       dword_(static_cast<std::uint32_t>(rand())),
       word_(static_cast<std::int16_t>(rand())),
       long_(static_cast<std::int64_t>(rand()) * rand()),
-      floatPart_(new FloatPart)
+      floatPart_(new FloatPart),
+      constructed_(true)
 {
     ++objectCount_;
-//    TS_TRACE((std::string("Created new object, count = ") +
-//        std::to_string(objectCount_)).c_str());
+    TS_TRACE((std::string("Created new object, count = ") +
+        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::~TestObject()
 {
+    constructed_ = false;
     --objectCount_;
-//    TS_TRACE((std::string("Destructing object, count = ") +
-//        std::to_string(objectCount_)).c_str());
+    TS_TRACE((std::string("Destructing object, count = ") +
+        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::TestObject(const TestObject& obj)
@@ -53,12 +56,14 @@ TestObject::TestObject(const TestObject& obj)
       dword_(obj.dword_),
       word_(obj.word_),
       long_(obj.long_),
-      floatPart_(new FloatPart(*obj.floatPart_))
+      floatPart_(new FloatPart(*obj.floatPart_)),
+      constructed_(true)
 {
+    assert(obj.constructed_);
     ++copyConstructCount_;
     ++objectCount_;
-//    TS_TRACE((std::string("Copy constructing object, count = ") +
-//        std::to_string(objectCount_)).c_str());
+    TS_TRACE((std::string("Copy constructing object, count = ") +
+        std::to_string(objectCount_)).c_str());
 }
 
 TestObject::TestObject(TestObject&& obj)
@@ -66,17 +71,21 @@ TestObject::TestObject(TestObject&& obj)
       dword_(obj.dword_),
       word_(obj.word_),
       long_(obj.long_),
-      floatPart_(std::move(obj.floatPart_))
+      floatPart_(std::move(obj.floatPart_)),
+      constructed_(true)
 {
+    assert(obj.constructed_);
     ++moveConstructCount_;
     ++objectCount_;
-//    TS_TRACE((std::string("Move constructing object, count = ") +
-//        std::to_string(objectCount_)).c_str());
+    TS_TRACE((std::string("Move constructing object, count = ") +
+        std::to_string(objectCount_)).c_str());
 }
 
 TestObject&
 TestObject::operator=(const TestObject& obj)
 {
+    assert(obj.constructed_);
+    assert(constructed_);
     if (this == &obj) {
         return *this;
     }
@@ -93,6 +102,9 @@ TestObject::operator=(const TestObject& obj)
 TestObject&
 TestObject::operator=(TestObject&& obj)
 {
+    assert(obj.constructed_);
+    assert(constructed_);
+
     if (this == &obj) {
         return *this;
     }
@@ -114,6 +126,9 @@ TestObject::FloatPart::FloatPart()
 
 bool TestObject::operator==(const TestObject& obj) const
 {
+    assert(obj.constructed_);
+    assert(constructed_);
+
     if ((byte_ != obj.byte_) ||
         (dword_ != obj.dword_) ||
         (word_ != obj.word_) ||
@@ -135,6 +150,9 @@ bool TestObject::operator==(const TestObject& obj) const
 
 bool TestObject::operator<(const TestObject& obj) const
 {
+    assert(obj.constructed_);
+    assert(constructed_);
+
     if ((obj.byte_ <= byte_) ||
         (obj.dword_ <= dword_) ||
         (obj.word_ <= word_) ||
@@ -156,7 +174,7 @@ bool TestObject::operator<(const TestObject& obj) const
 
 bool TestObject::isValid() const
 {
-    return static_cast<bool>(floatPart_);
+    return constructed_ && static_cast<bool>(floatPart_);
 }
 
 bool TestObject::supportsMoveSemantics()
@@ -215,4 +233,25 @@ void TestObject::clearAllCopyMoveCounts()
     clearCopyConstructCount();
     clearMoveAssignCount();
     clearCopyAssignCount();
+}
+
+std::string TestObject::toString() const
+{
+    assert(constructed_);
+    std::string str;
+    str += "Byte=";
+    str += std::to_string(byte_);
+    str += "; Dword=";
+    str += std::to_string(dword_);
+    str += "; Word=";
+    str += std::to_string(word_);
+    str += "; Long=";
+    str += std::to_string(long_);
+    if (floatPart_) {
+        str += "; Float=";
+        str += std::to_string(floatPart_->float_);
+        str += "; Double=";
+        str += std::to_string(floatPart_->double_);
+    }
+    return std::move(str);
 }
