@@ -49,6 +49,7 @@ public:
     void testPriorityQueue();
     void testLinearisation1();
     void testLinearisation2();
+    void testPointersQueue();
 
 private:
 
@@ -319,6 +320,42 @@ void StaticQueueTestSuite::testLinearisation2()
         auto countAfter = TestObject::getObjectCount();
         TS_ASSERT_EQUALS(countBefore, countAfter);
         TS_ASSERT_EQUALS(queue, queueCopy);
+    }
+
+    TS_ASSERT(TestObject::getObjectCount() == 0U);
+}
+
+void StaticQueueTestSuite::testPointersQueue()
+{
+    const std::size_t MaxQueueSize = 7;
+    typedef embxx::container::StaticQueue<int*, MaxQueueSize> Queue;
+    {
+        Queue queue;
+
+        static int value1 = 1;
+        static int value2 = 2;
+        static int value3 = 3;
+        static int value4 = 4;
+        static int value5 = 5;
+
+        queue.pushBack(&value1);
+        queue.pushBack(&value2);
+        queue.pushBack(&value3);
+        queue.pushFront(&value4);
+        queue.pushFront(&value5);
+
+        Queue queueCopy(queue);
+        TS_ASSERT_EQUALS(queue, queueCopy);
+        TS_ASSERT(!queue.linearised());
+        queue.linearise();
+        TS_ASSERT(queue.linearised());
+        TS_ASSERT_EQUALS(queue, queueCopy);
+        queue.erase(queue.begin());
+        queue.erase(queue.end() - 1);
+        queue.erase(queue.begin());
+        queue.erase(queue.end() - 1);
+        queue.erase(queue.begin());
+        TS_ASSERT(queue.empty());
     }
 
     TS_ASSERT(TestObject::getObjectCount() == 0U);

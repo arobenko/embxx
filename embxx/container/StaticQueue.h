@@ -32,6 +32,7 @@
 #include <algorithm>
 
 #include "embxx/util/Assert.h"
+#include "embxx/util/SizeToType.h"
 
 namespace embxx
 {
@@ -45,6 +46,13 @@ namespace details
 template <typename T>
 class StaticQueueBase
 {
+public:
+    template <typename TDerived, typename TQueueType>
+    class IteratorBase;
+
+    class ConstIterator;
+    class Iterator;
+
 protected:
     typedef T ValueType;
     typedef
@@ -65,15 +73,6 @@ protected:
     typedef std::reverse_iterator<ConstLinearisedIterator> ConstReverseLinearisedIterator;
     typedef std::pair<LinearisedIterator, LinearisedIterator> LinearisedIteratorRange;
     typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
-
-    template <typename TDerived, typename TQueueType>
-    class IteratorBase;
-
-    class ConstIterator;
-    class Iterator;
-
-//    template <typename TDerived>
-//    friend class IteratorBase<TDerived>;
 
     StaticQueueBase(StorageTypePtr data, std::size_t capacity)
         : data_(data),
@@ -996,63 +995,63 @@ protected:
     {
     }
 
-    IteratorBase& operator=(const IteratorBase& other)
+    Derived& operator=(const IteratorBase& other)
     {
         GASSERT(&queue_ == &other.queue_);
         iterator_ = other.iterator_; // No need to check for self assignment
-        return *this;
+        return static_cast<Derived&>(*this);
     }
 
-    IteratorBase& operator++()
+    Derived& operator++()
     {
         ++iterator_;
-        return *this;
+        return static_cast<Derived&>(*this);
     }
 
-    IteratorBase operator++(int)
+    Derived operator++(int)
     {
         IteratorBase copy(*this);
         ++iterator_;
-        return std::move(copy);
+        return std::move(*(static_cast<Derived*>(&copy)));
     }
 
-    IteratorBase& operator--()
+    Derived& operator--()
     {
         --iterator_;
-        return *this;
+        return static_cast<Derived&>(*this);
     }
 
-    IteratorBase operator--(int)
+    Derived operator--(int)
     {
         IteratorBase copy(*this);
         --iterator_;
-        return std::move(copy);
+        return std::move(*(static_cast<Derived*>(&copy)));
     }
 
-    IteratorBase& operator+=(DifferenceType value)
+    Derived& operator+=(DifferenceType value)
     {
         iterator_ += value;
-        return *this;
+        return static_cast<Derived&>(*this);
     }
 
-    IteratorBase& operator-=(DifferenceType value)
+    Derived& operator-=(DifferenceType value)
     {
         iterator_ -= value;
-        return *this;
+        return static_cast<Derived&>(*this);
     }
 
-    IteratorBase operator+(DifferenceType value) const
+    Derived operator+(DifferenceType value) const
     {
         IteratorBase copy(*this);
         copy += value;
-        return std::move(copy);
+        return std::move(*(static_cast<Derived*>(&copy)));
     }
 
-    IteratorBase operator-(DifferenceType value) const
+    Derived operator-(DifferenceType value) const
     {
         IteratorBase copy(*this);
         copy -= value;
-        return std::move(copy);
+        return std::move(*(static_cast<Derived*>(&copy)));
     }
 
     DifferenceType operator-(const IteratorBase& other) const
@@ -1133,16 +1132,6 @@ protected:
         return iterator_;
     }
 
-    operator TDerived&()
-    {
-        return static_cast<TDerived&>(*this);
-    }
-
-    operator const TDerived&() const
-    {
-        return static_cast<const TDerived&>(*this);
-    }
-
 private:
 
     QueueType& queue_; ///< Queue
@@ -1197,6 +1186,633 @@ public:
     }
 };
 
+
+template <typename TWrapperElemType, typename TQueueElemType>
+class CastWrapperQueueBase : public StaticQueueBase<TQueueElemType>
+{
+    typedef StaticQueueBase<TQueueElemType> Base;
+    typedef TWrapperElemType WrapperElemType;
+
+    typedef typename Base::ValueType BaseValueType;
+    typedef typename Base::StorageTypePtr BaseStorageTypePtr;
+    typedef typename Base::Reference BaseReference;
+    typedef typename Base::ConstReference BaseConstReference;
+    typedef typename Base::Pointer BasePointer;
+    typedef typename Base::ConstPointer BaseConstPointer;
+    typedef typename Base::LinearisedIterator BaseLinearisedIterator;
+    typedef typename Base::ConstLinearisedIterator BaseConstLinearisedIterator;
+    typedef typename Base::ReverseLinearisedIterator BaseReverseLinearisedIterator;
+    typedef typename Base::ConstReverseLinearisedIterator BaseConstReverseLinearisedIterator;
+    typedef typename Base::LinearisedIteratorRange BaseLinearisedIteratorRange;
+    typedef typename Base::ConstLinearisedIteratorRange BaseConstLinearisedIteratorRange;
+
+public:
+
+    class ConstIterator;
+    class Iterator;
+
+protected:
+    typedef WrapperElemType ValueType;
+    typedef
+        typename std::aligned_storage<
+            sizeof(ValueType),
+            std::alignment_of<ValueType>::value
+        >::type StorageType;
+    typedef StorageType* StorageTypePtr;
+    typedef ValueType& Reference;
+    typedef const ValueType& ConstReference;
+    typedef ValueType* Pointer;
+    typedef const ValueType* ConstPointer;
+    typedef Pointer LinearisedIterator;
+    typedef ConstPointer ConstLinearisedIterator;
+    typedef std::reverse_iterator<LinearisedIterator> ReverseLinearisedIterator;
+    typedef std::reverse_iterator<ConstLinearisedIterator> ConstReverseLinearisedIterator;
+    typedef std::pair<LinearisedIterator, LinearisedIterator> LinearisedIteratorRange;
+    typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
+
+    CastWrapperQueueBase(StorageTypePtr data, std::size_t capacity)
+        : Base(reinterpret_cast<BaseStorageTypePtr>(data), capacity)
+    {
+        static_assert(sizeof(ValueType) == sizeof(BaseValueType),
+            "The times must have identical size.");
+    }
+
+    ~CastWrapperQueueBase() = default;
+
+    CastWrapperQueueBase& operator=(const CastWrapperQueueBase& other) = default;
+    CastWrapperQueueBase& operator=(CastWrapperQueueBase&& other) = default;
+
+    Reference front()
+    {
+        return reinterpret_cast<Reference>(Base::front());
+    }
+
+    ConstReference front() const
+    {
+        return reinterpret_cast<ConstReference>(Base::front());
+    }
+
+    Reference back()
+    {
+        return reinterpret_cast<Reference>(Base::back());
+    }
+
+    ConstReference back() const
+    {
+        return reinterpret_cast<Reference>(Base::back());
+    }
+
+    Reference operator[](std::size_t index)
+    {
+        return reinterpret_cast<Reference>(Base::operator[](index));
+    }
+
+    ConstReference operator[](std::size_t index) const
+    {
+        return reinterpret_cast<ConstReference>(Base::operator[](index));
+    }
+
+    Reference at(std::size_t index)
+    {
+        return reinterpret_cast<Reference>(Base::at(index));
+    }
+
+    ConstReference at(std::size_t index) const
+    {
+        return reinterpret_cast<ConstReference>(Base::at(index));
+    }
+
+    int indexOf(ConstReference element) const
+    {
+        return Base::indexOf(reinterpret_cast<BaseConstReference>(element));
+    }
+
+    LinearisedIterator invalidIter()
+    {
+        return reinterpret_cast<LinearisedIterator>(Base::invalidIter());
+    }
+
+    ConstLinearisedIterator invalidIter() const
+    {
+        return reinterpret_cast<ConstLinearisedIterator>(Base::invalidIter());
+    }
+
+    ReverseLinearisedIterator invalidReverseIter()
+    {
+        return ReverseLinearisedIterator(
+            reinterpret_cast<LinearisedIterator>(
+                Base::invalidReverseIter().base()));
+    }
+
+    ConstReverseLinearisedIterator invalidReverseIter() const
+    {
+        return ConstReverseLinearisedIterator(
+            reinterpret_cast<ConstLinearisedIterator>(
+                Base::invalidReverseIter().base()));
+    }
+
+    LinearisedIterator lbegin()
+    {
+        return reinterpret_cast<LinearisedIterator>(Base::lbegin());
+    }
+
+    ConstLinearisedIterator lbegin() const
+    {
+        return reinterpret_cast<ConstLinearisedIterator>(Base::lbegin());
+    }
+
+    ConstLinearisedIterator clbegin() const
+    {
+        return reinterpret_cast<ConstLinearisedIterator>(Base::clbegin());
+    }
+
+    ReverseLinearisedIterator rlbegin()
+    {
+        return ReverseLinearisedIterator(
+            reinterpret_cast<LinearisedIterator>(
+                Base::rlbegin().base()));
+    }
+
+    ConstReverseLinearisedIterator rlbegin() const
+    {
+        return ConstReverseLinearisedIterator(
+            reinterpret_cast<ConstLinearisedIterator>(
+                Base::rlbegin().base()));
+    }
+
+    ConstReverseLinearisedIterator crlbegin() const
+    {
+        return ConstReverseLinearisedIterator(
+            reinterpret_cast<ConstLinearisedIterator>(
+                Base::crlbegin().base()));
+    }
+
+    LinearisedIterator lend()
+    {
+        return reinterpret_cast<LinearisedIterator>(Base::lend());
+    }
+
+    ConstLinearisedIterator lend() const
+    {
+        return reinterpret_cast<ConstLinearisedIterator>(Base::lend());
+    }
+
+    ConstLinearisedIterator clend() const
+    {
+        return reinterpret_cast<ConstLinearisedIterator>(Base::clend());
+    }
+
+    ReverseLinearisedIterator rlend()
+    {
+        return ReverseLinearisedIterator(
+            reinterpret_cast<LinearisedIterator>(
+                Base::rlend().base()));
+    }
+
+    ConstReverseLinearisedIterator rlend() const
+    {
+        return ConstReverseLinearisedIterator(
+            reinterpret_cast<ConstLinearisedIterator>(
+                Base::rlend().base()));
+    }
+
+    ConstReverseLinearisedIterator crlend() const
+    {
+        return ConstReverseLinearisedIterator(
+            reinterpret_cast<ConstLinearisedIterator>(
+                Base::crlend().base()));
+    }
+
+    LinearisedIteratorRange arrayOne()
+    {
+        auto range = Base::arrayOne();
+        return LinearisedIteratorRange(
+            reinterpret_cast<LinearisedIterator>(range.first),
+            reinterpret_cast<LinearisedIterator>(range.second));
+    }
+
+    ConstLinearisedIteratorRange arrayOne() const
+    {
+        auto range = Base::arrayOne();
+        return ConstLinearisedIteratorRange(
+            reinterpret_cast<ConstLinearisedIterator>(range.first),
+            reinterpret_cast<ConstLinearisedIterator>(range.second));
+
+    }
+
+    LinearisedIteratorRange arrayTwo()
+    {
+        auto range = Base::arrayTwo();
+        return LinearisedIteratorRange(
+            reinterpret_cast<LinearisedIterator>(range.first),
+            reinterpret_cast<LinearisedIterator>(range.second));
+
+    }
+
+    ConstLinearisedIteratorRange arrayTwo() const
+    {
+        auto range = Base::arrayTwo();
+        return ConstLinearisedIteratorRange(
+            reinterpret_cast<ConstLinearisedIterator>(range.first),
+            reinterpret_cast<ConstLinearisedIterator>(range.second));
+
+    }
+
+    LinearisedIterator erase(LinearisedIterator pos)
+    {
+        return reinterpret_cast<LinearisedIterator>(
+            Base::erase(
+                reinterpret_cast<BaseLinearisedIterator>(pos)));
+    }
+
+    Iterator erase(Iterator pos)
+    {
+        auto tmp = Base::erase(pos);
+        return *(reinterpret_cast<Iterator*>(&tmp));
+    }
+
+    Iterator begin()
+    {
+        auto tmp = Base::begin();
+        return *(reinterpret_cast<Iterator*>(&tmp));
+    }
+
+    ConstIterator begin() const
+    {
+        auto tmp = Base::begin();
+        return *(reinterpret_cast<ConstIterator*>(&tmp));
+    }
+
+    ConstIterator cbegin() const
+    {
+        auto tmp = Base::cbegin();
+        return *(reinterpret_cast<ConstIterator*>(&tmp));
+
+    }
+
+    Iterator end()
+    {
+        auto tmp = Base::end();
+        return *(reinterpret_cast<Iterator*>(&tmp));
+    }
+
+    ConstIterator end() const
+    {
+        auto tmp = Base::end();
+        return *(reinterpret_cast<ConstIterator*>(&tmp));
+    }
+
+    ConstIterator cend() const
+    {
+        auto tmp = Base::cend();
+        return *(reinterpret_cast<ConstIterator*>(&tmp));
+    }
+
+    void pushBack(ConstReference value)
+    {
+        Base::pushBack(reinterpret_cast<BaseConstReference>(value));
+    }
+
+    void pushFront(ConstReference value)
+    {
+        Base::pushFront(reinterpret_cast<BaseConstReference>(value));
+    }
+
+    LinearisedIterator insert(LinearisedIterator pos, ConstReference value)
+    {
+        return reinterpret_cast<LinearisedIterator>(
+            Base::insert(
+                reinterpret_cast<BaseLinearisedIterator>(pos),
+                reinterpret_cast<BaseConstReference>(value)));
+    }
+
+    void assignElements(const CastWrapperQueueBase& other)
+    {
+        Base::assignElements(static_cast<const Base&>(other));
+    }
+
+    void assignElements(CastWrapperQueueBase&& other)
+    {
+        Base::assignElements(static_cast<Base&&>(std::move(other)));
+    }
+};
+
+template <typename TWrapperElemType, typename TQueueElemType>
+class CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::ConstIterator :
+                            public StaticQueueBase<TQueueElemType>::ConstIterator
+{
+    typedef typename StaticQueueBase<TQueueElemType>::ConstIterator Base;
+public:
+    ConstIterator(const ConstIterator&) = default;
+    ConstIterator& operator=(const ConstIterator&) = default;
+    ~ConstIterator() = default;
+
+protected:
+    typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
+    typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
+    typedef TWrapperElemType ValueType;
+    typedef const ValueType& Reference;
+    typedef const ValueType& ConstReference;
+    typedef const ValueType* Pointer;
+    typedef const ValueType* ConstPointer;
+    typedef typename Base::DifferenceType DifferenceType;
+
+    ConstIterator(ExpectedQueueType& queue, Pointer iterator)
+        : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
+    {
+    }
+
+    ConstIterator& operator++()
+    {
+        Base::operator++();
+        return *this;
+    }
+
+    ConstIterator operator++(int dummy)
+    {
+        auto tmp = Base::operator++(dummy);
+        return *(static_cast<ConstIterator*>(&tmp));
+    }
+
+    ConstIterator& operator--()
+    {
+        Base::operator--();
+        return *this;
+    }
+
+    ConstIterator operator--(int dummy)
+    {
+        auto tmp = Base::operator--(dummy);
+        return *(static_cast<ConstIterator*>(&tmp));
+    }
+
+    ConstIterator& operator+=(DifferenceType value)
+    {
+        Base::operator+=(value);
+        return *this;
+    }
+
+    ConstIterator& operator-=(DifferenceType value)
+    {
+        Base::operator-=(value);
+        return *this;
+    }
+
+    ConstIterator operator+(DifferenceType value) const
+    {
+        auto tmp = Base::operator+(value);
+        return *(static_cast<ConstIterator*>(&tmp));
+    }
+
+    ConstIterator operator-(DifferenceType value) const
+    {
+        auto tmp = Base::operator-(value);
+        return *(static_cast<ConstIterator*>(&tmp));
+    }
+
+    DifferenceType operator-(const ConstIterator& other) const
+    {
+        return Base::operator-(other);
+    }
+
+    Reference operator*()
+    {
+        auto& ref = Base::operator*();
+        return reinterpret_cast<Reference>(ref);
+    }
+
+    ConstReference operator*() const
+    {
+        auto& ref = Base::operator*();
+        return reinterpret_cast<ConstReference>(ref);
+    }
+
+    Pointer operator->()
+    {
+        auto* ptr = Base::operator->();
+        return reinterpret_cast<Pointer>(ptr);
+    }
+
+    ConstPointer operator->() const
+    {
+        auto* ptr = Base::operator->();
+        return reinterpret_cast<ConstPointer>(ptr);
+    }
+};
+
+template <typename TWrapperElemType, typename TQueueElemType>
+class CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::Iterator :
+                            public StaticQueueBase<TQueueElemType>::Iterator
+{
+    typedef typename StaticQueueBase<TQueueElemType>::Iterator Base;
+public:
+    Iterator(const Iterator&) = default;
+    Iterator& operator=(const Iterator&) = default;
+    ~Iterator() = default;
+
+protected:
+    typedef const StaticQueueBase<TWrapperElemType> ExpectedQueueType;
+    typedef const StaticQueueBase<TQueueElemType> ActualQueueType;
+    typedef TWrapperElemType ValueType;
+    typedef ValueType& Reference;
+    typedef const ValueType& ConstReference;
+    typedef ValueType* Pointer;
+    typedef const ValueType* ConstPointer;
+    typedef typename Base::DifferenceType DifferenceType;
+
+    Iterator(ExpectedQueueType& queue, Pointer iterator)
+        : Base(reinterpret_cast<ActualQueueType&>(queue), iterator)
+    {
+    }
+
+    Iterator& operator++()
+    {
+        Base::operator++();
+        return *this;
+    }
+
+    Iterator operator++(int dummy)
+    {
+        auto tmp = Base::operator++(dummy);
+        return *(static_cast<Iterator*>(&tmp));
+    }
+
+    Iterator& operator--()
+    {
+        Base::operator--();
+        return *this;
+    }
+
+    Iterator operator--(int dummy)
+    {
+        auto tmp = Base::operator--(dummy);
+        return *(static_cast<Iterator*>(&tmp));
+    }
+
+    Iterator& operator+=(DifferenceType value)
+    {
+        Base::operator+=(value);
+        return *this;
+    }
+
+    Iterator& operator-=(DifferenceType value)
+    {
+        Base::operator-=(value);
+        return *this;
+    }
+
+    Iterator operator+(DifferenceType value) const
+    {
+        auto tmp = Base::operator+(value);
+        return *(static_cast<Iterator*>(&tmp));
+    }
+
+    Iterator operator-(DifferenceType value) const
+    {
+        auto tmp = Base::operator-(value);
+        return *(static_cast<Iterator*>(&tmp));
+    }
+
+    DifferenceType operator-(const Iterator& other) const
+    {
+        return Base::operator-(other);
+    }
+
+    Reference operator*()
+    {
+        auto& ref = Base::operator*();
+        return reinterpret_cast<Reference>(ref);
+    }
+
+    ConstReference operator*() const
+    {
+        auto& ref = Base::operator*();
+        return reinterpret_cast<ConstReference>(ref);
+    }
+
+    Pointer operator->()
+    {
+        auto* ptr = Base::operator->();
+        return reinterpret_cast<Pointer>(ptr);
+    }
+
+    ConstPointer operator->() const
+    {
+        auto* ptr = Base::operator->();
+        return reinterpret_cast<ConstPointer>(ptr);
+    }
+};
+
+template <typename T>
+class StaticQueueBaseOptimised : public StaticQueueBase<T>
+{
+    typedef StaticQueueBase<T> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+template <>
+class StaticQueueBaseOptimised<std::int8_t> : public CastWrapperQueueBase<std::int8_t, std::uint8_t>
+{
+    typedef CastWrapperQueueBase<std::int8_t, std::uint8_t> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+template <>
+class StaticQueueBaseOptimised<std::int16_t> : public CastWrapperQueueBase<std::int16_t, std::uint16_t>
+{
+    typedef CastWrapperQueueBase<std::int16_t, std::uint16_t> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+template <>
+class StaticQueueBaseOptimised<std::int32_t> : public CastWrapperQueueBase<std::int32_t, std::uint32_t>
+{
+    typedef CastWrapperQueueBase<std::int32_t, std::uint32_t> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+template <>
+class StaticQueueBaseOptimised<std::int64_t> : public CastWrapperQueueBase<std::int64_t, std::uint64_t>
+{
+    typedef CastWrapperQueueBase<std::int64_t, std::uint64_t> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+template <typename T>
+class StaticQueueBaseOptimised<T*> : public CastWrapperQueueBase<T*, typename embxx::util::SizeToType<sizeof(T*)>::Type>
+{
+    typedef CastWrapperQueueBase<T*, typename embxx::util::SizeToType<sizeof(T*)>::Type> Base;
+protected:
+
+    typedef typename Base::StorageTypePtr StorageTypePtr;
+
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
+        : Base(data, capacity)
+    {
+    }
+
+    ~StaticQueueBaseOptimised() = default;
+    StaticQueueBaseOptimised& operator=(const StaticQueueBaseOptimised& other) = default;
+    StaticQueueBaseOptimised& operator=(StaticQueueBaseOptimised&& other) = default;
+};
+
+
 }  // namespace details
 
 
@@ -1215,9 +1831,9 @@ public:
 ///         elements.
 /// @headerfile embxx/container/StaticQueue.h
 template <typename T, std::size_t TSize>
-class StaticQueue : public details::StaticQueueBase<T>
+class StaticQueue : public details::StaticQueueBaseOptimised<T>
 {
-    typedef details::StaticQueueBase<T> Base;
+    typedef details::StaticQueueBaseOptimised<T> Base;
 
     typedef typename Base::StorageType StorageType;
 public:
@@ -1891,15 +2507,8 @@ public:
     ///          may be safely used for iteration only when the queue is
     ///          linearised.
     ///          When linearising elements of the queue, the move constructor
-    ///          of the type T will be called twice: first time to move the
-    ///          element into the temporary queue and the second time to
-    ///          move it back from the temporary queue into its new location
-    ///          in the original queue.
-    /// @warning There is a temporary queue of the same type (same size)
-    ///          created on the stack. Avoid using this function if the queue
-    ///          is too long and there is a  limit on the stack memory you
-    ///          could use. Instead use arrayOne() and arrayTwo() functions to
-    ///          get details of internal two parts and iterate over them.
+    ///          of the type T may be called several times when moving elements
+    ///          around.
     /// @post The queue elements are linearised.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: No throw in case move constructor/desctructor
@@ -2128,9 +2737,9 @@ private:
 ///          about linearisation of the queue.
 /// @headerfile embxx/container/StaticQueue.h
 template <typename T, std::size_t TSize>
-class StaticQueue<T, TSize>::ConstIterator : public details::StaticQueueBase<T>::ConstIterator
+class StaticQueue<T, TSize>::ConstIterator : public StaticQueue<T, TSize>::Base::ConstIterator
 {
-    typedef typename details::StaticQueueBase<T>::ConstIterator Base;
+    typedef typename StaticQueue<T, TSize>::Base::ConstIterator Base;
 public:
 
     /// @brief Type of iterator category
@@ -2334,9 +2943,9 @@ public:
 ///          about linearisation of the queue.
 /// @headerfile embxx/container/StaticQueue.h
 template <typename T, std::size_t TSize>
-class StaticQueue<T, TSize>::Iterator : public details::StaticQueueBase<T>::Iterator
+class StaticQueue<T, TSize>::Iterator : public StaticQueue<T, TSize>::Base::Iterator
 {
-    typedef typename details::StaticQueueBase<T>::Iterator Base;
+    typedef typename StaticQueue<T, TSize>::Base::Iterator Base;
 public:
 
     /// @brief Type of iterator category
@@ -2383,7 +2992,6 @@ public:
 
     /// @brief Const linearised iterator
     typedef typename QueueType::ConstLinearisedIterator ConstLinearisedIterator;
-
 
     /// @brief Constructor
     /// @param queue Reference to queue
