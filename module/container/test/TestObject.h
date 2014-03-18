@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 class TestObject
 {
@@ -50,6 +51,8 @@ public:
     static void clearCopyAssignCount();
     static void clearAllCopyMoveCounts();
 
+    std::string toString() const;
+
 private:
     struct FloatPart
     {
@@ -62,6 +65,7 @@ private:
     std::int16_t word_;
     std::int16_t long_;
     std::unique_ptr<FloatPart> floatPart_;
+    bool constructed_;
 
     static std::size_t objectCount_;
     static std::size_t moveConstructCount_;

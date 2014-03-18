@@ -147,7 +147,7 @@ endfunction ()
 
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
-ar_add_cxx_flags ("-Wno-overloaded-virtual")
+embxx_add_cxx_flags ("-Wno-overloaded-virtual")
 
 test_fields()
 test_message()

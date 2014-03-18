@@ -43,8 +43,6 @@ namespace protocol
 /// @brief Protocol layer that uses message ID to differentiate between messages.
 /// @details This layers is a "must have" one, it contains allocator to allocate
 ///          message object.
-/// @tparam TMsgBase Base class for all the custom messages, smart pointer to
-///         which will be returned from read() member function.
 /// @tparam TAllMessages A tuple (std::tuple) of all the custom message types
 ///         this protocol layer must support. The messages in the tuple must
 ///         be sorted in ascending order based on their MsgId
@@ -65,8 +63,6 @@ namespace protocol
 ///             embxx::comms::traits::endian::Little
 ///         @li MsgIdLen static integral constant specifying length of
 ///             message ID field in bytes.
-/// @pre TMsgBase must be a base class to all custom message types bundled in
-///      TAllMessages
 /// @pre TAllMessages must be any variation of std::tuple
 /// @pre All message types in TAllMessages must be in ascending order based on
 ///      their MsgId value

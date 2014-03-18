@@ -78,7 +78,7 @@ public:
 /// @brief Creates output stream manipulator object that sets width value of the stream
 /// @details "stream << embxx::io::width(2)" is equivalent to "stream.width(2)".
 inline
-WidthManip width(std::size_t value)
+WidthManip setw(std::size_t value)
 {
     return WidthManip(value);
 }
@@ -97,7 +97,7 @@ public:
 /// @details "stream << embxx::io::fill('0')" is equivalent to "stream.fill('0')".
 template <typename T>
 inline
-FillManip<T> fill(T value)
+FillManip<T> setfill(T value)
 {
     return FillManip<T>(value);
 }

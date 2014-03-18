@@ -14,10 +14,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Define GEN_DOXYGENT variable and use 
-# "ar_define_doxygen_tgt (<target> <config_file>)" to define
+# "embxx_define_doxygen_tgt (<target> <config_file>)" to define
 # target for generation of doxygen documentation.
 
-function (ar_define_doxygen_tgt tgt config_file)
+function (embxx_define_doxygen_tgt tgt config_file)
     find_package (Doxygen)
     if (DOXYGEN_FOUND)
         set (match_str "OUTPUT_DIRECTORY[^\n]*")

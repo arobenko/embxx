@@ -46,7 +46,7 @@ private:
         }
 
         template <typename... TArgs>
-        void invoke(TArgs... args)
+        void invoke(TArgs&&... args)
         {
             if (handler_) {
                 handler_(std::forward<TArgs>(args)...);
@@ -85,7 +85,6 @@ void GenericDriverTestSuite::test1()
     el.run();
     TS_ASSERT(invoked);
 }
-
 
 void GenericDriverTestSuite::test2()
 {

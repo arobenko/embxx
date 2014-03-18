@@ -258,8 +258,8 @@ void OutStreamTestSuite::test12()
     OutStreamBuf buf(driver);
     OutStream stream(buf);
 
-    stream << embxx::io::hex << "0x" << embxx::io::fill('0') <<
-        embxx::io::width(4) << 0xa;
+    stream << embxx::io::hex << "0x" << embxx::io::setfill('0') <<
+        embxx::io::setw(4) << 0xa;
 
     static const std::string ExpectedString("0x000a");
 

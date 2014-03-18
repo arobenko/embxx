@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <new>
 #include <cstddef>
 #include <memory>
 #include <type_traits>

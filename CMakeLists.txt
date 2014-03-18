@@ -12,9 +12,9 @@ set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 include (AR_AllExtras)
     
-ar_add_cpp11_support ()
-ar_define_doxygen_tgt ("doxygen" "${CMAKE_SOURCE_DIR}/doc/doxygen.conf")
-ar_set_default_compiler_options ()
+embxx_add_cpp11_support ()
+embxx_define_doxygen_tgt ("doxygen" "${CMAKE_SOURCE_DIR}/doc/doxygen.conf")
+embxx_set_default_compiler_options ()
 
 include_directories (
     "${CMAKE_SOURCE_DIR}"
