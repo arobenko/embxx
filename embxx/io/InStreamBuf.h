@@ -382,7 +382,7 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
             static_cast<std::size_t>(std::distance(rangeTwo.first, rangeTwo.second));
 
         auto rangeTwoSize = availableSize_ - rangeOneDistance;
-        GASSERT(rangeTwoSize < rangeTwoDistance);
+        GASSERT(rangeTwoSize <= rangeTwoDistance);
         readPtr = &(*(rangeTwo.first + rangeTwoSize));
         nextReadSize = std::min(nextReadSize, rangeTwoDistance - rangeTwoSize);
     }
