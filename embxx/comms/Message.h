@@ -414,20 +414,20 @@ protected:
     /// @return ErrorStatus::Success if all read operations are successful.
     virtual ErrorStatus readImpl(
         ReadIterator& iter,
-        std::size_t size) override final;
+        std::size_t size) override;
 
     /// @brief Implements write body behaviour.
     /// @details Calls write() member function of every element in TField
     /// @return ErrorStatus::Success if all write operations are successful.
     virtual ErrorStatus writeImpl(
         WriteIterator& iter,
-        std::size_t size) const override final;
+        std::size_t size) const override;
 
     /// @brief Implements serialisation size retrieval.
     /// @details Calls length() member functio nof every element it TField
     ///          and sums the result
     /// @return Number of bytes required to serialise all fields in TField
-    virtual std::size_t lengthImpl() const override final;
+    virtual std::size_t lengthImpl() const override;
 
 private:
 
