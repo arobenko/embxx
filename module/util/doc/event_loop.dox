@@ -121,3 +121,43 @@
 ///     }
 /// }
 /// @endcode
+///
+/// @section util_event_loop_busy_wait Executing busy wait
+/// Sometimes processing of some event may require execution of busy wait on
+/// some other condition such as change of value of some register. If the wait
+/// is executed in simple while loop, it may delay processing of other events 
+/// posted from their interrupt handlers. The embxx::util::EventLoop class 
+/// provides busyWait() member function to manage busy wait while still allowing 
+/// other handlers being called while the condition of busy wait evaluates to 
+/// false.
+///
+/// The busyWait() member function receives two parameters. The first one is
+/// a predicate functor that evaluates the condition and returns true when
+/// busy wait needs to be terminated and completion function must be invoked.
+/// The second parameter is also a functor which will be invoked when busy
+/// wait is complete.
+/// @code
+/// ...
+/// typedef embxx::util::EventLoop<...> EventLoop;
+///
+/// void regUpdated(EventLoop& el)
+/// {
+///     ... // Register is updated, keep processing.
+///     el.busyWait(...); // some othe busy wait.
+///     ...
+/// }
+///
+/// int main()
+/// {
+///     ... // some initialisation code
+///     EventLoop el;
+///     ...
+///     auto pReg = reinterpret_cast<volatile std::uint32_t*>(/* some address */);
+///     el.busyWait(
+///         [pReg]()->bool { return (pReg & 0x1) != 0},
+///         [&el]{}{ regUpdated(el); });
+///     el.run(); // Run the event loop forever
+///     GASSERT(!"Mustn't get here");
+///     return 0;
+/// }
+/// @endcode
