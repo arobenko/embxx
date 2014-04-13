@@ -31,6 +31,8 @@ public:
     void test2();
     void test3();
     void test4();
+    void test5();
+    void test6();
 
     class LoopLock
     {
@@ -223,6 +225,72 @@ void EventLoopTestSuite::test4()
     el.run();
 
     TS_ASSERT_EQUALS(count, MaxCount);
+}
+
+void EventLoopTestSuite::test5()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    volatile bool ready = false;
+
+    el.busyWait(
+        [&ready]() -> bool
+        {
+            return ready;
+        },
+        [&el]()
+        {
+            el.stop();
+        });
+
+
+    std::thread th(
+        [&ready]()
+        {
+            for (volatile auto i = 0U; i < 100000000; ++i) {}
+            ready = true;
+        });
+
+    el.run();
+
+    th.join();
+}
+
+void EventLoopTestSuite::test6()
+{
+    typedef embxx::util::EventLoop<1024, LoopLock, EventCondition> EventLoop;
+
+    EventLoop el;
+
+    volatile bool ready = false;
+
+    auto pred =
+        [&ready]() -> bool
+        {
+            return ready;
+        };
+
+    auto func =
+        [&el]()
+        {
+            el.stop();
+        };
+
+    el.busyWait(pred, func);
+
+
+    std::thread th(
+        [&ready]()
+        {
+            for (volatile auto i = 0U; i < 100000000; ++i) {}
+            ready = true;
+        });
+
+    el.run();
+
+    th.join();
 }
 
 

@@ -489,16 +489,17 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
     bool performingReadUntil,
     CharType untilChar)
 {
-    if (size == 0) {
-        invokeReadHandler(embxx::error::ErrorCode::Success, false);
-        return;
-    }
-
     readBufStart_ = buf;
     readBufCurrent_ = buf;
     readBufSize_ = size;
     performingReadUntil_ = performingReadUntil;
     untilChar_ = untilChar;
+
+    if (size == 0) {
+        invokeReadHandler(embxx::error::ErrorCode::Success, false);
+        return;
+    }
+
     device_.startRead(size, EventLoopContext());
 }
 
@@ -510,14 +511,15 @@ void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initWrite(
     const CharType* buf,
     std::size_t size)
 {
+    writeBufStart_ = buf;
+    writeBufCurrent_ = buf;
+    writeBufSize_ = size;
+
     if (size == 0) {
         invokeWriteHandler(embxx::error::ErrorCode::Success, false);
         return;
     }
 
-    writeBufStart_ = buf;
-    writeBufCurrent_ = buf;
-    writeBufSize_ = size;
     device_.startWrite(size, EventLoopContext());
 }
 

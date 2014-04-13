@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <mutex>
 #include <new>
+#include <functional>
 
 #include "embxx/container/StaticQueue.h"
 #include "embxx/util/ScopeGuard.h"
@@ -138,6 +139,25 @@ public:
     /// @note Exception guarantee: Basic
     void reset();
 
+    /// @brief Perform busy wait.
+    /// @details Executes busy wait while allowing other event handlers posted
+    ///          by interrupt handlers being processed.
+    /// @tparam TPred Predicate class type, must define
+    ///         @code bool operator()(); @endcode
+    ///         that return true in case busy wait must be terminated.
+    /// @tparam TFunc Functor class that will be executed when wait is complete.
+    ///         It must define
+    ///         @code void operator()(); @endcode
+    /// @param pred Any type of reference to predicate object
+    /// @param func Any type of reference to "wait complete" function.
+    /// @pre The event loop must have enough space to repost the call to
+    ///      busyWait. Note that there is no way to notify the caller if post
+    ///      operation fails. In debug compilation mode there will be
+    ///      an assertion failure in case call to post() returned false, in
+    ///      release compilation mode the failure will be silent.
+    template <typename TPred, typename TFunc>
+    void busyWait(TPred&& pred, TFunc&& func);
+
 private:
 
     /// @cond DOCUMENT_EVENT_LOOP_TASK
@@ -154,6 +174,7 @@ private:
     {
 
     public:
+        explicit TaskBound(const TTask& task);
         explicit TaskBound(TTask&& task);
         virtual ~TaskBound();
 
@@ -318,6 +339,28 @@ void EventLoop<TSize, TLock, TCond>::reset()
     queue_.clear();
 }
 
+template <std::size_t TSize,
+          typename TLock,
+          typename TCond>
+template <typename TPred, typename TFunc>
+void EventLoop<TSize, TLock, TCond>::busyWait(TPred&& pred, TFunc&& func)
+{
+    if (pred()) {
+        bool result = post(std::forward<TFunc>(func));
+        GASSERT(result);
+        static_cast<void>(result);
+        return;
+    }
+
+    bool result = post(
+        [this, pred, func]()
+        {
+            busyWait(std::move(pred), std::move(func));
+        });
+    GASSERT(result);
+    static_cast<void>(result);
+}
+
 /// @cond DOCUMENT_EVENT_LOOP_TASK
 template <std::size_t TSize,
           typename TLock,
@@ -345,8 +388,17 @@ template <std::size_t TSize,
           typename TLock,
           typename TCond>
 template <typename TTask>
+EventLoop<TSize, TLock, TCond>::TaskBound<TTask>::TaskBound(const TTask& task)
+    : task_(task)
+{
+}
+
+template <std::size_t TSize,
+          typename TLock,
+          typename TCond>
+template <typename TTask>
 EventLoop<TSize, TLock, TCond>::TaskBound<TTask>::TaskBound(TTask&& task)
-    : task_(std::forward<TTask>(task))
+    : task_(std::move(task))
 {
 }
 

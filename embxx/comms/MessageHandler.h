@@ -78,7 +78,7 @@ public:
         static_assert(std::is_base_of<TMsgBase, TFirst>::value,
             "TMsgBase must be base class for all messages");
 
-        Base::handleMessage(static_cast<TMsgBase&>(msg));
+        this->handleMessage(static_cast<TMsgBase&>(msg));
     }
 };
 

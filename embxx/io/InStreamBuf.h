@@ -209,9 +209,10 @@ private:
     Driver& driver_;
     Buffer buf_;
     std::size_t availableSize_;
-    bool running_;
     WaitHandler waitHandler_;
     std::size_t waitAvailableDataSize_;
+    bool running_;
+    bool readInProgress_;
 };
 
 // Implementation
@@ -219,8 +220,9 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 InStreamBuf<TDriver, TBufSize, TWaitHandler>::InStreamBuf(Driver& driver)
     : driver_(driver),
       availableSize_(0),
+      waitAvailableDataSize_(std::numeric_limits<decltype(waitAvailableDataSize_)>::max()),
       running_(false),
-      waitAvailableDataSize_(std::numeric_limits<decltype(waitAvailableDataSize_)>::max())
+      readInProgress_(false)
 {
 }
 
@@ -284,7 +286,9 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::start()
 {
     GASSERT(!isRunning());
     running_ = true;
-    startAsyncRead();
+    if (!readInProgress_) {
+        startAsyncRead();
+    }
 }
 
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
@@ -362,6 +366,7 @@ InStreamBuf<TDriver, TBufSize, TWaitHandler>::operator[](
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
 {
+    GASSERT(!readInProgress_);
     static const std::size_t DefaultReadSize = std::max(buf_.capacity() / 4, 1U);
     std::size_t nextReadSize =
         std::min(DefaultReadSize, buf_.capacity() - availableSize_);
@@ -382,7 +387,7 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
             static_cast<std::size_t>(std::distance(rangeTwo.first, rangeTwo.second));
 
         auto rangeTwoSize = availableSize_ - rangeOneDistance;
-        GASSERT(rangeTwoSize < rangeTwoDistance);
+        GASSERT(rangeTwoSize <= rangeTwoDistance);
         readPtr = &(*(rangeTwo.first + rangeTwoSize));
         nextReadSize = std::min(nextReadSize, rangeTwoDistance - rangeTwoSize);
     }
@@ -394,9 +399,12 @@ void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
 
     GASSERT(readPtr != nullptr);
 
+    readInProgress_ = true;
     driver_.asyncRead(readPtr, nextReadSize,
         [this](const embxx::error::ErrorStatus& es, std::size_t bytesRead)
         {
+            readInProgress_ = false;
+
             GASSERT(availableSize_ + bytesRead <= buf_.capacity());
             availableSize_ += bytesRead;
 
