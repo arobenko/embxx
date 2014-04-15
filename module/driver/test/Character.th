@@ -40,6 +40,7 @@ public:
     void test5();
     void test6();
     void test7();
+    void test8();
 
 private:
     typedef embxx::util::EventLoop<
@@ -108,7 +109,12 @@ void CharacterDriverTestSuite::test2()
 
 void CharacterDriverTestSuite::test3()
 {
-    typedef embxx::driver::Character<CharDevice, EventLoop> Socket;
+    typedef embxx::driver::Character<
+        CharDevice,
+        EventLoop,
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
+        embxx::util::StaticFunction<bool(CharDevice::CharType)> > Socket;
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);
@@ -324,4 +330,43 @@ void CharacterDriverTestSuite::test7()
     TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
     TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
     TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), device.getWrittenData(Id2).begin()));
+}
+
+void CharacterDriverTestSuite::test8()
+{
+    typedef embxx::driver::Character<
+        CharDevice,
+        EventLoop,
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
+        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
+        embxx::util::StaticFunction<bool(CharDevice::CharType)> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string ReadString(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaz");
+
+    char outArray[256] = {};
+    device.setDataToRead(&ReadString[0], ReadString.size());
+
+    bool asyncReadHandlerCalled = false;
+    socket.asyncReadUntil(
+        outArray,
+        ReadString.size(),
+        [](CharDevice::CharType ch) -> bool
+        {
+            return ch != 'a';
+        },
+        [&el, &outArray, &asyncReadHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray[0]));
+            el.stop();
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
 }
