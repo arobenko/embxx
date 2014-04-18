@@ -135,7 +135,7 @@ void TimerMgrTestSuite::test1()
 void TimerMgrTestSuite::test2()
 {
     typedef embxx::util::EventLoop<
-        132,
+        sizeof(void*) * 33,
         embxx::device::test::EventLoopLock,
         embxx::device::test::EventLoopCond> EventLoop;
 

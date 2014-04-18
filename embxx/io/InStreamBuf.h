@@ -367,7 +367,8 @@ template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
 void InStreamBuf<TDriver, TBufSize, TWaitHandler>::startAsyncRead()
 {
     GASSERT(!readInProgress_);
-    static const std::size_t DefaultReadSize = std::max(buf_.capacity() / 4, 1U);
+    static const std::size_t DefaultReadSize =
+        std::max(buf_.capacity() / 4, std::size_t(1U));
     std::size_t nextReadSize =
         std::min(DefaultReadSize, buf_.capacity() - availableSize_);
 

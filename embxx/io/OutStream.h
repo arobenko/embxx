@@ -53,9 +53,6 @@ public:
     /// @brief Character type, provided by the stream buffer.
     typedef typename StreamBuf::CharType CharType;
 
-    /// @brief Unsigned character type
-    typedef typename std::make_unsigned<CharType>::type UnsignedCharType;
-
     /// @brief Constructor
     /// @param buf Reference to output stream buffer. The buffer must be destructed
     ///        after the destruction of this stream object.
@@ -103,7 +100,7 @@ public:
     /// @brief Insert single character into the stream
     /// @param ch Single character
     /// @return *this
-    OutStream& operator<<(CharType ch);
+    OutStream& operator<<(char ch);
 
     /// @brief Insert unsigned character into the stream.
     /// @details The character is treated as unsigned number, it is converted
@@ -111,7 +108,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(UnsignedCharType value);
+    OutStream& operator<<(std::uint8_t value);
 
     /// @brief Insert signed short numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -119,7 +116,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(short value);
+    OutStream& operator<<(std::int16_t value);
 
     /// @brief Insert unsigned short numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -127,7 +124,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(unsigned short value);
+    OutStream& operator<<(std::uint16_t value);
 
     /// @brief Insert signed int numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -135,7 +132,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(int value);
+    OutStream& operator<<(std::int32_t value);
 
     /// @brief Insert unsigned int numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -143,7 +140,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(unsigned int value);
+    OutStream& operator<<(std::uint32_t value);
 
     /// @brief Insert signed long long numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -151,7 +148,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(long long value);
+    OutStream& operator<<(std::int64_t value);
 
     /// @brief Insert unsigned long long numeric value into the stream.
     /// @details The numeric value is converted to string representation
@@ -159,7 +156,7 @@ public:
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
-    OutStream& operator<<(unsigned long long value);
+    OutStream& operator<<(std::uint64_t value);
 
     /// @brief End of line manipulator.
     /// @details embxx::io::endl is similar to std::endl, it is equivalent to
@@ -292,7 +289,7 @@ OutStream<TStreamBuf>::operator<<(const CharType* str)
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(CharType ch)
+OutStream<TStreamBuf>::operator<<(char ch)
 {
     buf_.pushBack(ch);
     return *this;
@@ -300,49 +297,49 @@ OutStream<TStreamBuf>::operator<<(CharType ch)
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(UnsignedCharType value)
+OutStream<TStreamBuf>::operator<<(std::uint8_t value)
 {
     return (*this << static_cast<unsigned>(value));
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(short value)
+OutStream<TStreamBuf>::operator<<(std::int16_t value)
 {
-    return signedToStream<short, unsigned>(value);
+    return signedToStream<std::int16_t, std::uint32_t>(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(unsigned short value)
+OutStream<TStreamBuf>::operator<<(std::uint16_t value)
 {
-    return (*this << static_cast<unsigned>(value));
+    return (*this << static_cast<std::uint32_t>(value));
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(int value)
+OutStream<TStreamBuf>::operator<<(std::int32_t value)
 {
     return signedToStream(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(unsigned int value)
+OutStream<TStreamBuf>::operator<<(std::uint32_t value)
 {
     return unsignedToStream(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(long long value)
+OutStream<TStreamBuf>::operator<<(std::int64_t value)
 {
     return signedToStream(value);
 }
 
 template <typename TStreamBuf>
 OutStream<TStreamBuf>&
-OutStream<TStreamBuf>::operator<<(unsigned long long value)
+OutStream<TStreamBuf>::operator<<(std::uint64_t value)
 {
     return unsignedToStream(value);
 }

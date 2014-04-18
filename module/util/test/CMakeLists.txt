@@ -157,10 +157,15 @@ function (test_event_loop)
     
     set (link
         "pthread")
+        
+    set (extra_flags
+        "-Wl,--no-as-needed") # Workaround for some compiler bug in gcc-4.8 64bit
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
+    
+    set_target_properties(${name} PROPERTIES LINK_FLAGS ${extra_flags})
     
 endfunction ()
 
