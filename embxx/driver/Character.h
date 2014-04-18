@@ -284,6 +284,20 @@ private:
 
 template <typename TDevice,
           typename TEventLoop,
+          typename THandler,
+          typename TReadUntilPred>
+class CharacterReadSupport<TDevice, TEventLoop, THandler, TReadUntilPred, 0U>
+{
+protected:
+    template <typename... TArgs>
+    CharacterReadSupport(TArgs&&...)
+    {
+    }
+};
+
+
+template <typename TDevice,
+          typename TEventLoop,
           typename THandler>
 class CharacterWriteSupportBase
 {
@@ -439,6 +453,17 @@ private:
     WriteInfo info_;
 };
 
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler>
+class CharacterWriteSupport<TDevice, TEventLoop, THandler, 0U>
+{
+protected:
+    template <typename... TArgs>
+    CharacterWriteSupport(TArgs&&...)
+    {
+    }
+};
 
 }  // namespace details
 
@@ -649,13 +674,13 @@ public:
     /// @brief Get reference to device (peripheral) control object.
     Device& device()
     {
-        return ReadBase::device_;
+        return deviceInternal(FromBase());
     }
 
     /// @brief Get referent to event loop object.
     EventLoop& eventLoop()
     {
-        return ReadBase::el_;
+        return eventLoopInternal(FromBase());
     }
 
     /// @brief Asynchronous read request
@@ -792,6 +817,36 @@ public:
         return WriteBase::cancelWrite();
     }
 
+private:
+
+    struct FromReadBase {};
+    struct FromWriteBase {};
+    typedef typename
+        std::conditional<
+            0U < ReadQueueSize,
+            FromReadBase,
+            FromWriteBase
+        >::type FromBase;
+
+    Device& deviceInternal(FromReadBase)
+    {
+        return ReadBase::device_;
+    }
+
+    Device& deviceInternal(FromWriteBase)
+    {
+        return WriteBase::device_;
+    }
+
+    EventLoop& eventLoopInternal(FromReadBase)
+    {
+        return ReadBase::el_;
+    }
+
+    EventLoop& eventLoopInternal(FromWriteBase)
+    {
+        return WriteBase::el_;
+    }
 };
 
 /// @}

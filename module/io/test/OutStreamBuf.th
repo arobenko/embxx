@@ -45,7 +45,16 @@ private:
 
     typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
 
-    typedef embxx::driver::Character<CharDevice, EventLoop> Driver;
+    struct CharacterTraits
+    {
+        typedef std::nullptr_t ReadHandler;
+        typedef embxx::driver::DefaultCharacterTraits::WriteHandler WriteHandler;
+        typedef std::nullptr_t ReadUntilPred;
+        static const std::size_t ReadQueueSize = 0;
+        static const std::size_t WriteQueueSize = 1;
+    };
+
+    typedef embxx::driver::Character<CharDevice, EventLoop, CharacterTraits> Driver;
 
     template <typename TBuf>
     static void stringPushFunc(

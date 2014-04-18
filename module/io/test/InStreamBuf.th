@@ -40,8 +40,17 @@ private:
         embxx::device::test::EventLoopLock,
         embxx::device::test::EventLoopCond> EventLoop;
     typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
-    typedef embxx::driver::Character<
-        CharDevice, EventLoop> Driver;
+
+    struct CharacterTraits
+    {
+        typedef embxx::driver::DefaultCharacterTraits::ReadHandler ReadHandler;
+        typedef std::nullptr_t WriteHandler;
+        typedef std::nullptr_t ReadUntilPred;
+        static const std::size_t ReadQueueSize = 1;
+        static const std::size_t WriteQueueSize = 0;
+    };
+
+    typedef embxx::driver::Character<CharDevice, EventLoop, CharacterTraits> Driver;
     typedef embxx::io::InStreamBuf<Driver, 1024> InStreamBuf;
 
 };
