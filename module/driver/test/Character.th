@@ -50,6 +50,24 @@ private:
 
     typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
     typedef embxx::device::test::I2cDevice<EventLoop::LockType, char> I2cDevice;
+
+    struct DefaultReadUntilTraits
+    {
+        typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+        typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+        typedef embxx::util::StaticFunction<bool(CharDevice::CharType)> ReadUntilPred;
+        static const std::size_t ReadQueueSize = 1;
+        static const std::size_t WriteQueueSize = 1;
+    };
+
+    struct DefaultStdFunctionTraits
+    {
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+        typedef std::nullptr_t ReadUntilPred;
+        static const std::size_t ReadQueueSize = 1;
+        static const std::size_t WriteQueueSize = 1;
+    };
 };
 
 void CharacterDriverTestSuite::test1()
@@ -109,12 +127,8 @@ void CharacterDriverTestSuite::test2()
 
 void CharacterDriverTestSuite::test3()
 {
-    typedef embxx::driver::Character<
-        CharDevice,
-        EventLoop,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-        embxx::util::StaticFunction<bool(CharDevice::CharType)> > Socket;
+    typedef embxx::driver::Character<CharDevice, EventLoop, DefaultReadUntilTraits> Socket;
+
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);
@@ -146,7 +160,7 @@ void CharacterDriverTestSuite::test4()
     typedef embxx::driver::Character<
         CharDevice,
         EventLoop,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus& es, std::size_t), sizeof(void*) * 4> > Socket;
+        DefaultStdFunctionTraits> Socket;
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);
@@ -230,8 +244,7 @@ void CharacterDriverTestSuite::test6()
     typedef embxx::driver::Character<
         DevCharAdapter,
         EventLoop,
-        std::function<void (const embxx::error::ErrorStatus&, std::size_t)>,
-        std::function<void (const embxx::error::ErrorStatus&, std::size_t)> > Socket;
+        DefaultStdFunctionTraits> Socket;
 
     EventLoop el;
     I2cDevice device(el.getLock());
@@ -281,8 +294,7 @@ void CharacterDriverTestSuite::test7()
     typedef embxx::driver::Character<
         DevCharAdapter,
         EventLoop,
-        std::function<void (const embxx::error::ErrorStatus&, std::size_t)>,
-        std::function<void (const embxx::error::ErrorStatus&, std::size_t)> > Socket;
+        DefaultStdFunctionTraits> Socket;
 
     EventLoop el;
     I2cDevice device(el.getLock());
@@ -337,9 +349,7 @@ void CharacterDriverTestSuite::test8()
     typedef embxx::driver::Character<
         CharDevice,
         EventLoop,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-        embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-        embxx::util::StaticFunction<bool(CharDevice::CharType)> > Socket;
+        DefaultReadUntilTraits> Socket;
     EventLoop el;
     CharDevice device(el.getLock());
     Socket socket(device, el);

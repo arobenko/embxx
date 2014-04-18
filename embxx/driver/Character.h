@@ -442,6 +442,15 @@ private:
 
 }  // namespace details
 
+struct DefaultCharacterTraits
+{
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+    typedef std::nullptr_t ReadUntilPred;
+    static const std::size_t ReadQueueSize = 1;
+    static const std::size_t WriteQueueSize = 1;
+};
+
 /// @addtogroup driver
 /// @{
 
@@ -575,15 +584,13 @@ private:
 /// @headerfile embxx/driver/Character.h
 template <typename TDevice,
           typename TEventLoop,
-          typename TReadHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-          typename TWriteHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-          typename TReadUntilPred = std::nullptr_t>
+          typename TTraits = DefaultCharacterTraits>
 class Character :
-    public details::CharacterReadSupport<TDevice, TEventLoop, TReadHandler, TReadUntilPred, 1U>,
-    public details::CharacterWriteSupport<TDevice, TEventLoop, TWriteHandler, 1U>
+    public details::CharacterReadSupport<TDevice, TEventLoop, typename TTraits::ReadHandler, typename TTraits::ReadUntilPred, TTraits::ReadQueueSize>,
+    public details::CharacterWriteSupport<TDevice, TEventLoop, typename TTraits::WriteHandler, TTraits::WriteQueueSize>
 {
-    typedef details::CharacterReadSupport<TDevice, TEventLoop, TReadHandler, TReadUntilPred, 1U> ReadBase;
-    typedef details::CharacterWriteSupport<TDevice, TEventLoop, TWriteHandler, 1U> WriteBase;
+    typedef details::CharacterReadSupport<TDevice, TEventLoop, typename TTraits::ReadHandler, typename TTraits::ReadUntilPred, TTraits::ReadQueueSize> ReadBase;
+    typedef details::CharacterWriteSupport<TDevice, TEventLoop, typename TTraits::WriteHandler, TTraits::WriteQueueSize> WriteBase;
 public:
 
     /// @brief Device (peripheral) control class
@@ -592,17 +599,26 @@ public:
     /// @brief Event loop class
     typedef TEventLoop EventLoop;
 
-    /// @brief Type of read handler holder class
-    typedef TReadHandler ReadHandler;
-
-    /// @brief Type of write handler holder class
-    typedef TWriteHandler WriteHandler;
-
-    /// @brief Type of read until predicate class
-    typedef TReadUntilPred ReadUntilPred;
+    /// @brief Traits class
+    typedef TTraits Traits;
 
     /// @brief type of single character
     typedef typename Device::CharType CharType;
+
+    /// @brief Type of read handler holder class
+    typedef typename Traits::ReadHandler ReadHandler;
+
+    /// @brief Type of write handler holder class
+    typedef typename Traits::WriteHandler WriteHandler;
+
+    /// @brief Type of read until predicate class
+    typedef typename Traits::ReadUntilPred ReadUntilPred;
+
+    /// @brief Maximum number of pending asynchronous read requests.
+    static const std::size_t ReadQueueSize = Traits::ReadQueueSize;
+
+    /// @brief Maximum number of pending asynchronous write requests.
+    static const std::size_t WriteQueueSize = Traits::WriteQueueSize;
 
     /// @brief Constructor
     /// @param device Reference to device (peripheral) control object
@@ -612,7 +628,6 @@ public:
       WriteBase(device, el)
     {
     }
-
 
     /// @brief Copy constructor is deleted.
     Character(const Character&) = delete;
