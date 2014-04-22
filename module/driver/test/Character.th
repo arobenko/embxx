@@ -41,6 +41,9 @@ public:
     void test6();
     void test7();
     void test8();
+    void test9();
+    void test10();
+    void test11();
 
 private:
     typedef embxx::util::EventLoop<
@@ -67,6 +70,16 @@ private:
         typedef std::nullptr_t ReadUntilPred;
         static const std::size_t ReadQueueSize = 1;
         static const std::size_t WriteQueueSize = 1;
+    };
+
+    template <std::size_t TReadQueueSize>
+    struct QueuedReadTraits
+    {
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+        typedef std::function<bool (CharDevice::CharType)> ReadUntilPred;
+        static const std::size_t ReadQueueSize = TReadQueueSize;
+        static const std::size_t WriteQueueSize = 0;
     };
 };
 
@@ -379,4 +392,178 @@ void CharacterDriverTestSuite::test8()
 
     el.run();
     TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
+}
+
+void CharacterDriverTestSuite::test9()
+{
+    typedef embxx::driver::Character<CharDevice, EventLoop, QueuedReadTraits<3> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string ReadString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    static const std::string AllData = ReadString + ReadString + ReadString;
+
+    static const std::size_t BufSize = 256;
+    char outArray1[BufSize] = {};
+    char outArray2[BufSize] = {};
+    char outArray3[BufSize] = {};
+    device.setDataToRead(&AllData[0], AllData.size());
+
+    bool asyncReadHandlerCalled1 = false;
+    socket.asyncRead(outArray1, ReadString.size(),
+        [&outArray1, &asyncReadHandlerCalled1](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray1[0]));
+        });
+
+    bool asyncReadHandlerCalled2 = false;
+    socket.asyncRead(outArray2, ReadString.size(),
+        [&outArray2, &asyncReadHandlerCalled2](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray2[0]));
+        });
+
+    bool asyncReadHandlerCalled3 = false;
+    socket.asyncRead(outArray3, ReadString.size(),
+        [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled3 = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray3[0]));
+            el.stop();
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
+}
+
+
+void CharacterDriverTestSuite::test10()
+{
+    typedef embxx::driver::Character<CharDevice, EventLoop, QueuedReadTraits<3> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string ReadString1(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    static const std::string ReadString2(
+        "ABCDEFG\n");
+    static const std::string ReadString3(
+        "abcdefghijklmnopqrstuvwxyz");
+
+    static const std::string AllData = ReadString1 + ReadString2 + ReadString3;
+
+    static const std::size_t BufSize = 256;
+    char outArray1[BufSize] = {};
+    char outArray2[BufSize] = {};
+    char outArray3[BufSize] = {};
+    device.setDataToRead(&AllData[0], AllData.size());
+
+    bool asyncReadHandlerCalled1 = false;
+    socket.asyncRead(outArray1, ReadString1.size(),
+        [&outArray1, &asyncReadHandlerCalled1](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(size, ReadString1.size());
+            TS_ASSERT(std::equal(ReadString1.begin(), ReadString1.end(), &outArray1[0]));
+        });
+
+    bool asyncReadHandlerCalled2 = false;
+    socket.asyncReadUntil(outArray2, std::extent<decltype(outArray2)>::value, '\n',
+        [&outArray2, &asyncReadHandlerCalled2](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(size, ReadString2.size());
+            TS_ASSERT(std::equal(ReadString2.begin(), ReadString2.end(), &outArray2[0]));
+        });
+
+    bool asyncReadHandlerCalled3 = false;
+    socket.asyncRead(outArray3, ReadString3.size(),
+        [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled3 = true;
+            TS_ASSERT_EQUALS(size, ReadString3.size());
+            TS_ASSERT(std::equal(ReadString3.begin(), ReadString3.end(), &outArray3[0]));
+            el.stop();
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
+}
+
+
+void CharacterDriverTestSuite::test11()
+{
+    typedef embxx::driver::Character<CharDevice, EventLoop, QueuedReadTraits<2> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string ReadString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    static const std::string AllData = ReadString + ReadString + ReadString;
+
+    static const std::size_t BufSize = 256;
+    char outArray1[BufSize] = {};
+    char outArray2[BufSize] = {};
+    char outArray3[BufSize] = {};
+    device.setDataToRead(&AllData[0], AllData.size());
+
+    bool asyncReadHandlerCalled1 = false;
+    bool asyncReadHandlerCalled3 = false;
+    socket.asyncRead(outArray1, ReadString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray1[0]));
+
+            socket.asyncRead(outArray3, ReadString.size(),
+                [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+                {
+                    TS_ASSERT(!es);
+                    asyncReadHandlerCalled3 = true;
+                    TS_ASSERT_EQUALS(size, ReadString.size());
+                    TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray3[0]));
+                    el.stop();
+                });
+        });
+
+    bool asyncReadHandlerCalled2 = false;
+    socket.asyncRead(outArray2, ReadString.size(),
+        [&outArray2, &asyncReadHandlerCalled2](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(size, ReadString.size());
+            TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray2[0]));
+        });
+
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
 }

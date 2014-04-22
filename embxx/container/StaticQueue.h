@@ -650,6 +650,16 @@ protected:
         pushBackNotFull(std::forward<U>(value));
     }
 
+    template <typename... TArgs>
+    void emplaceBack(TArgs&&... args)
+    {
+        GASSERT(!full());
+        if (full()) {
+            return;
+        }
+        emplaceBackNotFull(std::forward<TArgs>(args)...);
+    }
+
     template <typename U>
     void pushFront(U&& value)
     {
@@ -740,6 +750,16 @@ private:
     {
         GASSERT(!full());
         createValueAtIndex(std::forward<U>(value), size());
+        ++count_;
+    }
+
+    template <typename... TArgs>
+    void emplaceBackNotFull(TArgs&&... args)
+    {
+        GASSERT(!full());
+        Reference elementRef = elementAtIndex(size());
+        auto elementPtr = new(&elementRef) ValueType(std::forward<TArgs>(args)...);
+        static_cast<void>(elementPtr);
         ++count_;
     }
 
@@ -2196,6 +2216,20 @@ public:
     void pushBack(U&& value)
     {
         Base::pushBack(std::forward<U>(value));
+    }
+
+    /// @brief Construct new element at the end of the queue.
+    /// @details Passes all the provided arguments to the constructor of the
+    ///          element.
+    /// @param[in] args Parameters to the constructor of the element
+    /// @pre The queue is not full
+    /// @note Thread safety: Unsafe
+    /// @note Exception guarantee: No throw in case the copy constructor
+    ///       of the stored elements doesn't throw. Basic guarantee otherwise.
+    template <typename... TArgs>
+    void emplaceBack(TArgs&&... args)
+    {
+        Base::emplaceBack(std::forward<TArgs>(args)...);
     }
 
     /// @brief Same as pushBack(U&&);
