@@ -44,6 +44,7 @@ public:
     void test9();
     void test10();
     void test11();
+    void test12();
 
 private:
     typedef embxx::util::EventLoop<
@@ -72,14 +73,24 @@ private:
         static const std::size_t WriteQueueSize = 1;
     };
 
-    template <std::size_t TReadQueueSize>
+    template <std::size_t TQueueSize>
     struct QueuedReadTraits
     {
         typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
         typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
         typedef std::function<bool (CharDevice::CharType)> ReadUntilPred;
-        static const std::size_t ReadQueueSize = TReadQueueSize;
+        static const std::size_t ReadQueueSize = TQueueSize;
         static const std::size_t WriteQueueSize = 0;
+    };
+
+    template <std::size_t TQueueSize>
+    struct QueuedWriteTraits
+    {
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+        typedef std::function<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+        typedef std::nullptr_t ReadUntilPred;
+        static const std::size_t ReadQueueSize = 0;
+        static const std::size_t WriteQueueSize = TQueueSize;
     };
 };
 
@@ -566,4 +577,64 @@ void CharacterDriverTestSuite::test11()
     TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
+}
+
+void CharacterDriverTestSuite::test12()
+{
+    typedef embxx::driver::Character<CharDevice, EventLoop, QueuedWriteTraits<3> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string WriteString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    static const std::string AllData = WriteString + WriteString + WriteString + WriteString;
+
+    bool asyncWriteHandlerCalled1 = false;
+    bool asyncWriteHandlerCalled4 = false;
+    socket.asyncWrite(&WriteString[0], WriteString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(size, WriteString.size());
+
+            socket.asyncWrite(&WriteString[0], WriteString.size(),
+                [&](const embxx::error::ErrorStatus& es, std::size_t size)
+                {
+                    TS_ASSERT(!es);
+                    asyncWriteHandlerCalled4 = true;
+                    TS_ASSERT_EQUALS(size, WriteString.size());
+                    el.stop();
+                });
+        });
+
+    bool asyncWriteHandlerCalled2 = false;
+    socket.asyncWrite(&WriteString[0], WriteString.size(),
+        [&asyncWriteHandlerCalled2](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(size, WriteString.size());
+        });
+
+    bool asyncWriteHandlerCalled3 = false;
+    socket.asyncWrite(&WriteString[0], WriteString.size(),
+        [&asyncWriteHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled3 = true;
+            TS_ASSERT_EQUALS(size, WriteString.size());
+        });
+
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled2, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled3, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled4, true);
+    TS_ASSERT_EQUALS(AllData.size(), device.getWrittenData().size());
+    TS_ASSERT(std::equal(AllData.begin(), AllData.end(), device.getWrittenData().begin()));
 }

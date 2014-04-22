@@ -485,9 +485,21 @@ protected:
     struct WriteInfo
     {
         WriteInfo()
-            : start_(nullptr),
-              current_(nullptr),
-              bufSize_(0)
+        : start_(nullptr),
+          current_(nullptr),
+          bufSize_(0)
+        {
+        }
+
+        template <typename THandlerParam>
+        WriteInfo(
+            const CharType* start,
+            std::size_t bufSize,
+            THandlerParam&& handler)
+            : start_(start),
+              current_(start),
+              bufSize_(bufSize),
+              handler_(std::forward<THandlerParam>(handler))
         {
         }
 
@@ -511,7 +523,147 @@ template <typename TDevice,
           typename TEventLoop,
           typename THandler,
           std::size_t TMaxPendingWrites>
-class CharacterWriteSupport;
+class CharacterWriteSupport :
+    public CharacterWriteSupportBase<TDevice, TEventLoop, THandler>
+{
+    typedef CharacterWriteSupportBase<TDevice, TEventLoop, THandler> Base;
+public:
+
+    ~CharacterWriteSupport() = default;
+    CharacterWriteSupport(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport(CharacterWriteSupport&&) = default;
+    CharacterWriteSupport& operator=(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport& operator=(CharacterWriteSupport&&) = default;
+
+protected:
+    typedef typename Base::Device Device;
+    typedef typename Base::EventLoop EventLoop;
+    typedef typename Base::CharType CharType;
+
+    CharacterWriteSupport(Device& device, EventLoop& el)
+      : Base(device, el)
+    {
+        Base::device_.setCanWriteHandler(
+            std::bind(
+                &CharacterWriteSupport::canWriteInterruptHandler, this));
+        Base::device_.setWriteCompleteHandler(
+            std::bind(
+                &CharacterWriteSupport::writeCompleteInterruptHandler,
+                this,
+                std::placeholders::_1));
+    }
+
+    bool cancelRead()
+    {
+        if (!Base::device_.cancelRead(EventLoopContext())) {
+            GASSERT(queue_.empty());
+            return false;
+        }
+
+        std::for_each(queue_.begin(), queue_.end(),
+            [this](typename InfoQueue::Reference info)
+            {
+                GASSERT(info.current_ < (info.start_ + info.bufSize_));
+                invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+            });
+        queue_.clear();
+        return true;
+    }
+
+
+    template <typename TFunc>
+    void asyncWrite(
+        const CharType* buf,
+        std::size_t size,
+        TFunc&& func)
+    {
+        bool suspended = Base::device_.suspend(EventLoopContext());
+        GASSERT(!queue_.full());
+        queue_.emplaceBack(buf, size, std::forward<TFunc>(func));
+
+        if (suspended) {
+            Base::device_.resume(EventLoopContext());
+            return;
+        }
+
+        GASSERT(queue_.size() == 1U);
+        startNextWrite(false);
+    }
+
+    bool cancelWrite()
+    {
+        if (!Base::device_.cancelWrite(EventLoopContext())) {
+            GASSERT(queue_.empty());
+            return false;
+        }
+
+        std::for_each(queue_.begin(), queue_.end(),
+            [this](typename InfoQueue::Reference info)
+            {
+                GASSERT(info.current_ < (info.start_ + info.bufSize_));
+                invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+            });
+        queue_.clear();
+        return true;
+    }
+
+private:
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
+    typedef typename Base::WriteInfo WriteInfo;
+    typedef embxx::container::StaticQueue<WriteInfo, TMaxPendingWrites> InfoQueue;
+
+    void startNextWrite(bool interruptCtx)
+    {
+        while (!queue_.empty()) {
+            auto& info = queue_.front();
+            if (info.bufSize_ == 0) {
+                invokeHandler(
+                    Base::el_,
+                    info,
+                    embxx::error::ErrorCode::Success,
+                    interruptCtx);
+                queue_.popFront();
+                continue;
+            }
+
+            if (interruptCtx) {
+                Base::device_.startWrite(info.bufSize_, InterruptContext());
+            }
+            else {
+                Base::device_.startWrite(info.bufSize_, EventLoopContext());
+            }
+            break;
+        }
+    }
+
+    void canWriteInterruptHandler()
+    {
+        GASSERT(!queue_.empty());
+        auto& info = queue_.front();
+        while(Base::device_.canWrite(InterruptContext())) {
+            if ((info.start_ + info.bufSize_) <= info.current_) {
+                // The device control object mustn't allow it.
+                GASSERT(0);
+                break;
+            }
+
+            Base::device_.write(*info.current_, InterruptContext());
+            ++info.current_;
+        }
+    }
+
+    void writeCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        auto& info = queue_.front();
+        invokeHandler(Base::el_, info, es, true);
+        queue_.popFront();
+        startNextWrite(true);
+    }
+
+    InfoQueue queue_;
+};
+
 
 template <typename TDevice,
           typename TEventLoop,
