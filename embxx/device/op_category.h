@@ -32,6 +32,7 @@ namespace op_category
 /// @details This is empty struct that is used to indicate that device uses
 ///          sequential read and write operations, i.e. cannot execute them
 ///          in parallel.
+/// @headerfile embxx/device/op_category.h
 struct SequentialReadWrite {};
 
 /// @ingroup device
@@ -39,6 +40,7 @@ struct SequentialReadWrite {};
 /// @details This is empty struct that is used to indicate that device may
 ///          execute parallel (independent) read and write operations at the
 ///          same time.
+/// @headerfile embxx/device/op_category.h
 struct ParallelReadWrite {};
 
 }  // namespace op_category

@@ -49,6 +49,7 @@ namespace protocol
 ///         @li MsgBase type - base class to all the custom messages
 ///         @li ReadIterator type - input iterator type
 ///         @li WriteIterator type - output iterator type
+/// @headerfile embxx/comms/protocol/ProtocolLayer.h
 template <typename TTraits, typename TNextLayer>
 class ProtocolLayer
 {

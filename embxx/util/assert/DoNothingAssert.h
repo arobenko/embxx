@@ -32,6 +32,7 @@ namespace assert
 
 /// @brief Do nothing assert.
 /// @details Causes the assertion failure to be ignored.
+/// @headerfile embxx/util/assert/DoNothingAssert.h
 class DoNothingAssert : public embxx::util::Assert
 {
 public:

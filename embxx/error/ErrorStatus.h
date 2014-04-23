@@ -34,6 +34,7 @@ namespace error
 /// @details This class wraps error code enum value to provide simple boolean
 /// checks for operation success/error
 /// @tparam TErrorCode Error code enum type. 0 value must correspond to success.
+/// @headerfile embxx/error/ErrorStatus.h
 template <typename TErrorCode = ErrorCode>
 class ErrorStatusT
 {
@@ -77,6 +78,7 @@ private:
 
 /// @brief ErrorStatus that uses embxx::error::ErrorCode for its error codes.
 /// @related ErrorStatusT
+/// @headerfile embxx/error/ErrorStatus.h
 typedef ErrorStatusT<ErrorCode> ErrorStatus;
 
 // Implementation

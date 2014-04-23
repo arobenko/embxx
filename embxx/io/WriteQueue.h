@@ -59,6 +59,7 @@ namespace io
 /// @tparam THandler Handler class. Must be either std::function or
 ///         embxx::util::StaticFunction and have
 ///         "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
+/// @headerfile embxx/io/WriteQueue.h
 template <typename TDriver,
           std::size_t TSize,
           typename THandler = util::StaticFunction<void (const embxx::error::ErrorStatus&, std::size_t)> >

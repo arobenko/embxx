@@ -160,3 +160,4 @@
 /// timer.cancel();
 /// timer.asyncWait(...);
 /// @endcode
+///

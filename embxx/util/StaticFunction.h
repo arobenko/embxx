@@ -35,6 +35,9 @@ namespace util
 /// @addtogroup util
 /// @{
 
+/// @brief Generic declaration of StaticFunction.
+/// @details This declaration doesn't have a body, see specialisation.
+/// @headerfile embxx/util/StaticFunction.h
 template <typename TSignature, std::size_t TSize = sizeof(void*) * 3>
 class StaticFunction;
 

@@ -7,8 +7,3 @@
 /// @namespace embxx::container
 /// @ingroup container
 /// @brief Provides scope for container classes.
-
-/// @namespace embxx::container::static_queue_traits
-/// @ingroup util
-/// @brief Provides scope for behavioural traits of static queue.
-

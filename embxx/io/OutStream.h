@@ -43,6 +43,7 @@ namespace io
 ///          allocation, RTTI, or exceptions, which makes it suitable for use
 ///          in bare metal platforms with limited amount of memory.
 /// @tparam TStreamBuf Output stream buffer (embxx::io::OutStreamBuf) type
+/// @headerfile embxx/io/OutStream.h
 template <typename TStreamBuf>
 class OutStream
 {

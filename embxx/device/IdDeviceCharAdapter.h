@@ -37,6 +37,7 @@ namespace device
 ///         written in intention to adapt interface of embxx::device::DeviceOpQueue.
 ///         If the latter is not used the provided device must expose the same
 ///         interface.
+/// @headerfile embxx/device/IdDeviceCharAdapter.h
 template <typename TDevice>
 class IdDeviceCharAdapter
 {
