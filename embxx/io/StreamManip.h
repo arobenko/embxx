@@ -39,24 +39,46 @@ private:
     ValueType value_;
 };
 
+/// @brief Output stream manipulator class that sets the width of the next fields.
+/// @details Use embxx::io::setw() function to create object of this class.
+class WidthManip : public details::ValueManipBase<std::size_t>
+{
+    typedef details::ValueManipBase<std::size_t> Base;
+public:
+    WidthManip(std::size_t value) : Base(value) {}
+};
+
+/// @brief Output stream manipulator class that sets the fill character.
+/// @details Use embxx::io::setfill() function to create object of this class.
+template <typename T>
+class FillManip : public details::ValueManipBase<T>
+{
+    typedef details::ValueManipBase<T> Base;
+public:
+    FillManip(std::size_t value) : Base(value) {}
+};
+
 }  // namespace details
 
 /// @addtogroup io
 /// @{
 
 /// @brief Type of embxx::io::endl stream manipulator;
+/// @headerfile embxx/io/StreamManip.h
 enum Endl
 {
     endl ///< End of line stream manipulator
 };
 
 /// @brief Type of embxx::io::ends stream manipulator;
+/// @headerfile embxx/io/StreamManip.h
 enum Ends
 {
     ends ///< End of string stream manipulator
 };
 
 /// @brief Type of numeric base stream manipulator;
+/// @headerfile embxx/io/StreamManip.h
 enum Base
 {
     bin, ///< Binary numeric base stream manipulator
@@ -66,40 +88,25 @@ enum Base
     Base_NumOfBases ///< Must be last
 };
 
-/// @brief Output stream manipulator class that sets the width of the next fields.
-/// @details Use embxx::io::width() function to create object of this class.
-class WidthManip : public details::ValueManipBase<std::size_t>
-{
-    typedef details::ValueManipBase<std::size_t> Base;
-public:
-    WidthManip(std::size_t value) : Base(value) {}
-};
-
 /// @brief Creates output stream manipulator object that sets width value of the stream
-/// @details "stream << embxx::io::width(2)" is equivalent to "stream.width(2)".
+/// @details "stream << embxx::io::setw(2)" is equivalent to "stream.width(2)".
+/// @related embxx::io::OutStream
+/// @headerfile embxx/io/StreamManip.h
 inline
-WidthManip setw(std::size_t value)
+details::WidthManip setw(std::size_t value)
 {
-    return WidthManip(value);
+    return details::WidthManip(value);
 }
 
-/// @brief Output stream manipulator class that sets the fill character.
-/// @details Use embxx::io::fill() function to create object of this class.
-template <typename T>
-class FillManip : public details::ValueManipBase<T>
-{
-    typedef details::ValueManipBase<T> Base;
-public:
-    FillManip(std::size_t value) : Base(value) {}
-};
-
 /// @brief Creates output stream manipulator object that sets fill character of the stream.
-/// @details "stream << embxx::io::fill('0')" is equivalent to "stream.fill('0')".
+/// @details "stream << embxx::io::setfill('0')" is equivalent to "stream.fill('0')".
+/// @related embxx::io::OutStream
+/// @headerfile embxx/io/StreamManip.h
 template <typename T>
 inline
-FillManip<T> setfill(T value)
+details::FillManip<T> setfill(T value)
 {
-    return FillManip<T>(value);
+    return details::FillManip<T>(value);
 }
 
 /// @}
