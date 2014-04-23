@@ -209,6 +209,10 @@ protected:
         TPred&& pred,
         TFunc&& func)
     {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The ReadHandler type in the provided traits musn't be std::nullptr_t");
+
         bool suspended = Base::device_.suspend(EventLoopContext());
         GASSERT(!queue_.full());
         queue_.emplaceBack(buf, size, std::forward<TFunc>(func), std::forward<TPred>(pred));
@@ -353,6 +357,10 @@ protected:
         std::size_t size,
         TFunc&& func)
     {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The ReadHandler type in the provided traits musn't be std::nullptr_t");
+
         GASSERT(!info_.handler_); // No read in progress
         info_.handler_ = std::forward<TFunc>(func);
         info_.readUntilPred_ = nullptr;
@@ -366,6 +374,10 @@ protected:
         TPred&& pred,
         TFunc&& func)
     {
+        static_assert(
+            !std::is_same<std::nullptr_t, TReadUntilPred>::value,
+            "The ReadUntilPred type in the provided traits musn't be std::nullptr_t");
+
         GASSERT(!info_.handler_); // No read in progress
         info_.handler_ = std::forward<TFunc>(func);
         info_.readUntilPred_ = std::forward<TPred>(pred);
@@ -553,30 +565,16 @@ protected:
                 std::placeholders::_1));
     }
 
-    bool cancelRead()
-    {
-        if (!Base::device_.cancelRead(EventLoopContext())) {
-            GASSERT(queue_.empty());
-            return false;
-        }
-
-        std::for_each(queue_.begin(), queue_.end(),
-            [this](typename InfoQueue::Reference info)
-            {
-                GASSERT(info.current_ < (info.start_ + info.bufSize_));
-                invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
-            });
-        queue_.clear();
-        return true;
-    }
-
-
     template <typename TFunc>
     void asyncWrite(
         const CharType* buf,
         std::size_t size,
         TFunc&& func)
     {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The WriteHandler type in the provided traits musn't be std::nullptr_t");
+
         bool suspended = Base::device_.suspend(EventLoopContext());
         GASSERT(!queue_.full());
         queue_.emplaceBack(buf, size, std::forward<TFunc>(func));
@@ -704,6 +702,10 @@ protected:
         std::size_t size,
         TFunc&& func)
     {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The WriteHandler type in the provided traits musn't be std::nullptr_t");
+
         GASSERT(!info_.handler_); // No write in progress
         info_.handler_ = std::forward<TFunc>(func);
         initWrite(buf, size);
@@ -779,17 +781,40 @@ protected:
 
 }  // namespace details
 
-struct DefaultCharacterTraits
-{
-    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
-    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
-    typedef std::nullptr_t ReadUntilPred;
-    static const std::size_t ReadQueueSize = 1;
-    static const std::size_t WriteQueueSize = 1;
-};
-
 /// @addtogroup driver
 /// @{
+
+/// @brief Default traits for Character driver
+/// @related Character
+/// @headerfile embxx/driver/Character.h
+struct DefaultCharacterTraits
+{
+    /// @brief The "read" handler storage type.
+    /// @details It is the default version of embxx::util::StaticFunction.
+    /// @pre The handler must have the following signature:
+    ///      @code void handler(const embxx::error::ErrorStatus&, std::size_t); @endcode
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+
+    /// @brief The "write" handler storage type.
+    /// @details It is the default version of embxx::util::StaticFunction.
+    /// @pre The handler must have the following signature:
+    ///      @code void handler(const embxx::error::ErrorStatus&, std::size_t); @endcode
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+
+    /// @brief By default there is no "read until" support.
+    /// @details The type ReadUntilPred is defined to be std::nullptr_t
+    typedef std::nullptr_t ReadUntilPred;
+
+    /// @brief Read queue size
+    /// @details By default the Character driver supports only single read
+    ///          at a time.
+    static const std::size_t ReadQueueSize = 1;
+
+    /// @brief Write queue size
+    /// @details By default the Character driver supports only single write
+    ///          at a time.
+    static const std::size_t WriteQueueSize = 1;
+};
 
 /// @brief Character device driver
 /// @details Manages read/write operations on the character device (peripheral)
@@ -797,8 +822,8 @@ struct DefaultCharacterTraits
 /// @tparam TDevice Platform specific device (peripheral) control class. It
 ///         must expose the following interface:
 ///         @code
-///         // Define each character type as CharType
-///         typedef ... CharType;
+///         // Define each character type as CharType.
+///         typedef std::uint8_t CharType;
 ///
 ///         // Set the "can read" interrupt callback which has "void ()"
 ///         // signature. The callback must be called when there is at least
@@ -857,7 +882,7 @@ struct DefaultCharacterTraits
 ///         // read operation was cancelled. The "context" is a dummy
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts. The read
-///         // canellation in interrupt context may happen only when readUntil()
+///         // cancellation in interrupt context may happen only when readUntil()
 ///         // request is used.
 ///         bool cancelRead(embxx::device::context::EventLoop context);
 ///         bool cancelRead(embxx::device::context::Interrupt context)
@@ -896,28 +921,68 @@ struct DefaultCharacterTraits
 ///         // true. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
 ///         void write(CharType value, embxx::device::context::Interrupt context);
-///         @endcode
 ///
-/// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
-///         to execute posted handlers in regular thread context.
-/// @tparam TReadHandler A function class that is supposed to store "read"
-///         complete callback. Must be either std::function or embxx::util::StaticFunction
-///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
-///         calling interface, where the first parameter is error status of the
-///         operation and second one is how many bytes were actually read in
-///         the operation.
-/// @tparam TWriteHandler A function class that is supposed to store "write"
-///         complete callback. Must be either std::function or embxx::util::StaticFunction
-///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
-///         calling interface, where the first parameter is error status of the
-///         operation and second one is how many bytes were actually written in
-///         the operation.
-/// @tparam TReadUntilPred A function class that is supposed to store predicate
-///         that evaluates the termination condition in case readUntil()
-///         member function is called. It must be either std::function or
-///         embxx::util::StaticFunction and provide "bool(typename TDevice::CharType)"
-///         calling interface. It must return true if and only if the asynchronous
-///         read request must be terminated with "Success" error status.
+///         // Suspend current read/write operations (disable interrupts). Return
+///         // true whether the suspension is successful. This API function is
+///         // needed only if the driver supports more than 1 outstanding read or
+///         // write operation.
+///         bool suspend(embxx::device::context::EventLoop context);
+///
+///         // Resume previously suspended read and/or write operations (re-enable
+///         // interrupts). This API function is needed only if the driver supports
+///         // more than 1 outstanding read or write opration.
+///         @endcode
+/// @tparam TEventLoop Event loop class, must provide the following API member
+///         functions:
+///         @code
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool post(TFunc&& func);
+///
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool postInterruptCtx(TFunc&& func)
+///         @endcode
+/// @tparam TTraits Extra traits class/struct. It must define the following
+///         classes/variables. The default value of this parameter is
+///         DefaultCharacterTraits
+///         @code
+///         // The read complete callback handler storage type. In case the driver
+///         // is used to perform reads, must have
+///         // "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
+///         // If the driver is write-only one, this type may be std::nullptr_t.
+///         typedef ... ReadHandler;
+///
+///         // The write complete callback handler storage type. In case the driver
+///         // is used to perform write, must have
+///         // "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
+///         // If the driver is read-only one, this type may be std::nullptr_t.
+///         typedef ... WriteHandler;
+///
+///         // The "read-until" predicate storage type. In case the driver is
+///         // going to perform asyncReadUntil() calls, must have
+///         // "bool (typename TDevice::CharType)" signature and return true
+///         // if the read must be terminated before the buffer is full. If
+///         // there are no calls to asyncReadUntil(), then this type may be
+///         // std::nullptr_t
+///         typedef ... ReadUntilPred;
+///
+///         // Maximal number of outstanding read requests. If 0, no read operations
+///         // will be supported. If 1 the template specialisation is used to
+///         // optimise management of read requests. If greater than 1,
+///         // embxx::container::StaticQueue is used to manage the requests.
+///         static const std::size_t ReadQueueSize = ...;
+///
+///         // Maximal number of outstanding write requests. If 0, no write operations
+///         // will be supported. If 1 the template specialisation is used to
+///         // optimise management of write requests. If greater than 1,
+///         // embxx::container::StaticQueue is used to manage the requests.
+///         static const std::size_t WriteQueueSize = ...;
+///         @endcode
 /// @headerfile embxx/driver/Character.h
 template <typename TDevice,
           typename TEventLoop,
@@ -930,25 +995,25 @@ class Character :
     typedef details::CharacterWriteSupport<TDevice, TEventLoop, typename TTraits::WriteHandler, TTraits::WriteQueueSize> WriteBase;
 public:
 
-    /// @brief Device (peripheral) control class
+    /// @brief Device (peripheral) control class.
     typedef TDevice Device;
 
-    /// @brief Event loop class
+    /// @brief Event loop class.
     typedef TEventLoop EventLoop;
 
-    /// @brief Traits class
+    /// @brief Traits class.
     typedef TTraits Traits;
 
-    /// @brief type of single character
+    /// @brief Type of single character.
     typedef typename Device::CharType CharType;
 
     /// @brief Type of read handler holder class
     typedef typename Traits::ReadHandler ReadHandler;
 
-    /// @brief Type of write handler holder class
+    /// @brief Type of write handler holder class.
     typedef typename Traits::WriteHandler WriteHandler;
 
-    /// @brief Type of read until predicate class
+    /// @brief Type of read until predicate class.
     typedef typename Traits::ReadUntilPred ReadUntilPred;
 
     /// @brief Maximum number of pending asynchronous read requests.
@@ -969,7 +1034,7 @@ public:
     /// @brief Copy constructor is deleted.
     Character(const Character&) = delete;
 
-    /// @brief MoveConstrutor is deleted
+    /// @brief Move construtor is deleted
     Character(Character&&) = delete;
 
     /// @brief Destructor
@@ -1004,8 +1069,10 @@ public:
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead); @endcode
-    /// @pre The callback for any previous asyncRead() request has been called,
-    ///      i.e. there is no outstanding asyncRead() request.
+    /// @pre To use this function the ReadQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous read requests must be less than
+    ///      ReadQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
     template <typename TFunc>
@@ -1034,8 +1101,10 @@ public:
     ///        @code bool predicate(typename TDevice::CharType);@endcode
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead);@endcode
-    /// @pre The callback for any previous asyncRead() or asyncReadUntil() request
-    ///      has been called, i.e. there is no outstanding asynchronous read request.
+    /// @pre To use this function the ReadQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous read requests must be less than
+    ///      ReadQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
     template <typename TPred, typename TFunc>
@@ -1081,11 +1150,11 @@ public:
             std::forward<TFunc>(func));
     }
 
-    /// @brief Cancel previous asynchronous read request (asyncRead())
-    /// @details If there is no unfinished asyncRead() operation in progress
+    /// @brief Cancel all previous asynchronous read requests.
+    /// @details If there is no unfinished asynchronous read operation in progress
     ///          the call to this function will have no effect. Otherwise the
     ///          callback will be called with embxx::error::ErrorCode::Aborted
-    ///          as status value.
+    ///          as status value for all outstanding read operations.
     /// @return true in case the previous asyncRead() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
     ///         read request.
@@ -1103,8 +1172,10 @@ public:
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesWritten); @endcode
-    /// @pre The callback for any previous asyncWrite() request has been called,
-    ///      i.e. there is no outstanding asyncWrite() request.
+    /// @pre To use this function the WriteQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous write requests must be less than
+    ///      WriteQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
     template <typename TFunc>
@@ -1116,11 +1187,11 @@ public:
         WriteBase::asyncWrite(buf, size, std::forward<TFunc>(func));
     }
 
-    /// @brief Cancel previous asynchronous write request (asyncWrite())
+    /// @brief Cancel all previous asynchronous write requests.
     /// @details If there is no unfinished asyncWrite() operation in progress
     ///          the call to this function will have no effect. Otherwise the
     ///          callback will be called with embxx::error::ErrorCode::Aborted
-    ///          as status value.
+    ///          as status value for all outstanding write operations.
     /// @return true in case the previous asyncWrite() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
     ///         write request.
