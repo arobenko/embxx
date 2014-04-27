@@ -26,6 +26,7 @@
 #include <iterator>
 
 #include "embxx/util/Assert.h"
+#include "embxx/util/SizeToType.h"
 #include "StreamManip.h"
 
 namespace embxx
@@ -293,7 +294,27 @@ public:
         return *this;
     }
 
+    /// @brief Generic print operator.
+    /// @details If none of other operator<<() member functions were chosen,
+    ///          tries to make a best guess of which one to use.
+    template <typename T>
+    OutStream& operator<<(T value)
+    {
+        typedef typename
+            std::conditional<
+                std::is_integral<T>::value,
+                IntegralTypeTag,
+                NonIntegralTypeTag
+            >::type Tag;
+
+        printInternal(value, Tag());
+        return *this;
+    }
+
 private:
+    struct IntegralTypeTag {};
+    struct NonIntegralTypeTag {};
+
     template <typename T, typename TPromotedUnsigned = typename std::make_unsigned<T>::type>
     OutStream& signedToStream(T value)
     {
@@ -419,6 +440,24 @@ private:
         auto revIterOffset = std::distance(iter, tmpBuf.end());
         auto printIter = tmpBuf.rbegin() + revIterOffset;
         std::copy(printIter, tmpBuf.rend(), std::back_inserter(buf_));
+    }
+
+    template <typename T>
+    void printInternal(T value, IntegralTypeTag)
+    {
+        typedef typename
+            embxx::util::SizeToType<
+                sizeof(value),
+                std::is_signed<T>::value
+            >::Type CastedType;
+        *this << static_cast<CastedType>(value);
+    }
+
+    template <typename T>
+    void printInternal(T value, NonIntegralTypeTag)
+    {
+        static_assert(std::is_integral<T>::value,
+            "Currently output of non-integral type is not supported");
     }
 
     StreamBuf& buf_;
