@@ -24,8 +24,9 @@
 /// class TimerDevice
 /// {
 /// public:
-///     // Define type for wait time units.
-///     typedef unsigned WaitTimeType;
+///     // Define smallest wait time units granularity as std::chrono::duration.
+///     typedef unsigned WaitUnitTimeType;
+///     typedef std::chrono::duration<WaitUnitTimeType, std::milli> WaitTimeUnitDuration; // milliseconds
 ///
 ///     // Function to set timer interrupt callback handler. The function
 ///     // is called diring the construction of TimerMgr object in
@@ -35,8 +36,8 @@
 ///
 ///     // Functions to start timer countdown in both event loop
 ///     // (non-interrupt) and interrupt contexts.
-///     void startWait(WaitTimeType waitTime, embxx::device::context::EventLoop context) {...}
-///     void startWait(WaitTimeType waitTime, embxx::device::context::Interrupt context) {...}
+///     void startWait(WaitUnitTimeType waitTime, embxx::device::context::EventLoop context) {...}
+///     void startWait(WaitUnitTimeType waitTime, embxx::device::context::Interrupt context) {...}
 ///
 ///     // Function to cancel timer countdown in event loop (non-interrupt)
 ///     // context. The function must return true in case the wait was
@@ -57,7 +58,7 @@
 ///
 ///     // Function to retrieve elapsed time of the last executed wait. It
 ///     // will be called right after the cancelWait().
-///     WaitTimeType getElapsed(embxx::device::context::EventLoop context) const {...}
+///     WaitUnitTimeType getElapsed(embxx::device::context::EventLoop context) const {...}
 ///
 /// private:
 ///     ...
@@ -86,7 +87,6 @@
 /// 
 /// Create the new wait request as following:
 /// @code
-/// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
 ///
 /// void timeoutFunc(const embxx::error::ErrorStatus& es)
 /// {
@@ -101,7 +101,7 @@
 /// {
 ///     ...
 ///     timer.asyncWait(
-///         SomeWaitTime,
+///         std::chrono::seconds(5),
 ///         std::bind(
 ///             &timeoutFunc, 
 ///             std::placeholders::_1));
@@ -111,7 +111,7 @@
 ///
 /// It is possible to initiate next wait from withing the timeout handler:
 /// @code
-/// const TimerDevice::WaitTimeType SomeWaitTime = 5000; // 5 seconds;
+/// const auto SomeWaitTime = std::chrono::seconds(5);
 ///
 /// void timeoutFunc(const embxx::error::ErrorStatus& es, Timer& timer)
 /// {

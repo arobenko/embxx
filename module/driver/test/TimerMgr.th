@@ -39,13 +39,14 @@ public:
 private:
 
     template <typename TEventLoop,
-              typename TTimer>
+              typename TTimer,
+              typename TDuration>
     void incWaitFunc(
         TEventLoop& el,
         TTimer& timer,
         unsigned& counter,
         unsigned maxCounter,
-        unsigned waitTime,
+        const TDuration& waitTime,
         bool stopAtEnd = true)
     {
         if (maxCounter <= counter) {
@@ -56,7 +57,8 @@ private:
         }
 
         ++counter;
-        timer.asyncWait(waitTime,
+        timer.asyncWait(
+            waitTime,
             [this, &el, &timer, &counter, maxCounter, waitTime, stopAtEnd](const embxx::error::ErrorStatus& status)
             {
                 if (status.code() == embxx::error::ErrorCode::Aborted) {
@@ -69,14 +71,15 @@ private:
     }
 
     template <typename TEventLoop,
-              typename TTimer>
+              typename TTimer,
+              typename TDuration>
     void cancelOtherFunc(
         TEventLoop& el,
         TTimer& timer1,
         TTimer& timer2,
         unsigned& counter,
         unsigned maxCounter,
-        unsigned waitTime)
+        const TDuration& waitTime)
     {
         if (maxCounter <= counter) {
             el.stop();
@@ -84,13 +87,15 @@ private:
         }
 
         ++counter;
-        timer2.asyncWait(waitTime + 50,
+        timer2.asyncWait(
+            waitTime + TDuration(50),
             [](const embxx::error::ErrorStatus& status)
             {
                 TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
             });
 
-        timer1.asyncWait(waitTime,
+        timer1.asyncWait(
+            waitTime,
             [this, &el, &timer1, &timer2, &counter, maxCounter, waitTime](const embxx::error::ErrorStatus& status)
             {
                 if (status.code() == embxx::error::ErrorCode::Aborted) {
@@ -126,8 +131,8 @@ void TimerMgrTestSuite::test1()
     auto invalidTimer = timerMgr.allocTimer();
     TS_ASSERT(!invalidTimer.isValid());
     unsigned counter = 0;
-    const unsigned MaxCounter = 10;
-    const unsigned Delay = 200;
+    static const unsigned MaxCounter = 10;
+    static const auto Delay = std::chrono::milliseconds(200);
     incWaitFunc(el, timer, counter, MaxCounter, Delay);
     el.run();
 }
@@ -157,8 +162,8 @@ void TimerMgrTestSuite::test2()
     auto timer2 = timerMgr.allocTimer();
     TS_ASSERT(timer2.isValid());
     unsigned counter = 0;
-    const unsigned MaxCounter = 20;
-    const unsigned Delay = 100;
+    static const unsigned MaxCounter = 20;
+    static const auto Delay = std::chrono::milliseconds(100);
     cancelOtherFunc(el, timer1, timer2, counter, MaxCounter, Delay);
     el.run();
 }
@@ -187,15 +192,16 @@ void TimerMgrTestSuite::test3()
     std::array<Timer, TotalTimers> timers;
     std::array<unsigned, TotalTimers> counters;
 
-    const unsigned MaxCounter = 20;
-    const unsigned Delay = 50;
+    static const unsigned MaxCounter = 20;
+    static const auto Delay = std::chrono::milliseconds(50);
     for (unsigned i = 0; i < TotalTimers; ++i) {
         timers[i] = timerMgr.allocTimer();
         TS_ASSERT(timers[i].isValid());
         counters[i] = 0;
 
         bool stopAtEnd = (i == (TotalTimers - 1));
-        incWaitFunc(el, timers[i], counters[i], MaxCounter, Delay + (i * 10), stopAtEnd);
+        typedef decltype(Delay) DelayType;
+        incWaitFunc(el, timers[i], counters[i], MaxCounter, Delay + DelayType(i * 10), stopAtEnd);
     }
     el.run();
     for (unsigned i = 0; i < TotalTimers; ++i) {

@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <limits>
 #include <iterator>
+#include <chrono>
 
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
@@ -49,12 +50,14 @@ namespace driver
 ///          store and manage timer related information.
 /// @tparam TDevice Platform specific device (peripheral) control class. It
 ///         must expose the following interface:
-///         @li Define type for wait time units.
+///         @li Define type for wait time units. It must be any variant of
+///             std::chrono::duration.
 ///         @code
-///         typedef unsigned WaitTimeType;
+///         typedef unsigned WaitTimeUnitType;
+///         typedef std::chrono::duration<WaitTimeUnitType, std::milli> WaitTimeUnitDuration; // milliseconds granularity
 ///         @endcode
 ///         @li Function to set timer interrupt callback handler. The function
-///             is called diring the construction of TimerMgr object in
+///             is called during the construction of TimerMgr object in
 ///             non-interrupt context.
 ///         @code
 ///         template <typename TFunc>
@@ -63,8 +66,8 @@ namespace driver
 ///         @li Functions to start timer countdown in both event loop
 ///             (non-interrupt) and interrupt contexts.
 ///         @code
-///         void startWait(WaitTimeType waitTime, embxx::device::context::EventLoop context);
-///         void startWait(WaitTimeType waitTime, embxx::device::context::Interrupt context);
+///         void startWait(WaitTimeUnitType waitTime, embxx::device::context::EventLoop context);
+///         void startWait(WaitTimeUnitType waitTime, embxx::device::context::Interrupt context);
 ///         @endcode
 ///         @li Function to cancel timer countdown in event loop (non-interrupt)
 ///             context. The function must return true in case the wait was
@@ -89,7 +92,7 @@ namespace driver
 ///         @li Function to retrieve elapsed time of the last executed wait. It
 ///             will be called right after the cancelWait().
 ///         @code
-///         WaitTimeType getElapsed(embxx::device::context::EventLoop context) const;
+///         WaitTimeUnitType getElapsed(embxx::device::context::EventLoop context) const;
 ///         @endcode
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
 ///         to execute posted handlers in regular thread context.
@@ -120,8 +123,8 @@ public:
     /// @brief Event loop type
     typedef TEventLoop EventLoop;
 
-    /// @brief Wait time units type
-    typedef typename Device::WaitTimeType WaitTimeType;
+    /// @brief Minimal wait time unit duration
+    typedef typename Device::WaitTimeUnitDuration WaitTimeUnitDuration;
 
     /// @brief Max number of timers supported by this TimerMgr
     static const std::size_t MaxTimers = TMaxTimers;
@@ -229,11 +232,18 @@ public:
         /// @details Will forward the request to schedule the call to provided
         ///          callback function after the requested timeout and exit
         ///          immediately.
-        /// @param[in] timeUnits Time to wait in the units supported by the
-        ///            timer device (peripheral) object provided in the
-        ///            construction of TimerMgr. This value will be used in
-        ///            call to configWait() member function of timer device
-        ///            object.
+        /// @param[in] waitTime Time to wait. It must be any variant of
+        ///            std::chrono::duration, such as std::chrono::seconds() or
+        ///            std::chrono::milliseconds(). Note that granularity of time
+        ///            units cannot be greater than supported by the device
+        ///            itself. For example the device class defined its
+        ///            WaitTimeUnitDuration type as milliseconds:
+        ///            @code
+        ///            typedef std::chrono::duration<unsigned, std::milli> WaitTimeUnitDuration;
+        ///            @endcode
+        ///            In this case std::chrono::microseconds() cannot be passed
+        ///            as waitTime parameter to this function while
+        ///            std::chrono::seconds() can.
         /// @param[in] func Callback function object to be executed when
         ///            requested wait is over. It must have the following
         ///            signature:
@@ -245,13 +255,18 @@ public:
         ///      called. It is possible to activate new wait by calling
         ///      asyncWait() from within the callback of previously called
         ///      asyncWait().
-        template <typename TFunc>
+        template <typename TRep, typename TPeriod, typename TFunc>
         void asyncWait(
-            WaitTimeType timeUnits,
+            const std::chrono::duration<TRep, TPeriod>& waitTime,
             TFunc&& func)
         {
             GASSERT(isValid());
-            mgr_->scheduleWait(idx_, timeUnits, TimeoutHandler(std::forward<TFunc>(func)));
+            auto castedWaitTime =
+                    std::chrono::duration_cast<WaitTimeUnitDuration>(waitTime);
+            mgr_->scheduleWait(
+                idx_,
+                castedWaitTime.count(),
+                TimeoutHandler(std::forward<TFunc>(func)));
         }
 
     private:
@@ -345,7 +360,8 @@ public:
 private:
     friend class TimerMgr::Timer;
 
-    typedef WaitTimeType TimeCounterType;
+    typedef typename WaitTimeUnitDuration::rep WaitTimeUnitType;
+    typedef WaitTimeUnitType TimeCounterType;
     typedef unsigned EngagementIdType;
 
     /// @cond DOCUMENT_TIMER_MANAGER_INTERNALS
@@ -479,7 +495,7 @@ private:
 
     void scheduleWait(
         unsigned idx,
-        WaitTimeType timeUnits,
+        WaitTimeUnitType timeUnits,
         TimeoutHandler&& func)
     {
         if (device_.cancelWait(EventLoopContext())) {
