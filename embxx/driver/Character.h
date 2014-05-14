@@ -233,12 +233,12 @@ protected:
             return false;
         }
 
-        std::for_each(queue_.begin(), queue_.end(),
-            [this](typename InfoQueue::Reference info)
-            {
-                GASSERT(info.current_ < (info.start_ + info.bufSize_));
-                invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
-            });
+        for (auto iter = queue_.begin(); iter != queue_.end(); ++iter) {
+            auto& info = *iter;
+            GASSERT(info.current_ < (info.start_ + info.bufSize_));
+            invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+        }
+
         queue_.clear();
         return true;
     }
@@ -595,12 +595,12 @@ protected:
             return false;
         }
 
-        std::for_each(queue_.begin(), queue_.end(),
-            [this](typename InfoQueue::Reference info)
-            {
-                GASSERT(info.current_ < (info.start_ + info.bufSize_));
-                invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
-            });
+        for (auto iter = queue_.begin(); iter != queue_.end(); ++iter) {
+            auto& info = *iter;
+            GASSERT(info.current_ < (info.start_ + info.bufSize_));
+            invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+        }
+
         queue_.clear();
         return true;
     }

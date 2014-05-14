@@ -36,6 +36,7 @@ enum class ErrorCode
     Aborted, ///< The operation was cancelled/aborted.
     BufferOverflow, /// The buffer is full with read termination condition being false
     HwProtocolError, ///< Hardware peripheral reported protocol error.
+    Timeout, ///< The operation takes too much time.
     NumOfStatuses ///< Number of available statuses. Must be last
 };
 
