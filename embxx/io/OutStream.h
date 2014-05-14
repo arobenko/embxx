@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <iterator>
 
+#include "embxx/error/ErrorStatus.h"
 #include "embxx/util/Assert.h"
 #include "embxx/util/SizeToType.h"
 #include "StreamManip.h"
@@ -143,9 +144,9 @@ public:
         return *this;
     }
 
-    /// @brief Insert unsigned character into the stream.
-    /// @details The character is treated as unsigned number, it is converted
-    ///          to string representation based on the current base modifier and
+    /// @brief Insert 8 bit unsigned numeric value into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
     ///          inserted into the stream buffer.
     /// @param value Numeric value
     /// @return *this
@@ -154,7 +155,7 @@ public:
         return (*this << static_cast<unsigned>(value));
     }
 
-    /// @brief Insert signed short numeric value into the stream.
+    /// @brief Insert 16 bit signed numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -165,7 +166,7 @@ public:
         return signedToStream<std::int16_t, std::uint32_t>(value);
     }
 
-    /// @brief Insert unsigned short numeric value into the stream.
+    /// @brief Insert 16 bit unsigned numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -176,7 +177,7 @@ public:
         return (*this << static_cast<std::uint32_t>(value));
     }
 
-    /// @brief Insert signed int numeric value into the stream.
+    /// @brief Insert 32 bit signed numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -187,7 +188,7 @@ public:
         return signedToStream(value);
     }
 
-    /// @brief Insert unsigned int numeric value into the stream.
+    /// @brief Insert 32 bit unsigned numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -198,7 +199,7 @@ public:
         return unsignedToStream(value);
     }
 
-    /// @brief Insert signed long long numeric value into the stream.
+    /// @brief Insert 64 bit signed numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -209,7 +210,7 @@ public:
         return signedToStream(value);
     }
 
-    /// @brief Insert unsigned long long numeric value into the stream.
+    /// @brief Insert 64 bit unsigned numeric value into the stream.
     /// @details The numeric value is converted to string representation
     ///          based on the current base modifier and
     ///          inserted into the stream buffer.
@@ -218,6 +219,19 @@ public:
     OutStream& operator<<(std::uint64_t value)
     {
         return unsignedToStream(value);
+    }
+
+    /// @brief Insert numeric value of the error code wrapped by ErrorStatusT
+    ///        into the stream.
+    /// @details The numeric value is converted to string representation
+    ///          based on the current base modifier and
+    ///          inserted into the stream buffer.
+    /// @param es ErrorStatus object
+    /// @return *this
+    template <typename TCode>
+    OutStream& operator<<(const embxx::error::ErrorStatusT<TCode>& es)
+    {
+        return (*this << es.code());
     }
 
     /// @brief End of line manipulator.
@@ -302,9 +316,11 @@ public:
     {
         typedef typename
             std::conditional<
-                std::is_integral<T>::value,
-                IntegralTypeTag,
-                NonIntegralTypeTag
+                std::is_enum<T>::value,
+                EnumTypeTag,
+                typename std::conditional<
+                    std::is_integral<T>::value, IntegralTypeTag, NonIntegralTypeTag
+                >::type
             >::type Tag;
 
         printInternal(value, Tag());
@@ -313,6 +329,7 @@ public:
 
 private:
     struct IntegralTypeTag {};
+    struct EnumTypeTag {};
     struct NonIntegralTypeTag {};
 
     template <typename T, typename TPromotedUnsigned = typename std::make_unsigned<T>::type>
@@ -454,8 +471,16 @@ private:
     }
 
     template <typename T>
+    void printInternal(T value, EnumTypeTag)
+    {
+        typedef typename std::underlying_type<T>::type UnderlyingType;
+        printInternal(static_cast<UnderlyingType>(value), IntegralTypeTag());
+    }
+
+    template <typename T>
     void printInternal(T value, NonIntegralTypeTag)
     {
+        static_cast<void>(value);
         static_assert(std::is_integral<T>::value,
             "Currently output of non-integral type is not supported");
     }

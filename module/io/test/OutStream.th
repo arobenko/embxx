@@ -26,6 +26,7 @@
 #include "embxx/driver/Character.h"
 #include "embxx/io/OutStreamBuf.h"
 #include "embxx/io/OutStream.h"
+#include "embxx/error/ErrorStatus.h"
 #include "cxxtest/TestSuite.h"
 
 #include "module/device/test/EventLoopLock.h"
@@ -47,6 +48,8 @@ public:
     void test10();
     void test11();
     void test12();
+    void test13();
+    void test14();
 
 private:
     typedef embxx::util::EventLoop<
@@ -274,3 +277,46 @@ void OutStreamTestSuite::test12()
 
     TS_ASSERT_EQUALS(ExpectedString, std::string(buf.begin(), buf.end()));
 }
+
+void OutStreamTestSuite::test13()
+{
+    enum EnumValues {
+        Value1,
+        Value2,
+        Value3,
+        Value4,
+        Value5
+    };
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    stream << Value1 << Value2 << Value3 << Value4 << Value5;
+
+    static const std::string ExpectedString("01234");
+
+    TS_ASSERT_EQUALS(ExpectedString, std::string(buf.begin(), buf.end()));
+}
+
+void OutStreamTestSuite::test14()
+{
+    embxx::error::ErrorStatus es1;
+    embxx::error::ErrorStatus es2(embxx::error::ErrorCode::Aborted);
+    embxx::error::ErrorStatus es3(embxx::error::ErrorCode::BufferOverflow);
+
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Driver driver(device, el);
+    OutStreamBuf buf(driver);
+    OutStream stream(buf);
+
+    stream << es1 << es2 << es3;
+
+    static const std::string ExpectedString("012");
+
+    TS_ASSERT_EQUALS(ExpectedString, std::string(buf.begin(), buf.end()));
+}
+
