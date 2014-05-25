@@ -11,7 +11,7 @@
 /// {
 ///     if (error) {
 ///         // Handle error
-///         if (error.code() == embxx::error::ErrorCode::Aborted) {
+///         if (error == embxx::error::ErrorCode::Aborted) {
 ///             // Nothing to do
 ///             return;
 ///         }

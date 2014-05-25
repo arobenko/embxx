@@ -24,6 +24,7 @@ class ErrorStatusTestSuite : public CxxTest::TestSuite
 {
 public:
     void test1();
+    void test2();
 };
 
 void ErrorStatusTestSuite::test1()
@@ -35,6 +36,15 @@ void ErrorStatusTestSuite::test1()
     TS_ASSERT(es);
     TS_ASSERT_EQUALS(es.code(), embxx::error::ErrorCode::Aborted);
 }
+
+void ErrorStatusTestSuite::test2()
+{
+    embxx::error::ErrorStatus es;
+    TS_ASSERT(!es);
+    TS_ASSERT(es.code() == embxx::error::ErrorCode::Success);
+    TS_ASSERT(embxx::error::ErrorCode::Success == es.code());
+}
+
 
 
 

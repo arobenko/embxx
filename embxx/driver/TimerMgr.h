@@ -111,7 +111,7 @@ namespace driver
 template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
-          typename TTimeoutHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 20> >
+          typename TTimeoutHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&)> >
 class TimerMgr
 {
 

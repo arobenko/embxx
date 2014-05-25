@@ -44,13 +44,19 @@ public:
 
     /// @brief Default constructor.
     /// @details The code value is 0, which is "success".
-    ErrorStatusT();
+    ErrorStatusT()
+        : code_(static_cast<ErrorCodeType>(0))
+    {
+    }
 
     /// @brief Constructor
     /// @details This constructor may be used for implicit construction of
     ///          error status object out of error code value.
     /// @param code Numeric error code value.
-    ErrorStatusT(ErrorCodeType code);
+    ErrorStatusT(ErrorCodeType code)
+        : code_(code)
+    {
+    }
 
     /// @brief Copy constructor is default
     ErrorStatusT(const ErrorStatusT&) = default;
@@ -62,15 +68,43 @@ public:
     ErrorStatusT& operator=(const ErrorStatusT&) = default;
 
     /// @brief Retrieve error code value.
-    const ErrorCodeType code() const;
+    const ErrorCodeType code() const
+    {
+        return code_;
+    }
+
+    /// @brief Equality comparison operator
+    bool operator==(const ErrorStatusT& other) const
+    {
+        return code() == other.code();
+    }
+
+    /// @brief Equality comparison operator
+    bool operator==(ErrorCodeType otherCode) const
+    {
+        return code() == otherCode;
+    }
+
+    /// @brief Inequality comparison operator
+    template <typename TOther>
+    bool operator!=(TOther&& other) const
+    {
+        return !(operator==(std::forward<TOther>(other)));
+    }
 
     /// @brief boolean conversion operator.
     /// @details Returns true if error code is not equal 0, i.e. any error
     ///          will return true, success value will return false.
-    operator bool() const;
+    operator bool() const
+    {
+        return (code_ != static_cast<ErrorCodeType>(0));
+    }
 
     /// @brief Same as !(static_cast<bool>(*this)).
-    bool operator!() const;
+    bool operator!() const
+    {
+        return !(static_cast<bool>(*this));
+    }
 
 private:
     ErrorCodeType code_;
@@ -84,56 +118,23 @@ typedef ErrorStatusT<ErrorCode> ErrorStatus;
 // Implementation
 /// @brief Error status equality comparison operator
 /// @related ErrorStatusT
-template <typename TErrorCode>
+template <typename TOther, typename TErrorCode>
 bool operator==(
-    const ErrorStatusT<TErrorCode>& es1,
-    const ErrorStatusT<TErrorCode>& es2)
+    TOther&& value,
+    const ErrorStatusT<TErrorCode>& status)
 {
-    return es1.value() == es2.value();
+    return status == std::forward<TOther>(value);
 }
 
-/// @brief Error status non-equality comparison operator
-/// @related ErrorStatusT
-template <typename TErrorCode>
+template <typename TOther, typename TErrorCode>
 bool operator!=(
-    const ErrorStatusT<TErrorCode>& es1,
-    const ErrorStatusT<TErrorCode>& es2)
+    TOther&& value,
+    const ErrorStatusT<TErrorCode>& status)
 {
-    return !(es1 == es2);
+    return status != std::forward<TOther>(value);
 }
 
 /// @}
-
-template <typename TErrorCode>
-ErrorStatusT<TErrorCode>::ErrorStatusT()
-    : code_(static_cast<ErrorCodeType>(0))
-{
-}
-
-template <typename TErrorCode>
-ErrorStatusT<TErrorCode>::ErrorStatusT(ErrorCodeType code)
-    : code_(code)
-{
-}
-
-template <typename TErrorCode>
-const typename ErrorStatusT<TErrorCode>::ErrorCodeType
-ErrorStatusT<TErrorCode>::code() const
-{
-    return code_;
-}
-
-template <typename TErrorCode>
-ErrorStatusT<TErrorCode>::operator bool() const
-{
-    return (code_ != static_cast<ErrorCodeType>(0));
-}
-
-template <typename TErrorCode>
-bool ErrorStatusT<TErrorCode>::operator!() const
-{
-    return !(static_cast<bool>(*this));
-}
 
 }  // namespace error
 
