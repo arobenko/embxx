@@ -191,6 +191,26 @@ endfunction ()
 
 #################################################################
 
+function (test_static_pool_allocator)
+    set (test_suite_name "StaticPoolAllocator")
+    set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
+
+    set (extra_sources)
+
+    set (name "${COMPONENT_NAME}.${test_suite_name}Test")
+
+    set (runner "${test_suite_name}TestRunner.cpp")
+    
+    set (link)
+
+    CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
+    
+    target_link_libraries (${name} ${link})
+    
+endfunction ()
+
+#################################################################
+
 include_directories ("${CXXTEST_INCLUDE_DIR}")
 
 if (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release") 
@@ -205,5 +225,6 @@ test_tuple()
 test_integral_promotion()
 test_event_loop()
 test_static_function()
+test_static_pool_allocator()
 
 endif ()
