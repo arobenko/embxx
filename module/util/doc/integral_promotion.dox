@@ -25,3 +25,4 @@
 ///     return static_cast<PromotedType>(value + std::numeric_limits<T>::min());
 /// }
 /// @endcode 
+///

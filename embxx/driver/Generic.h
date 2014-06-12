@@ -34,6 +34,9 @@ namespace driver
 /// @addtogroup driver
 /// @{
 
+/// @brief Declaration of Generic driver.
+/// @details The class doesn't have a body, see specialisation.
+/// @headerfile embxx/driver/Generic.h
 template <typename TDevice,
           typename TEventLoop,
           typename TSignature = void (const embxx::error::ErrorStatus&),
@@ -66,6 +69,7 @@ class Generic;
 /// @tparam THandler Type to store handler to be executed in "regular" thread
 ///         context. Must be either std::function or embxx::util::StaticFunction
 /// @tparam TArgs Types of other arguments passed by/to callbacks.
+/// @headerfile embxx/driver/Generic.h
 template <typename TDevice,
           typename TEventLoop,
           typename THandler,

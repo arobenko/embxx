@@ -25,6 +25,7 @@
 #include "embxx/util/Assert.h"
 #include "embxx/error/ErrorStatus.h"
 #include "embxx/device/context.h"
+#include "embxx/container/StaticQueue.h"
 
 namespace embxx
 {
@@ -32,8 +33,788 @@ namespace embxx
 namespace driver
 {
 
+namespace details
+{
+
+
+template <typename TEventLoop, typename TInfo>
+void invokeHandler(
+    TEventLoop& eventLoop,
+    TInfo& info,
+    const embxx::error::ErrorStatus& es,
+    bool interruptCtx)
+{
+    auto sizeToReport = static_cast<std::size_t>(info.current_ - info.start_);
+    GASSERT(info.handler_);
+    auto boundHandler =
+        std::bind(
+            std::move(info.handler_),
+            es,
+            sizeToReport);
+
+    bool postResult = false;
+    if (interruptCtx) {
+        postResult = eventLoop.postInterruptCtx(std::move(boundHandler));
+    }
+    else {
+        postResult = eventLoop.post(std::move(boundHandler));
+    }
+    static_cast<void>(postResult);
+    GASSERT(postResult);
+    GASSERT(!info.handler_);
+}
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename TReadUntilPred>
+class CharacterReadSupportBase
+{
+public:
+
+    ~CharacterReadSupportBase()
+    {
+        device_.setCanReadHandler(nullptr);
+        device_.setReadCompleteHandler(nullptr);
+    }
+
+    CharacterReadSupportBase(const CharacterReadSupportBase&) = default;
+    CharacterReadSupportBase(CharacterReadSupportBase&&) = default;
+    CharacterReadSupportBase& operator=(const CharacterReadSupportBase&) = default;
+    CharacterReadSupportBase& operator=(CharacterReadSupportBase&&) = default;
+
+protected:
+    typedef TDevice Device;
+    typedef TEventLoop EventLoop;
+    typedef typename Device::CharType CharType;
+    typedef THandler ReadHandler;
+    typedef TReadUntilPred ReadUntilPred;
+
+    struct ReadUntilValid {};
+    struct ReadUntilInvalid {};
+
+    typedef typename std::conditional<
+        std::is_same<ReadUntilPred, std::nullptr_t>::value,
+        ReadUntilInvalid,
+        ReadUntilValid
+    >::type ReadUntilStatus;
+
+    struct ReadInfo
+    {
+        ReadInfo()
+            : start_(nullptr),
+              current_(nullptr),
+              bufSize_(0)
+        {
+        }
+
+        template <typename THandlerParam, typename TPredParam>
+        ReadInfo(
+            CharType* buf,
+            std::size_t bufSize,
+            THandlerParam&& handler,
+            TPredParam&& pred = ReadUntilPred())
+            : start_(buf),
+              current_(buf),
+              bufSize_(bufSize),
+              handler_(std::forward<THandlerParam>(handler)),
+              readUntilPred_(std::forward<TPredParam>(pred))
+        {
+        }
+
+        CharType* start_;
+        CharType* current_;
+        std::size_t bufSize_;
+        ReadHandler handler_;
+        ReadUntilPred readUntilPred_;
+    };
+
+    CharacterReadSupportBase(Device& device, EventLoop& el)
+      : device_(device),
+        el_(el)
+    {
+    }
+
+    static bool seekedCharFound(CharType ch, ReadInfo& info)
+    {
+        return seekedCharFound(ch, info, ReadUntilStatus());
+    }
+
+    static bool seekedCharFound(CharType ch, ReadInfo& info, ReadUntilValid)
+    {
+        return info.readUntilPred_ && info.readUntilPred_(ch);
+    }
+
+    static bool seekedCharFound(CharType ch, ReadInfo& info, ReadUntilInvalid)
+    {
+        static_cast<void>(ch);
+        static_cast<void>(info);
+        return false;
+    }
+
+
+    Device& device_;
+    EventLoop& el_;
+};
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename TReadUntilPred,
+          std::size_t TMaxPendingReads>
+class CharacterReadSupport : public CharacterReadSupportBase<TDevice, TEventLoop, THandler, TReadUntilPred>
+{
+    typedef CharacterReadSupportBase<TDevice, TEventLoop, THandler, TReadUntilPred> Base;
+
+public:
+
+    ~CharacterReadSupport() = default;
+    CharacterReadSupport(const CharacterReadSupport&) = default;
+    CharacterReadSupport(CharacterReadSupport&&) = default;
+    CharacterReadSupport& operator=(const CharacterReadSupport&) = default;
+    CharacterReadSupport& operator=(CharacterReadSupport&&) = default;
+
+protected:
+    typedef typename Base::Device Device;
+    typedef typename Base::EventLoop EventLoop;
+    typedef typename Base::CharType CharType;
+
+    CharacterReadSupport(Device& device, EventLoop& el)
+      : Base(device, el)
+    {
+        Base::device_.setCanReadHandler(
+            std::bind(
+                &CharacterReadSupport::canReadInterruptHandler, this));
+
+        Base::device_.setReadCompleteHandler(
+            std::bind(
+                &CharacterReadSupport::readCompleteInterruptHandler,
+                this,
+                std::placeholders::_1));
+    }
+
+    template <typename TFunc>
+    void asyncRead(
+        CharType* buf,
+        std::size_t size,
+        TFunc&& func)
+    {
+        asyncReadUntil(buf, size, typename Base::ReadUntilPred(), std::forward<TFunc>(func));
+    }
+
+    template <typename TPred, typename TFunc>
+    void asyncReadUntil(
+        CharType* buf,
+        std::size_t size,
+        TPred&& pred,
+        TFunc&& func)
+    {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The ReadHandler type in the provided traits musn't be std::nullptr_t");
+
+        bool suspended = Base::device_.suspend(EventLoopContext());
+        GASSERT(!queue_.full());
+        queue_.emplaceBack(buf, size, std::forward<TFunc>(func), std::forward<TPred>(pred));
+
+        if (suspended) {
+            Base::device_.resume(EventLoopContext());
+            return;
+        }
+
+        GASSERT(queue_.size() == 1U);
+        startNextRead(false);
+    }
+
+    bool cancelRead()
+    {
+        if (!Base::device_.cancelRead(EventLoopContext())) {
+            GASSERT(queue_.empty());
+            return false;
+        }
+
+        for (auto iter = queue_.begin(); iter != queue_.end(); ++iter) {
+            auto& info = *iter;
+            GASSERT(info.current_ < (info.start_ + info.bufSize_));
+            invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+        }
+
+        queue_.clear();
+        return true;
+    }
+
+private:
+
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
+    typedef typename Base::ReadInfo ReadInfo;
+    typedef embxx::container::StaticQueue<ReadInfo, TMaxPendingReads> InfoQueue;
+
+    void startNextRead(bool interruptCtx)
+    {
+        while (!queue_.empty()) {
+            auto& info = queue_.front();
+            if (info.bufSize_ == 0) {
+                auto code = embxx::error::ErrorCode::Success;
+                if (info.readUntilPred_) {
+                    code = embxx::error::ErrorCode::BufferOverflow;
+                }
+                invokeHandler(Base::el_, info, code, interruptCtx);
+                queue_.popFront();
+                continue;
+            }
+
+            if (interruptCtx) {
+                Base::device_.startRead(info.bufSize_, InterruptContext());
+            }
+            else {
+                Base::device_.startRead(info.bufSize_, EventLoopContext());
+            }
+            break;
+        }
+    }
+
+    void canReadInterruptHandler()
+    {
+        GASSERT(!queue_.empty());
+        auto& info = queue_.front();
+        while(Base::device_.canRead(InterruptContext())) {
+            if ((info.start_ + info.bufSize_) <= info.current_) {
+                // The device control object mustn't allow it.
+                GASSERT(0);
+                break;
+            }
+
+            auto ch = Base::device_.read(InterruptContext());
+            *info.current_ = ch;
+            ++info.current_;
+
+            if (Base::seekedCharFound(ch, info)) {
+                if (Base::device_.cancelRead(InterruptContext())) {
+                    invokeHandler(Base::el_, info, embxx::error::ErrorCode::Success, true);
+                    queue_.popFront();
+                    startNextRead(true);
+                }
+            }
+        }
+    }
+
+    void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        GASSERT(!queue_.empty());
+        auto& info = queue_.front();
+        GASSERT(info.start_ < info.current_);
+        if (es || (!Base::seekedCharFound(*(info.current_ - 1), info))) {
+            invokeHandler(Base::el_, info, es, true);
+        }
+        else {
+            invokeHandler(Base::el_, info, embxx::error::ErrorCode::BufferOverflow, true);
+        }
+        queue_.popFront();
+        startNextRead(true);
+    }
+
+    InfoQueue queue_;
+};
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename TReadUntilPred>
+class CharacterReadSupport<TDevice, TEventLoop, THandler, TReadUntilPred, 1U> :
+    public CharacterReadSupportBase<TDevice, TEventLoop, THandler, TReadUntilPred>
+{
+    typedef CharacterReadSupportBase<TDevice, TEventLoop, THandler, TReadUntilPred> Base;
+public:
+
+    ~CharacterReadSupport() = default;
+    CharacterReadSupport(const CharacterReadSupport&) = default;
+    CharacterReadSupport(CharacterReadSupport&&) = default;
+    CharacterReadSupport& operator=(const CharacterReadSupport&) = default;
+    CharacterReadSupport& operator=(CharacterReadSupport&&) = default;
+
+protected:
+    typedef typename Base::Device Device;
+    typedef typename Base::EventLoop EventLoop;
+    typedef typename Base::CharType CharType;
+
+    CharacterReadSupport(Device& device, EventLoop& el)
+      : Base(device, el)
+    {
+        Base::device_.setCanReadHandler(
+            std::bind(
+                &CharacterReadSupport::canReadInterruptHandler, this));
+        Base::device_.setReadCompleteHandler(
+            std::bind(
+                &CharacterReadSupport::readCompleteInterruptHandler,
+                this,
+                std::placeholders::_1));
+    }
+
+    template <typename TFunc>
+    void asyncRead(
+        CharType* buf,
+        std::size_t size,
+        TFunc&& func)
+    {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The ReadHandler type in the provided traits musn't be std::nullptr_t");
+
+        GASSERT(!info_.handler_); // No read in progress
+        info_.handler_ = std::forward<TFunc>(func);
+        info_.readUntilPred_ = nullptr;
+        initRead(buf, size);
+    }
+
+    template <typename TPred, typename TFunc>
+    void asyncReadUntil(
+        CharType* buf,
+        std::size_t size,
+        TPred&& pred,
+        TFunc&& func)
+    {
+        static_assert(
+            !std::is_same<std::nullptr_t, TReadUntilPred>::value,
+            "The ReadUntilPred type in the provided traits musn't be std::nullptr_t");
+
+        GASSERT(!info_.handler_); // No read in progress
+        info_.handler_ = std::forward<TFunc>(func);
+        info_.readUntilPred_ = std::forward<TPred>(pred);
+        initRead(buf, size);
+    }
+
+    bool cancelRead()
+    {
+        if (!Base::device_.cancelRead(EventLoopContext())) {
+            GASSERT(!info_.handler_);
+            return false;
+        }
+
+        GASSERT(info_.handler_);
+        GASSERT(info_.current_ < (info_.start_ + info_.bufSize_));
+        invokeHandler(Base::el_, info_, embxx::error::ErrorCode::Aborted, false);
+        return true;
+    }
+
+private:
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
+    typedef typename Base::ReadInfo ReadInfo;
+
+    void canReadInterruptHandler()
+    {
+        while(Base::device_.canRead(InterruptContext())) {
+            if ((info_.start_ + info_.bufSize_) <= info_.current_) {
+                // The device control object mustn't allow it.
+                GASSERT(0);
+                break;
+            }
+
+            auto ch = Base::device_.read(InterruptContext());
+            *info_.current_ = ch;
+            ++info_.current_;
+
+            if (Base::seekedCharFound(ch, info_)) {
+                if (Base::device_.cancelRead(InterruptContext())) {
+                    invokeHandler(Base::el_, info_, embxx::error::ErrorCode::Success, true);
+                }
+            }
+        }
+    }
+
+    void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        if (es || (!Base::seekedCharFound(*(info_.current_ - 1), info_))) {
+            invokeHandler(Base::el_, info_, es, true);
+            return;
+        }
+
+        invokeHandler(Base::el_, info_, embxx::error::ErrorCode::BufferOverflow, true);
+    }
+
+    void initRead(
+        CharType* buf,
+        std::size_t size)
+    {
+        info_.start_ = buf;
+        info_.current_ = buf;
+        info_.bufSize_ = size;
+
+        if (size == 0) {
+            auto code = embxx::error::ErrorCode::Success;
+            if (info_.readUntilPred_) {
+                code = embxx::error::ErrorCode::BufferOverflow;
+            }
+            invokeHandler(Base::el_, info_, code, false);
+            return;
+        }
+
+        Base::device_.startRead(size, EventLoopContext());
+    }
+
+    ReadInfo info_;
+};
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          typename TReadUntilPred>
+class CharacterReadSupport<TDevice, TEventLoop, THandler, TReadUntilPred, 0U>
+{
+protected:
+    template <typename... TArgs>
+    CharacterReadSupport(TArgs&&...)
+    {
+    }
+};
+
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler>
+class CharacterWriteSupportBase
+{
+public:
+
+    ~CharacterWriteSupportBase()
+    {
+        device_.setCanWriteHandler(nullptr);
+        device_.setWriteCompleteHandler(nullptr);
+    }
+
+    CharacterWriteSupportBase(const CharacterWriteSupportBase&) = default;
+    CharacterWriteSupportBase(CharacterWriteSupportBase&&) = default;
+    CharacterWriteSupportBase& operator=(const CharacterWriteSupportBase&) = default;
+    CharacterWriteSupportBase& operator=(CharacterWriteSupportBase&&) = default;
+
+protected:
+    typedef TDevice Device;
+    typedef TEventLoop EventLoop;
+    typedef typename Device::CharType CharType;
+    typedef THandler WriteHandler;
+
+    struct WriteInfo
+    {
+        WriteInfo()
+        : start_(nullptr),
+          current_(nullptr),
+          bufSize_(0)
+        {
+        }
+
+        template <typename THandlerParam>
+        WriteInfo(
+            const CharType* start,
+            std::size_t bufSize,
+            THandlerParam&& handler)
+            : start_(start),
+              current_(start),
+              bufSize_(bufSize),
+              handler_(std::forward<THandlerParam>(handler))
+        {
+        }
+
+        const CharType* start_;
+        const CharType* current_;
+        std::size_t bufSize_;
+        WriteHandler handler_;
+    };
+
+    CharacterWriteSupportBase(Device& device, EventLoop& el)
+      : device_(device),
+        el_(el)
+    {
+    }
+
+    Device& device_;
+    EventLoop& el_;
+};
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler,
+          std::size_t TMaxPendingWrites>
+class CharacterWriteSupport :
+    public CharacterWriteSupportBase<TDevice, TEventLoop, THandler>
+{
+    typedef CharacterWriteSupportBase<TDevice, TEventLoop, THandler> Base;
+public:
+
+    ~CharacterWriteSupport() = default;
+    CharacterWriteSupport(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport(CharacterWriteSupport&&) = default;
+    CharacterWriteSupport& operator=(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport& operator=(CharacterWriteSupport&&) = default;
+
+protected:
+    typedef typename Base::Device Device;
+    typedef typename Base::EventLoop EventLoop;
+    typedef typename Base::CharType CharType;
+
+    CharacterWriteSupport(Device& device, EventLoop& el)
+      : Base(device, el)
+    {
+        Base::device_.setCanWriteHandler(
+            std::bind(
+                &CharacterWriteSupport::canWriteInterruptHandler, this));
+        Base::device_.setWriteCompleteHandler(
+            std::bind(
+                &CharacterWriteSupport::writeCompleteInterruptHandler,
+                this,
+                std::placeholders::_1));
+    }
+
+    template <typename TFunc>
+    void asyncWrite(
+        const CharType* buf,
+        std::size_t size,
+        TFunc&& func)
+    {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The WriteHandler type in the provided traits musn't be std::nullptr_t");
+
+        bool suspended = Base::device_.suspend(EventLoopContext());
+        GASSERT(!queue_.full());
+        queue_.emplaceBack(buf, size, std::forward<TFunc>(func));
+
+        if (suspended) {
+            Base::device_.resume(EventLoopContext());
+            return;
+        }
+
+        GASSERT(queue_.size() == 1U);
+        startNextWrite(false);
+    }
+
+    bool cancelWrite()
+    {
+        if (!Base::device_.cancelWrite(EventLoopContext())) {
+            GASSERT(queue_.empty());
+            return false;
+        }
+
+        for (auto iter = queue_.begin(); iter != queue_.end(); ++iter) {
+            auto& info = *iter;
+            GASSERT(info.current_ < (info.start_ + info.bufSize_));
+            invokeHandler(Base::el_, info, embxx::error::ErrorCode::Aborted, false);
+        }
+
+        queue_.clear();
+        return true;
+    }
+
+private:
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
+    typedef typename Base::WriteInfo WriteInfo;
+    typedef embxx::container::StaticQueue<WriteInfo, TMaxPendingWrites> InfoQueue;
+
+    void startNextWrite(bool interruptCtx)
+    {
+        while (!queue_.empty()) {
+            auto& info = queue_.front();
+            if (info.bufSize_ == 0) {
+                invokeHandler(
+                    Base::el_,
+                    info,
+                    embxx::error::ErrorCode::Success,
+                    interruptCtx);
+                queue_.popFront();
+                continue;
+            }
+
+            if (interruptCtx) {
+                Base::device_.startWrite(info.bufSize_, InterruptContext());
+            }
+            else {
+                Base::device_.startWrite(info.bufSize_, EventLoopContext());
+            }
+            break;
+        }
+    }
+
+    void canWriteInterruptHandler()
+    {
+        GASSERT(!queue_.empty());
+        auto& info = queue_.front();
+        while(Base::device_.canWrite(InterruptContext())) {
+            if ((info.start_ + info.bufSize_) <= info.current_) {
+                // The device control object mustn't allow it.
+                GASSERT(0);
+                break;
+            }
+
+            Base::device_.write(*info.current_, InterruptContext());
+            ++info.current_;
+        }
+    }
+
+    void writeCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        auto& info = queue_.front();
+        invokeHandler(Base::el_, info, es, true);
+        queue_.popFront();
+        startNextWrite(true);
+    }
+
+    InfoQueue queue_;
+};
+
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler>
+class CharacterWriteSupport<TDevice, TEventLoop, THandler, 1U> :
+    public CharacterWriteSupportBase<TDevice, TEventLoop, THandler>
+{
+    typedef CharacterWriteSupportBase<TDevice, TEventLoop, THandler> Base;
+public:
+
+    ~CharacterWriteSupport() = default;
+    CharacterWriteSupport(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport(CharacterWriteSupport&&) = default;
+    CharacterWriteSupport& operator=(const CharacterWriteSupport&) = default;
+    CharacterWriteSupport& operator=(CharacterWriteSupport&&) = default;
+
+protected:
+    typedef typename Base::Device Device;
+    typedef typename Base::EventLoop EventLoop;
+    typedef typename Base::CharType CharType;
+
+    CharacterWriteSupport(Device& device, EventLoop& el)
+      : Base(device, el)
+    {
+        Base::device_.setCanWriteHandler(
+            std::bind(
+                &CharacterWriteSupport::canWriteInterruptHandler, this));
+        Base::device_.setWriteCompleteHandler(
+            std::bind(
+                &CharacterWriteSupport::writeCompleteInterruptHandler,
+                this,
+                std::placeholders::_1));
+    }
+
+    template <typename TFunc>
+    void asyncWrite(
+        const CharType* buf,
+        std::size_t size,
+        TFunc&& func)
+    {
+        static_assert(
+            !std::is_same<std::nullptr_t, THandler>::value,
+            "The WriteHandler type in the provided traits musn't be std::nullptr_t");
+
+        GASSERT(!info_.handler_); // No write in progress
+        info_.handler_ = std::forward<TFunc>(func);
+        initWrite(buf, size);
+    }
+
+    bool cancelWrite()
+    {
+        if (!Base::device_.cancelWrite(EventLoopContext())) {
+            GASSERT(!info_.handler_);
+            return false;
+        }
+
+        GASSERT(info_.handler_);
+        GASSERT(info_.current_ < (info_.start_ + info_.bufSize_));
+        invokeHandler(Base::el_, info_, embxx::error::ErrorCode::Aborted, false);
+        return true;
+    }
+
+private:
+    typedef embxx::device::context::EventLoop EventLoopContext;
+    typedef embxx::device::context::Interrupt InterruptContext;
+    typedef typename Base::WriteInfo WriteInfo;
+
+    void canWriteInterruptHandler()
+    {
+        while(Base::device_.canWrite(InterruptContext())) {
+            if ((info_.start_ + info_.bufSize_) <= info_.current_) {
+                // The device control object mustn't allow it.
+                GASSERT(0);
+                break;
+            }
+
+            Base::device_.write(*info_.current_, InterruptContext());
+            ++info_.current_;
+        }
+    }
+
+    void writeCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        invokeHandler(Base::el_, info_, es, true);
+    }
+
+    void initWrite(
+        const CharType* buf,
+        std::size_t size)
+    {
+        info_.start_ = buf;
+        info_.current_ = buf;
+        info_.bufSize_ = size;
+
+        if (size == 0) {
+            invokeHandler(Base::el_, info_, embxx::error::ErrorCode::Success, false);
+            return;
+        }
+
+        Base::device_.startWrite(size, EventLoopContext());
+    }
+
+    WriteInfo info_;
+};
+
+template <typename TDevice,
+          typename TEventLoop,
+          typename THandler>
+class CharacterWriteSupport<TDevice, TEventLoop, THandler, 0U>
+{
+protected:
+    template <typename... TArgs>
+    CharacterWriteSupport(TArgs&&...)
+    {
+    }
+};
+
+}  // namespace details
+
 /// @addtogroup driver
 /// @{
+
+/// @brief Default traits for Character driver
+/// @related Character
+/// @headerfile embxx/driver/Character.h
+struct DefaultCharacterTraits
+{
+    /// @brief The "read" handler storage type.
+    /// @details It is the default version of embxx::util::StaticFunction.
+    /// @pre The handler must have the following signature:
+    ///      @code void handler(const embxx::error::ErrorStatus&, std::size_t); @endcode
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> ReadHandler;
+
+    /// @brief The "write" handler storage type.
+    /// @details It is the default version of embxx::util::StaticFunction.
+    /// @pre The handler must have the following signature:
+    ///      @code void handler(const embxx::error::ErrorStatus&, std::size_t); @endcode
+    typedef embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> WriteHandler;
+
+    /// @brief By default there is no "read until" support.
+    /// @details The type ReadUntilPred is defined to be std::nullptr_t
+    typedef std::nullptr_t ReadUntilPred;
+
+    /// @brief Read queue size
+    /// @details By default the Character driver supports only single read
+    ///          at a time.
+    static const std::size_t ReadQueueSize = 1;
+
+    /// @brief Write queue size
+    /// @details By default the Character driver supports only single write
+    ///          at a time.
+    static const std::size_t WriteQueueSize = 1;
+};
 
 /// @brief Character device driver
 /// @details Manages read/write operations on the character device (peripheral)
@@ -41,8 +822,8 @@ namespace driver
 /// @tparam TDevice Platform specific device (peripheral) control class. It
 ///         must expose the following interface:
 ///         @code
-///         // Define each character type as CharType
-///         typedef ... CharType;
+///         // Define each character type as CharType.
+///         typedef std::uint8_t CharType;
 ///
 ///         // Set the "can read" interrupt callback which has "void ()"
 ///         // signature. The callback must be called when there is at least
@@ -101,7 +882,7 @@ namespace driver
 ///         // read operation was cancelled. The "context" is a dummy
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts. The read
-///         // canellation in interrupt context may happen only when readUntil()
+///         // cancellation in interrupt context may happen only when readUntil()
 ///         // request is used.
 ///         bool cancelRead(embxx::device::context::EventLoop context);
 ///         bool cancelRead(embxx::device::context::Interrupt context)
@@ -140,59 +921,126 @@ namespace driver
 ///         // true. Will be called in the interrupt context. May be called
 ///         // multiple times in the same interrupt.
 ///         void write(CharType value, embxx::device::context::Interrupt context);
-///         @endcode
 ///
-/// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
-///         to execute posted handlers in regular thread context.
-/// @tparam TReadHandler A function class that is supposed to store "read"
-///         complete callback. Must be either std::function or embxx::util::StaticFunction
-///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
-///         calling interface, where the first parameter is error status of the
-///         operation and second one is how many bytes were actually read in
-///         the operation.
-/// @tparam TWriteHandler A function class that is supposed to store "write"
-///         complete callback. Must be either std::function or embxx::util::StaticFunction
-///         and provide "void(const embxx::error::ErrorStatus&, std::size_t)"
-///         calling interface, where the first parameter is error status of the
-///         operation and second one is how many bytes were actually written in
-///         the operation.
+///         // Suspend current read/write operations (disable interrupts). Return
+///         // true whether the suspension is successful. This API function is
+///         // needed only if the driver supports more than 1 outstanding read or
+///         // write operation.
+///         bool suspend(embxx::device::context::EventLoop context);
+///
+///         // Resume previously suspended read and/or write operations (re-enable
+///         // interrupts). This API function is needed only if the driver supports
+///         // more than 1 outstanding read or write opration.
+///         @endcode
+/// @tparam TEventLoop Event loop class, must provide the following API member
+///         functions:
+///         @code
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool post(TFunc&& func);
+///
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool postInterruptCtx(TFunc&& func)
+///         @endcode
+/// @tparam TTraits Extra traits class/struct. It must define the following
+///         classes/variables. The default value of this parameter is
+///         DefaultCharacterTraits
+///         @code
+///         // The read complete callback handler storage type. In case the driver
+///         // is used to perform reads, must have
+///         // "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
+///         // If the driver is write-only one, this type may be std::nullptr_t.
+///         typedef ... ReadHandler;
+///
+///         // The write complete callback handler storage type. In case the driver
+///         // is used to perform write, must have
+///         // "void (const embxx::error::ErrorStatus&, std::size_t)" signature.
+///         // If the driver is read-only one, this type may be std::nullptr_t.
+///         typedef ... WriteHandler;
+///
+///         // The "read-until" predicate storage type. In case the driver is
+///         // going to perform asyncReadUntil() calls, must have
+///         // "bool (typename TDevice::CharType)" signature and return true
+///         // if the read must be terminated before the buffer is full. If
+///         // there are no calls to asyncReadUntil(), then this type may be
+///         // std::nullptr_t
+///         typedef ... ReadUntilPred;
+///
+///         // Maximal number of outstanding read requests. If 0, no read operations
+///         // will be supported. If 1 the template specialisation is used to
+///         // optimise management of read requests. If greater than 1,
+///         // embxx::container::StaticQueue is used to manage the requests.
+///         static const std::size_t ReadQueueSize = ...;
+///
+///         // Maximal number of outstanding write requests. If 0, no write operations
+///         // will be supported. If 1 the template specialisation is used to
+///         // optimise management of write requests. If greater than 1,
+///         // embxx::container::StaticQueue is used to manage the requests.
+///         static const std::size_t WriteQueueSize = ...;
+///         @endcode
 /// @headerfile embxx/driver/Character.h
 template <typename TDevice,
           typename TEventLoop,
-          typename TReadHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)>,
-          typename TWriteHandler = embxx::util::StaticFunction<void(const embxx::error::ErrorStatus&, std::size_t)> >
-class Character
+          typename TTraits = DefaultCharacterTraits>
+class Character :
+    public details::CharacterReadSupport<TDevice, TEventLoop, typename TTraits::ReadHandler, typename TTraits::ReadUntilPred, TTraits::ReadQueueSize>,
+    public details::CharacterWriteSupport<TDevice, TEventLoop, typename TTraits::WriteHandler, TTraits::WriteQueueSize>
 {
+    typedef details::CharacterReadSupport<TDevice, TEventLoop, typename TTraits::ReadHandler, typename TTraits::ReadUntilPred, TTraits::ReadQueueSize> ReadBase;
+    typedef details::CharacterWriteSupport<TDevice, TEventLoop, typename TTraits::WriteHandler, TTraits::WriteQueueSize> WriteBase;
 public:
 
-    /// @brief Device (peripheral) control class
+    /// @brief Device (peripheral) control class.
     typedef TDevice Device;
 
-    /// @brief Event loop class
+    /// @brief Event loop class.
     typedef TEventLoop EventLoop;
 
-    /// @brief Type of read handler holder class
-    typedef TReadHandler ReadHandler;
+    /// @brief Traits class.
+    typedef TTraits Traits;
 
-    /// @brief Type of write handler holder class
-    typedef TWriteHandler WriteHandler;
-
-    /// @brief type of single character
+    /// @brief Type of single character.
     typedef typename Device::CharType CharType;
+
+    /// @brief Type of read handler holder class
+    typedef typename Traits::ReadHandler ReadHandler;
+
+    /// @brief Type of write handler holder class.
+    typedef typename Traits::WriteHandler WriteHandler;
+
+    /// @brief Type of read until predicate class.
+    typedef typename Traits::ReadUntilPred ReadUntilPred;
+
+    /// @brief Maximum number of pending asynchronous read requests.
+    static const std::size_t ReadQueueSize = Traits::ReadQueueSize;
+
+    /// @brief Maximum number of pending asynchronous write requests.
+    static const std::size_t WriteQueueSize = Traits::WriteQueueSize;
 
     /// @brief Constructor
     /// @param device Reference to device (peripheral) control object
     /// @param el Reference to event loop object
-    Character(Device& device, EventLoop& el);
+    Character(Device& device, EventLoop& el)
+    : ReadBase(device, el),
+      WriteBase(device, el)
+    {
+    }
 
     /// @brief Copy constructor is deleted.
     Character(const Character&) = delete;
 
-    /// @brief MoveConstrutor is deleted
+    /// @brief Move construtor is deleted
     Character(Character&&) = delete;
 
     /// @brief Destructor
-    ~Character();
+    ~Character()
+    {
+    }
 
     /// @brief Copy assignment is deleted
     Character& operator=(const Character&) = delete;
@@ -201,10 +1049,16 @@ public:
     Character& operator=(Character&&) = delete;
 
     /// @brief Get reference to device (peripheral) control object.
-    Device& device();
+    Device& device()
+    {
+        return deviceInternal(FromBase());
+    }
 
     /// @brief Get referent to event loop object.
-    EventLoop& eventLoop();
+    EventLoop& eventLoop()
+    {
+        return eventLoopInternal(FromBase());
+    }
 
     /// @brief Asynchronous read request
     /// @details The function returns immediately. The callback will be called
@@ -215,49 +1069,99 @@ public:
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead); @endcode
-    /// @pre The callback for any previous asyncRead() request has been called,
-    ///      i.e. there is no outstanding asyncRead() request.
+    /// @pre To use this function the ReadQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous read requests must be less than
+    ///      ReadQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
     template <typename TFunc>
     void asyncRead(
         CharType* buf,
         std::size_t size,
-        TFunc&& func);
+        TFunc&& func)
+    {
+        ReadBase::asyncRead(buf, size, std::forward<TFunc>(func));
+    }
 
-    /// @brief Asynchronous read until specific character request
+    /// @brief Asynchronous read until provided predicate is evaluated to true
     /// @details The function returns immediately. The callback will be called
     ///          with operation results if one of the three following conditions
     ///          is true:
-    ///          @li the requested character was read.
-    ///          @li the buffer is full
-    ///          @li the read operation was cancelled by cancelRead().
+    ///          @li the requested character was read. Error code will be equal
+    ///              to embxx::error::ErrorCode::Success.
+    ///          @li the buffer is full. Error code will be eqeal to
+    ///              embxx::error::ErrorCode::BufferOverflow.
+    ///          @li the read operation was cancelled by cancelRead(). Error code
+    ///              will be equal to embxx::error::ErrorCode::Aborted.
     /// @param buf Pointer to the output buffer. The buffer mustn't be
     ///            used or destructed until the callback has been called.
     /// @param size Size of the buffer.
-    /// @param untilChar Character that will terminate read request.
+    /// @param pred Predicate object that must have the following signature:
+    ///        @code bool predicate(typename TDevice::CharType);@endcode
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesRead);@endcode
-    /// @pre The callback for any previous asyncRead() request has been called,
-    ///      i.e. there is no outstanding asyncRead() request.
+    /// @pre To use this function the ReadQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous read requests must be less than
+    ///      ReadQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
+    template <typename TPred, typename TFunc>
+    void asyncReadUntil(
+        CharType* buf,
+        std::size_t size,
+        TPred&& pred,
+        TFunc&& func)
+    {
+        ReadBase::asyncReadUntil(
+            buf,
+            size,
+            std::forward<TPred>(pred),
+            std::forward<TFunc>(func));
+    }
+
+    /// @brief Asynchronous read until specific character.
+    /// @details Equivalent to:
+    ///          @code
+    ///          asyncReadUntil(
+    ///              buf,
+    ///              size,
+    ///              [untilChar](CharType ch)->bool
+    ///              {
+    ///                  return ch == untilChar;
+    ///              },
+    ///              std::forward<TFunc>(func));
+    ///           @endcode
     template <typename TFunc>
     void asyncReadUntil(
         CharType* buf,
         std::size_t size,
         CharType untilChar,
-        TFunc&& func);
+        TFunc&& func)
+    {
+        asyncReadUntil(
+            buf,
+            size,
+            [untilChar](CharType ch)->bool
+            {
+                return ch == untilChar;
+            },
+            std::forward<TFunc>(func));
+    }
 
-    /// @brief Cancel previous asynchronous read request (asyncRead())
-    /// @details If there is no unfinished asyncRead() operation in progress
+    /// @brief Cancel all previous asynchronous read requests.
+    /// @details If there is no unfinished asynchronous read operation in progress
     ///          the call to this function will have no effect. Otherwise the
     ///          callback will be called with embxx::error::ErrorCode::Aborted
-    ///          as status value.
+    ///          as status value for all outstanding read operations.
     /// @return true in case the previous asyncRead() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
     ///         read request.
-    bool cancelRead();
+    bool cancelRead()
+    {
+        return ReadBase::cancelRead();
+    }
 
     /// @brief Asynchronous write request
     /// @details The function returns immediately. The callback will be called
@@ -268,388 +1172,67 @@ public:
     /// @param size Size of the buffer.
     /// @param func Callback functor that must have following signature:
     ///        @code void callback(const embxx::error::ErrorStatus& status, std::size_t bytesWritten); @endcode
-    /// @pre The callback for any previous asyncWrite() request has been called,
-    ///      i.e. there is no outstanding asyncWrite() request.
+    /// @pre To use this function the WriteQueueSize trait value must be greater
+    ///      than 0.
+    /// @pre The number of outstanding asynchronous write requests must be less than
+    ///      WriteQueueSize trait value.
     /// @pre The provided buffer must stay valid and unused until the provided
     ///      callback function is called.
     template <typename TFunc>
     void asyncWrite(
         const CharType* buf,
         std::size_t size,
-        TFunc&& func);
+        TFunc&& func)
+    {
+        WriteBase::asyncWrite(buf, size, std::forward<TFunc>(func));
+    }
 
-    /// @brief Cancel previous asynchronous write request (asyncWrite())
+    /// @brief Cancel all previous asynchronous write requests.
     /// @details If there is no unfinished asyncWrite() operation in progress
     ///          the call to this function will have no effect. Otherwise the
     ///          callback will be called with embxx::error::ErrorCode::Aborted
-    ///          as status value.
+    ///          as status value for all outstanding write operations.
     /// @return true in case the previous asyncWrite() operation was really
     ///         cancelled, false in case there was no unfinished asynchronous
     ///         write request.
-    bool cancelWrite();
+    bool cancelWrite()
+    {
+        return WriteBase::cancelWrite();
+    }
 
 private:
-    typedef embxx::device::context::EventLoop EventLoopContext;
-    typedef embxx::device::context::Interrupt InterruptContext;
-    void initRead(
-        CharType* buf,
-        std::size_t size,
-        bool performingReadUntil,
-        CharType untilChar);
 
-    void initWrite(
-        const CharType* buf,
-        std::size_t size);
+    struct FromReadBase {};
+    struct FromWriteBase {};
+    typedef typename
+        std::conditional<
+            0U < ReadQueueSize,
+            FromReadBase,
+            FromWriteBase
+        >::type FromBase;
 
-    void canReadInterruptHandler();
-    void canWriteInterruptHandler();
-    void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es);
-    void writeCompleteInterruptHandler(const embxx::error::ErrorStatus& es);
-    void invokeReadHandler(const embxx::error::ErrorStatus& es, bool interruptCtx);
-    void invokeWriteHandler(const embxx::error::ErrorStatus& es, bool interruptCtx);
+    Device& deviceInternal(FromReadBase)
+    {
+        return ReadBase::device_;
+    }
 
-    Device& device_;
-    EventLoop& el_;
+    Device& deviceInternal(FromWriteBase)
+    {
+        return WriteBase::device_;
+    }
 
-    // Read section
-    CharType* readBufStart_;
-    CharType* readBufCurrent_;
-    std::size_t readBufSize_;
-    ReadHandler readHandler_;
-    bool performingReadUntil_;
-    CharType untilChar_;
+    EventLoop& eventLoopInternal(FromReadBase)
+    {
+        return ReadBase::el_;
+    }
 
-    // Write section
-    const CharType* writeBufStart_;
-    const CharType* writeBufCurrent_;
-    std::size_t writeBufSize_;
-    WriteHandler writeHandler_;
+    EventLoop& eventLoopInternal(FromWriteBase)
+    {
+        return WriteBase::el_;
+    }
 };
 
 /// @}
-
-// Implementation
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Character(
-    Device& device,
-    EventLoop& el)
-    : device_(device),
-      el_(el),
-      readBufStart_(nullptr),
-      readBufCurrent_(nullptr),
-      readBufSize_(0),
-      performingReadUntil_(false),
-      untilChar_(static_cast<CharType>(0)),
-      writeBufStart_(nullptr),
-      writeBufCurrent_(nullptr),
-      writeBufSize_(0)
-{
-    device_.setCanReadHandler(
-        std::bind(&Character::canReadInterruptHandler, this));
-    device_.setCanWriteHandler(
-        std::bind(&Character::canWriteInterruptHandler, this));
-    device_.setReadCompleteHandler(
-        std::bind(&Character::readCompleteInterruptHandler, this, std::placeholders::_1));
-    device_.setWriteCompleteHandler(
-        std::bind(&Character::writeCompleteInterruptHandler, this, std::placeholders::_1));
-
-    GASSERT(!readHandler_); // No read in progress
-    GASSERT(!writeHandler_); // No write in progress
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::~Character()
-{
-    device_.setCanReadHandler(nullptr);
-    device_.setCanWriteHandler(nullptr);
-    device_.setReadCompleteHandler(nullptr);
-    device_.setWriteCompleteHandler(nullptr);
-
-    GASSERT(!readHandler_); // No read in progress
-    GASSERT(!writeHandler_); // No write in progress
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-typename Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::Device&
-Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::device()
-{
-    return device_;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-typename Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::EventLoop&
-Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::eventLoop()
-{
-    return el_;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-template <typename TFunc>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::asyncRead(
-    CharType* buf,
-    std::size_t size,
-    TFunc&& func)
-{
-    GASSERT(!readHandler_); // No read in progress
-    readHandler_ = std::forward<TFunc>(func);
-    initRead(buf, size, false, static_cast<CharType>(0));
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-template <typename TFunc>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::asyncReadUntil(
-    CharType* buf,
-    std::size_t size,
-    CharType untilChar,
-    TFunc&& func)
-{
-    GASSERT(!readHandler_); // No read in progress
-    readHandler_ = std::forward<TFunc>(func);
-    initRead(buf, size, true, untilChar);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelRead()
-{
-    if (!readHandler_) {
-        return false;
-    }
-
-    if (!device_.cancelRead(EventLoopContext())) {
-        return false;
-    }
-
-    GASSERT(readBufCurrent_ < (readBufStart_ + readBufSize_));
-    invokeReadHandler(embxx::error::ErrorCode::Aborted, false);
-    return true;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-template <typename TFunc>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::asyncWrite(
-    const CharType* buf,
-    std::size_t size,
-    TFunc&& func)
-{
-    GASSERT(!writeHandler_); // No write in progress
-    writeHandler_ = std::forward<TFunc>(func);
-    initWrite(buf, size);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-bool Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::cancelWrite()
-{
-    if (!writeHandler_) {
-        return false;
-    }
-
-    if (!device_.cancelWrite(EventLoopContext())) {
-        return false;
-    }
-
-    GASSERT(writeBufCurrent_ < (writeBufStart_ + writeBufSize_));
-    invokeWriteHandler(embxx::error::ErrorCode::Aborted, false);
-    return true;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initRead(
-    CharType* buf,
-    std::size_t size,
-    bool performingReadUntil,
-    CharType untilChar)
-{
-    readBufStart_ = buf;
-    readBufCurrent_ = buf;
-    readBufSize_ = size;
-    performingReadUntil_ = performingReadUntil;
-    untilChar_ = untilChar;
-
-    if (size == 0) {
-        invokeReadHandler(embxx::error::ErrorCode::Success, false);
-        return;
-    }
-
-    device_.startRead(size, EventLoopContext());
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::initWrite(
-    const CharType* buf,
-    std::size_t size)
-{
-    writeBufStart_ = buf;
-    writeBufCurrent_ = buf;
-    writeBufSize_ = size;
-
-    if (size == 0) {
-        invokeWriteHandler(embxx::error::ErrorCode::Success, false);
-        return;
-    }
-
-    device_.startWrite(size, EventLoopContext());
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canReadInterruptHandler()
-{
-    while(device_.canRead(InterruptContext())) {
-        if ((readBufStart_ + readBufSize_) <= readBufCurrent_) {
-            // The device control object mustn't allow it.
-            GASSERT(0);
-            break;
-        }
-
-        auto ch = device_.read(InterruptContext());
-        *readBufCurrent_ = ch;
-        ++readBufCurrent_;
-
-        if ((performingReadUntil_) && (ch == untilChar_)) {
-            if (device_.cancelRead(InterruptContext())) {
-                invokeReadHandler(embxx::error::ErrorCode::Success, true);
-            }
-        }
-    }
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::canWriteInterruptHandler()
-{
-    while(device_.canWrite(InterruptContext())) {
-        if ((writeBufStart_ + writeBufSize_) <= writeBufCurrent_) {
-            // The device control object mustn't allow it.
-            GASSERT(0);
-            break;
-        }
-
-        device_.write(*writeBufCurrent_, InterruptContext());
-        ++writeBufCurrent_;
-    }
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::readCompleteInterruptHandler(
-    const embxx::error::ErrorStatus& es)
-{
-    invokeReadHandler(es, true);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::writeCompleteInterruptHandler(
-    const embxx::error::ErrorStatus& es)
-{
-    invokeWriteHandler(es, true);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeReadHandler(
-    const embxx::error::ErrorStatus& es,
-    bool interruptCtx)
-{
-    GASSERT(readHandler_);
-    bool postResult = false;
-    auto reportedSize = static_cast<std::size_t>(readBufCurrent_ - readBufStart_);
-    if (interruptCtx) {
-        postResult =
-            el_.postInterruptCtx(
-                std::bind(
-                    std::move(readHandler_),
-                    es,
-                    reportedSize));
-    }
-    else {
-        postResult =
-            el_.post(
-                std::bind(
-                    std::move(readHandler_),
-                    es,
-                    reportedSize));
-    }
-
-    static_cast<void>(postResult);
-    GASSERT(postResult);
-    GASSERT(!readHandler_);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          typename TReadHandler,
-          typename TWriteHandler>
-void Character<TDevice, TEventLoop, TReadHandler, TWriteHandler>::invokeWriteHandler(
-    const embxx::error::ErrorStatus& es,
-    bool interruptCtx)
-{
-    GASSERT(writeHandler_);
-    bool postResult = false;
-    auto reportedSize = static_cast<std::size_t>(writeBufCurrent_ - writeBufStart_);
-    if (interruptCtx) {
-        postResult =
-            el_.postInterruptCtx(
-                std::bind(
-                    std::move(writeHandler_),
-                    es,
-                    reportedSize));
-    }
-    else {
-        postResult =
-            el_.post(
-                std::bind(
-                    std::move(writeHandler_),
-                    es,
-                    reportedSize));
-    }
-    static_cast<void>(postResult);
-    GASSERT(postResult);
-    GASSERT(!writeHandler_);
-}
 
 }  // namespace driver
 

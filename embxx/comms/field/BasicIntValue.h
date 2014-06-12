@@ -54,7 +54,6 @@ namespace field
 /// @tparam TOff Offset to apply when serialising data.
 /// @pre @code std::is_integral<T>::value == true @endcode
 /// @headerfile embxx/comms/field/BasicIntValue.h
-/// @headerfile embxx/comms/field.h
 template <typename T,
           typename TTraits,
           std::size_t TLen = sizeof(T),

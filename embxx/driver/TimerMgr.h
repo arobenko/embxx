@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <limits>
 #include <iterator>
+#include <chrono>
 
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
@@ -49,12 +50,14 @@ namespace driver
 ///          store and manage timer related information.
 /// @tparam TDevice Platform specific device (peripheral) control class. It
 ///         must expose the following interface:
-///         @li Define type for wait time units.
+///         @li Define type for wait time units. It must be any variant of
+///             std::chrono::duration.
 ///         @code
-///         typedef unsigned WaitTimeType;
+///         typedef unsigned WaitTimeUnitType;
+///         typedef std::chrono::duration<WaitTimeUnitType, std::milli> WaitTimeUnitDuration; // milliseconds granularity
 ///         @endcode
 ///         @li Function to set timer interrupt callback handler. The function
-///             is called diring the construction of TimerMgr object in
+///             is called during the construction of TimerMgr object in
 ///             non-interrupt context.
 ///         @code
 ///         template <typename TFunc>
@@ -63,8 +66,8 @@ namespace driver
 ///         @li Functions to start timer countdown in both event loop
 ///             (non-interrupt) and interrupt contexts.
 ///         @code
-///         void startWait(WaitTimeType waitTime, embxx::device::context::EventLoop context);
-///         void startWait(WaitTimeType waitTime, embxx::device::context::Interrupt context);
+///         void startWait(WaitTimeUnitType waitTime, embxx::device::context::EventLoop context);
+///         void startWait(WaitTimeUnitType waitTime, embxx::device::context::Interrupt context);
 ///         @endcode
 ///         @li Function to cancel timer countdown in event loop (non-interrupt)
 ///             context. The function must return true in case the wait was
@@ -89,7 +92,7 @@ namespace driver
 ///         @li Function to retrieve elapsed time of the last executed wait. It
 ///             will be called right after the cancelWait().
 ///         @code
-///         WaitTimeType getElapsed(embxx::device::context::EventLoop context) const;
+///         WaitTimeUnitType getElapsed(embxx::device::context::EventLoop context) const;
 ///         @endcode
 /// @tparam TEventLoop A variant of embxx::util::EventLoop object that is used
 ///         to execute posted handlers in regular thread context.
@@ -108,7 +111,7 @@ namespace driver
 template <typename TDevice,
           typename TEventLoop,
           std::size_t TMaxTimers,
-          typename TTimeoutHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&), 20> >
+          typename TTimeoutHandler = embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&)> >
 class TimerMgr
 {
 
@@ -120,8 +123,8 @@ public:
     /// @brief Event loop type
     typedef TEventLoop EventLoop;
 
-    /// @brief Wait time units type
-    typedef typename Device::WaitTimeType WaitTimeType;
+    /// @brief Minimal wait time unit duration
+    typedef typename Device::WaitTimeUnitDuration WaitTimeUnitDuration;
 
     /// @brief Max number of timers supported by this TimerMgr
     static const std::size_t MaxTimers = TMaxTimers;
@@ -144,7 +147,11 @@ public:
         /// schedule a new wait request. Use embxx::driver::TimerMgr::allocTimer()
         /// function to allocate a valid Timer object.
         /// @post Call to isValid() will return false.
-        Timer();
+        Timer()
+        : mgr_(nullptr),
+          idx_(InvalidIdx)
+        {
+        }
 
         /// @brief Copy constructor is deleted.
         /// @details Timer object cannot be copied.
@@ -156,14 +163,23 @@ public:
         /// @post Call to isValid() will return true if and only if call to
         /// other.isValid() would return true prior to this construction.
         /// @post Call to other.isValid() after the construction will return false.
-        Timer(Timer&& other);
+        Timer(Timer&& other)
+        : mgr_(other.mgr_),
+          idx_(other.idx_)
+        {
+            other.idx_ = InvalidIdx;
+            GASSERT(!other.isValid());
+        }
 
         /// @brief Destructor
         /// @details Removes proper record from internal data structures of
         /// embxx::driver::TimerMgr.
         /// @pre This timer object mustn't have any pending unhandled
         ///      (timeout handler wasn't called) waits.
-        ~Timer();
+        ~Timer()
+        {
+            destroy();
+        }
 
         /// @brief Copy assignment operator is deleted.
         /// @details Timer object cannot be copied.
@@ -179,11 +195,22 @@ public:
         /// @post Call to isValid() will return true if and only if call to
         /// other.isValid() would return true prior to this assignment.
         /// @post Call to other.isValid() after the construction will return false.
-        Timer& operator=(Timer&& other);
+        Timer& operator=(Timer&& other)
+        {
+            if (this != &other) {
+                std::swap(mgr_, other.mgr_);
+                std::swap(idx_, other.idx_);
+                other.destroy();
+            }
+            return *this;
+        }
 
         /// @brief Check the validity of this timer object
         /// @return true in case timer object is valid.
-        bool isValid() const;
+        bool isValid() const
+        {
+            return ((mgr_ != nullptr) && (idx_ != InvalidIdx));
+        }
 
         /// @brief Cancel current wait (if such exists).
         /// @details If there is no wait in progress, the call to this function
@@ -195,17 +222,28 @@ public:
         /// @return true in case the wait was really cancelled, false in case
         ///         this operation had no effect.
         /// @pre Timer object is valid (isValid() return true).
-        bool cancel();
+        bool cancel()
+        {
+            GASSERT(isValid());
+            return mgr_->cancelWait(idx_);
+        }
 
         /// @brief Request for asynchronous wait.
         /// @details Will forward the request to schedule the call to provided
         ///          callback function after the requested timeout and exit
         ///          immediately.
-        /// @param[in] timeUnits Time to wait in the units supported by the
-        ///            timer device (peripheral) object provided in the
-        ///            construction of TimerMgr. This value will be used in
-        ///            call to configWait() member function of timer device
-        ///            object.
+        /// @param[in] waitTime Time to wait. It must be any variant of
+        ///            std::chrono::duration, such as std::chrono::seconds() or
+        ///            std::chrono::milliseconds(). Note that granularity of time
+        ///            units cannot be greater than supported by the device
+        ///            itself. For example the device class defined its
+        ///            WaitTimeUnitDuration type as milliseconds:
+        ///            @code
+        ///            typedef std::chrono::duration<unsigned, std::milli> WaitTimeUnitDuration;
+        ///            @endcode
+        ///            In this case std::chrono::microseconds() cannot be passed
+        ///            as waitTime parameter to this function while
+        ///            std::chrono::seconds() can.
         /// @param[in] func Callback function object to be executed when
         ///            requested wait is over. It must have the following
         ///            signature:
@@ -217,14 +255,36 @@ public:
         ///      called. It is possible to activate new wait by calling
         ///      asyncWait() from within the callback of previously called
         ///      asyncWait().
-        template <typename TFunc>
+        template <typename TRep, typename TPeriod, typename TFunc>
         void asyncWait(
-            WaitTimeType timeUnits,
-            TFunc&& func);
+            const std::chrono::duration<TRep, TPeriod>& waitTime,
+            TFunc&& func)
+        {
+            GASSERT(isValid());
+            auto castedWaitTime =
+                    std::chrono::duration_cast<WaitTimeUnitDuration>(waitTime);
+            mgr_->scheduleWait(
+                idx_,
+                castedWaitTime.count(),
+                TimeoutHandler(std::forward<TFunc>(func)));
+        }
 
     private:
-        Timer(TimerMgr* mgr);
-        void destroy();
+        Timer(TimerMgr* mgr)
+        : mgr_(mgr),
+          idx_(InvalidIdx)
+        {
+        }
+
+        void destroy()
+        {
+            if (!isValid()) {
+                return;
+            }
+
+            mgr_->deleteTimer(idx_);
+            idx_ = InvalidIdx;
+        }
 
         TimerMgr* mgr_;
         unsigned idx_;
@@ -238,7 +298,17 @@ public:
     /// @param[in] eventLoop Reference to event loop (embxx::util::EventLoop) object.
     /// @pre Timer device peripheral is stopped and timer interrupts are
     ///      disabled upon construction of this object
-    TimerMgr(Device& device, EventLoop& eventLoop);
+    TimerMgr(Device& device, EventLoop& eventLoop)
+    : device_(device),
+      eventLoop_(eventLoop),
+      timeBase_(0),
+      waitQueueCount_(0),
+      timersCount_(0),
+      nextEngagementId_(0)
+    {
+        device_.setHandler(
+            std::bind(&TimerMgr::interruptHandler, this, std::placeholders::_1));
+    }
 
     /// @brief Copy construction is deleted
     TimerMgr(const TimerMgr&) = delete;
@@ -247,7 +317,10 @@ public:
     TimerMgr(TimerMgr&&) = delete;
 
     /// @brief Destructor
-    ~TimerMgr();
+    ~TimerMgr()
+    {
+        device_.setHandler(nullptr);
+    }
 
     /// @brief Copy assignment is deleted
     TimerMgr& operator=(const TimerMgr&) = delete;
@@ -262,23 +335,64 @@ public:
     /// @return Valid timer object in case number of allocated timers do not
     ///         exceed the capacity of TimerMgr defined with TMaxTimers template
     ///         parameter. Otherwise it will return invalid timer object.
-    Timer allocTimer();
+    Timer allocTimer()
+    {
+        Timer timer(this);
+        if (timersCount_ < timers_.size()) {
+            auto iter = std::find_if(timers_.begin(), timers_.end(),
+                [](const TimerInfo& info) -> bool
+                {
+                    return !info.isAllocated();
+                });
+
+            GASSERT(iter != timers_.end());
+            timer.idx_ =
+                static_cast<std::size_t>(
+                    std::distance(timers_.begin(), iter));
+            iter->setAllocated(true);
+            iter->setWaitInProgress(false);
+            ++timersCount_;
+        }
+
+        return timer;
+    }
 
 private:
     friend class TimerMgr::Timer;
 
-    typedef WaitTimeType TimeCounterType;
+    typedef typename WaitTimeUnitDuration::rep WaitTimeUnitType;
+    typedef WaitTimeUnitType TimeCounterType;
     typedef unsigned EngagementIdType;
 
     /// @cond DOCUMENT_TIMER_MANAGER_INTERNALS
     struct TimerInfo
     {
-        TimerInfo();
+        TimerInfo()
+        : targetTime_(0),
+          engagementId_(0),
+          flags_(0)
+        {
+        }
 
-        bool isAllocated() const;
-        void setAllocated(bool allocated);
-        bool isWaitInProgress() const;
-        void setWaitInProgress(bool inProgress);
+        bool isAllocated() const
+        {
+            return (flags_ & AllocatedFlagMask) != 0;
+        }
+
+        void setAllocated(bool allocated)
+        {
+            updateFlag(allocated, AllocatedFlagMask);
+        }
+
+        bool isWaitInProgress() const
+        {
+            return (flags_ & WaitInProgressMask) != 0;
+        }
+
+        void setWaitInProgress(bool inProgress)
+        {
+            updateFlag(inProgress, WaitInProgressMask);
+        }
 
         TimeCounterType targetTime_;
         EngagementIdType engagementId_;
@@ -286,7 +400,15 @@ private:
 
     private:
         typedef unsigned FlagsType;
-        void updateFlag(bool value, FlagsType mask);
+        void updateFlag(bool value, FlagsType mask)
+        {
+            if (value) {
+                flags_ |= mask;
+            }
+            else {
+                flags_ &= (~mask);
+            }
+        }
 
         FlagsType flags_;
 
@@ -296,7 +418,12 @@ private:
 
     struct ScheduledWaitInfo
     {
-        ScheduledWaitInfo();
+        ScheduledWaitInfo()
+        : timerInfo_(nullptr),
+          engagementId_(0),
+          targetTime_(0)
+        {
+        }
 
         TimerInfo* timerInfo_;
         EngagementIdType engagementId_;
@@ -327,22 +454,211 @@ private:
     typedef embxx::device::context::Interrupt InterruptContext;
 
     // Functions to be invoked by Timer object
-    void deleteTimer(unsigned idx);
+    void deleteTimer(unsigned idx)
+    {
+        GASSERT(idx < timersCount_);
+        auto& info = timers_[idx];
+        GASSERT(info.isAllocated());
+        GASSERT(!info.handler_); // Handler must be already invoked and cleared.
+        GASSERT(!info.isWaitInProgress());
+        info.setAllocated(false);
+    }
 
-    bool cancelWait(unsigned idx);
+    bool cancelWait(unsigned idx)
+    {
+        GASSERT(idx < timersCount_);
+        auto& info = timers_[idx];
+        if (!device_.suspendWait(EventLoopContext())) {
+            // No wait in progress at all
+            GASSERT(!info.isWaitInProgress());
+            GASSERT(waitQueueCount_ == 0);
+            return false;
+        }
+
+        auto interruptsGuard = embxx::util::makeScopeGuard(
+            [this]()
+            {
+                device_.resumeWait(EventLoopContext());
+            });
+        static_cast<void>(interruptsGuard);
+
+        GASSERT(info.isAllocated());
+
+        if (!info.isWaitInProgress()) {
+            // No wait scheduled or callback already posted
+            return false;
+        }
+
+        postHandler(embxx::error::ErrorCode::Aborted, info, false);
+        return true;
+    }
 
     void scheduleWait(
         unsigned idx,
-        WaitTimeType timeUnits,
-        TimeoutHandler&& func);
+        WaitTimeUnitType timeUnits,
+        TimeoutHandler&& func)
+    {
+        if (device_.cancelWait(EventLoopContext())) {
+            // Wait was in progress
+            GASSERT(0 < waitQueueCount_);
+            timeBase_ += device_.getElapsed(EventLoopContext());
+        }
+
+        auto startGuard = embxx::util::makeScopeGuard(
+            [this]()
+            {
+                GASSERT(0 < waitQueueCount_);
+                device_.startWait(waitQueue_[0].targetTime_ - timeBase_, EventLoopContext());
+            });
+        static_cast<void>(startGuard);
+
+        ++nextEngagementId_;
+        auto targetTime = timeBase_ + timeUnits;
+
+        GASSERT(idx < timersCount_);
+        auto& info = timers_[idx];
+        GASSERT(info.isAllocated());
+        GASSERT(!info.isWaitInProgress());
+        GASSERT(!info.handler_); // Handler must be already invoked and cleared.
+
+        info.targetTime_ = targetTime;
+        info.engagementId_ = nextEngagementId_;
+        info.handler_ = std::move(func);
+        info.setWaitInProgress(true);
+
+        if (waitQueue_.size() <= waitQueueCount_) {
+            // Wait queue overflow, contains lots of invalid waits, clean required.
+            recreateWaitQueue();
+        }
+        else {
+            pushToWaitQueue(info);
+        }
+
+        postExpiredHandlers(false);
+        // starts on exit
+    }
+
 
     // Internal functions
-    void addToScheduledWaits(TimerInfo& info);
-    void pushToWaitQueue(TimerInfo& info);
-    void recreateWaitQueue();
-    void postHandler(const embxx::error::ErrorStatus& status, TimerInfo& info, bool interruptContext);
-    void interruptHandler(const embxx::error::ErrorStatus& es);
-    void postExpiredHandlers(bool interruptContext);
+    void addToScheduledWaits(TimerInfo& info)
+    {
+        GASSERT(waitQueueCount_ < waitQueue_.size());
+        auto& waitInfo = waitQueue_[waitQueueCount_];
+        waitInfo.timerInfo_ = &info;
+        waitInfo.engagementId_ = info.engagementId_;
+        waitInfo.targetTime_ = info.targetTime_;
+        ++waitQueueCount_;
+    }
+
+    void pushToWaitQueue(TimerInfo& info)
+    {
+        addToScheduledWaits(info);
+
+        std::push_heap(
+            waitQueue_.begin(),
+            waitQueue_.begin() + waitQueueCount_,
+            ScheduledWaitPriorityComp());
+    }
+
+    void recreateWaitQueue()
+    {
+        waitQueueCount_ = 0;
+        std::for_each(timers_.begin(), timers_.end(),
+            [this](TimerInfo& info)
+            {
+                if (info.isAllocated() && info.isWaitInProgress()) {
+                    addToScheduledWaits(info);
+                }
+            });
+
+        std::make_heap(
+            waitQueue_.begin(),
+            waitQueue_.begin() + waitQueueCount_,
+            ScheduledWaitPriorityComp());
+    }
+
+    void postHandler(
+        const embxx::error::ErrorStatus& status,
+        TimerInfo& info,
+        bool interruptContext)
+    {
+        GASSERT(info.handler_);
+        GASSERT(info.isAllocated());
+        GASSERT(info.isWaitInProgress());
+
+        bool postResult = false;
+        if (interruptContext) {
+            postResult =
+                eventLoop_.postInterruptCtx(
+                    std::bind(std::move(info.handler_), status));
+        }
+        else {
+            postResult =
+                eventLoop_.post(
+                    std::bind(std::move(info.handler_), status));
+        }
+        static_cast<void>(postResult);
+        GASSERT(postResult);
+        GASSERT(!info.handler_);
+        info.setWaitInProgress(false);
+    }
+
+    void interruptHandler(const embxx::error::ErrorStatus& es)
+    {
+        // Executed in interrupt context
+
+        if (es) {
+            auto beginIter = timers_.begin();
+            auto endIter = beginIter + timersCount_;
+            std::for_each(beginIter, endIter,
+                [this, &es](TimerInfo& info)
+                {
+                    if (info.handler_) {
+                        postHandler(es, info, true);
+                    }
+                });
+
+            waitQueueCount_ = 0;
+            return;
+        }
+
+        GASSERT(0 < waitQueueCount_);
+        GASSERT(timeBase_ <= waitQueue_[0].targetTime_);
+        timeBase_ = waitQueue_[0].targetTime_;
+
+        postExpiredHandlers(true);
+
+        if (0 < waitQueueCount_) {
+            device_.startWait(waitQueue_[0].targetTime_ - timeBase_, InterruptContext());
+        }
+    }
+
+    void postExpiredHandlers(bool interruptContext)
+    {
+        while (0 < waitQueueCount_) {
+            auto& waitInfo = waitQueue_[0];
+            if (timeBase_ < waitInfo.targetTime_) {
+                break;
+            }
+
+            auto timerInfoPtr = waitInfo.timerInfo_;
+            if (timerInfoPtr->isAllocated() &&
+                timerInfoPtr->isWaitInProgress() &&
+                (timerInfoPtr->engagementId_ == waitInfo.engagementId_)) {
+                GASSERT(timerInfoPtr->handler_);
+
+                postHandler(embxx::error::ErrorCode::Success, *timerInfoPtr, interruptContext);
+            }
+
+            std::pop_heap(
+                waitQueue_.begin(),
+                waitQueue_.begin() + waitQueueCount_,
+                ScheduledWaitPriorityComp());
+
+            --waitQueueCount_;
+        }
+
+    }
 
     Device& device_;
     EventLoop& eventLoop_;
@@ -355,496 +671,6 @@ private:
 };
 
 /// @}
-
-// Implementation
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::Timer()
-    : mgr_(nullptr),
-      idx_(InvalidIdx)
-{
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::Timer(
-    Timer&& other)
-    : mgr_(other.mgr_),
-      idx_(other.idx_)
-{
-    other.idx_ = InvalidIdx;
-    GASSERT(!other.isValid());
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::~Timer()
-{
-    destroy();
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-typename TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer&
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::operator=(
-    Timer&& other)
-{
-    if (this != &other) {
-        std::swap(mgr_, other.mgr_);
-        std::swap(idx_, other.idx_);
-        other.destroy();
-    }
-    return *this;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-bool
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::isValid() const
-{
-    return ((mgr_ != nullptr) && (idx_ != InvalidIdx));
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::cancel()
-{
-    GASSERT(isValid());
-    return mgr_->cancelWait(idx_);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-template <typename TFunc>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::asyncWait(
-    WaitTimeType timeUnits,
-    TFunc&& func)
-{
-    GASSERT(isValid());
-    mgr_->scheduleWait(idx_, timeUnits, TimeoutHandler(std::forward<TFunc>(func)));
-}
-
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::Timer(TimerMgr* mgr)
-    : mgr_(mgr),
-      idx_(InvalidIdx)
-{
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer::destroy()
-{
-    if (!isValid()) {
-        return;
-    }
-
-    mgr_->deleteTimer(idx_);
-    idx_ = InvalidIdx;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerMgr(
-    Device& device,
-    EventLoop& eventLoop)
-    : device_(device),
-      eventLoop_(eventLoop),
-      timeBase_(0),
-      waitQueueCount_(0),
-      timersCount_(0),
-      nextEngagementId_(0)
-{
-    device_.setHandler(
-        std::bind(&TimerMgr::interruptHandler, this, std::placeholders::_1));
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::~TimerMgr()
-{
-    device_.setHandler(nullptr);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-typename TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::Timer
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::allocTimer()
-{
-    Timer timer(this);
-    if (timersCount_ < timers_.size()) {
-        auto iter = std::find_if(timers_.begin(), timers_.end(),
-            [](const TimerInfo& info) -> bool
-            {
-                return !info.isAllocated();
-            });
-
-        GASSERT(iter != timers_.end());
-        timer.idx_ =
-            static_cast<std::size_t>(
-                std::distance(timers_.begin(), iter));
-        iter->setAllocated(true);
-        iter->setWaitInProgress(false);
-        ++timersCount_;
-    }
-
-    return timer;
-}
-
-/// @cond DOCUMENT_TIMER_MANAGER_INTERNALS
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::TimerInfo()
-    : targetTime_(0),
-      engagementId_(0),
-      flags_(0)
-{
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-bool
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::isAllocated() const
-{
-    return (flags_ & AllocatedFlagMask) != 0;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::setAllocated(
-    bool allocated)
-{
-    updateFlag(allocated, AllocatedFlagMask);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-bool
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::isWaitInProgress() const
-{
-    return (flags_ & WaitInProgressMask) != 0;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::setWaitInProgress(
-    bool engaged)
-{
-    updateFlag(engaged, WaitInProgressMask);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::TimerInfo::updateFlag(
-    bool value,
-    FlagsType mask)
-{
-    if (value) {
-        flags_ |= mask;
-    }
-    else {
-        flags_ &= (~mask);
-    }
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::ScheduledWaitInfo::ScheduledWaitInfo()
-    : timerInfo_(nullptr),
-      engagementId_(0),
-      targetTime_(0)
-{
-}
-/// @endcond
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::deleteTimer(
-    unsigned idx)
-{
-    GASSERT(idx < timersCount_);
-    auto& info = timers_[idx];
-    GASSERT(info.isAllocated());
-    GASSERT(!info.handler_); // Handler must be already invoked and cleared.
-    GASSERT(!info.isWaitInProgress());
-    info.setAllocated(false);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-bool TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::cancelWait(
-    unsigned idx)
-{
-    GASSERT(idx < timersCount_);
-    auto& info = timers_[idx];
-    if (!device_.suspendWait(EventLoopContext())) {
-        // No wait in progress at all
-        GASSERT(!info.isWaitInProgress());
-        GASSERT(waitQueueCount_ == 0);
-        return false;
-    }
-
-    auto interruptsGuard = embxx::util::makeScopeGuard(
-        [this]()
-        {
-            device_.resumeWait(EventLoopContext());
-        });
-    static_cast<void>(interruptsGuard);
-
-    GASSERT(info.isAllocated());
-
-    if (!info.isWaitInProgress()) {
-        // No wait scheduled or callback already posted
-        return false;
-    }
-
-    postHandler(embxx::error::ErrorCode::Aborted, info, false);
-    return true;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::scheduleWait(
-    unsigned idx,
-    WaitTimeType timeUnits,
-    TimeoutHandler&& func)
-{
-    if (device_.cancelWait(EventLoopContext())) {
-        // Wait was in progress
-        GASSERT(0 < waitQueueCount_);
-        timeBase_ += device_.getElapsed(EventLoopContext());
-    }
-
-    auto startGuard = embxx::util::makeScopeGuard(
-        [this]()
-        {
-            GASSERT(0 < waitQueueCount_);
-            device_.startWait(waitQueue_[0].targetTime_ - timeBase_, EventLoopContext());
-        });
-    static_cast<void>(startGuard);
-
-    ++nextEngagementId_;
-    auto targetTime = timeBase_ + timeUnits;
-
-    GASSERT(idx < timersCount_);
-    auto& info = timers_[idx];
-    GASSERT(info.isAllocated());
-    GASSERT(!info.isWaitInProgress());
-    GASSERT(!info.handler_); // Handler must be already invoked and cleared.
-
-    info.targetTime_ = targetTime;
-    info.engagementId_ = nextEngagementId_;
-    info.handler_ = std::move(func);
-    info.setWaitInProgress(true);
-
-    if (waitQueue_.size() <= waitQueueCount_) {
-        // Wait queue overflow, contains lots of invalid waits, clean required.
-        recreateWaitQueue();
-    }
-    else {
-        pushToWaitQueue(info);
-    }
-
-    postExpiredHandlers(false);
-    // starts on exit
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::addToScheduledWaits(
-    TimerInfo& info)
-{
-    GASSERT(waitQueueCount_ < waitQueue_.size());
-    auto& waitInfo = waitQueue_[waitQueueCount_];
-    waitInfo.timerInfo_ = &info;
-    waitInfo.engagementId_ = info.engagementId_;
-    waitInfo.targetTime_ = info.targetTime_;
-    ++waitQueueCount_;
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::pushToWaitQueue(
-    TimerInfo& info)
-{
-    addToScheduledWaits(info);
-
-    std::push_heap(
-        waitQueue_.begin(),
-        waitQueue_.begin() + waitQueueCount_,
-        ScheduledWaitPriorityComp());
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::recreateWaitQueue()
-{
-    waitQueueCount_ = 0;
-    std::for_each(timers_.begin(), timers_.end(),
-        [this](TimerInfo& info)
-        {
-            if (info.isAllocated() && info.isWaitInProgress()) {
-                addToScheduledWaits(info);
-            }
-        });
-
-    std::make_heap(
-        waitQueue_.begin(),
-        waitQueue_.begin() + waitQueueCount_,
-        ScheduledWaitPriorityComp());
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postHandler(
-    const embxx::error::ErrorStatus& status,
-    TimerInfo& info,
-    bool interruptContext)
-{
-    GASSERT(info.handler_);
-    GASSERT(info.isAllocated());
-    GASSERT(info.isWaitInProgress());
-
-    bool postResult = false;
-    if (interruptContext) {
-        postResult =
-            eventLoop_.postInterruptCtx(
-                std::bind(std::move(info.handler_), status));
-    }
-    else {
-        postResult =
-            eventLoop_.post(
-                std::bind(std::move(info.handler_), status));
-    }
-    static_cast<void>(postResult);
-    GASSERT(postResult);
-    GASSERT(!info.handler_);
-    info.setWaitInProgress(false);
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::interruptHandler(
-    const embxx::error::ErrorStatus& es)
-{
-    // Executed in interrupt context
-
-    if (es) {
-        auto beginIter = timers_.begin();
-        auto endIter = beginIter + timersCount_;
-        std::for_each(beginIter, endIter,
-            [this, &es](TimerInfo& info)
-            {
-                if (info.handler_) {
-                    postHandler(es, info, true);
-                }
-            });
-
-        waitQueueCount_ = 0;
-        return;
-    }
-
-    GASSERT(0 < waitQueueCount_);
-    GASSERT(timeBase_ <= waitQueue_[0].targetTime_);
-    timeBase_ = waitQueue_[0].targetTime_;
-
-    postExpiredHandlers(true);
-
-    if (0 < waitQueueCount_) {
-        device_.startWait(waitQueue_[0].targetTime_ - timeBase_, InterruptContext());
-    }
-}
-
-template <typename TDevice,
-          typename TEventLoop,
-          std::size_t TMaxTimers,
-          typename TTimeoutHandler>
-void TimerMgr<TDevice, TEventLoop, TMaxTimers, TTimeoutHandler>::postExpiredHandlers(
-    bool interruptContext)
-{
-    while (0 < waitQueueCount_) {
-        auto& waitInfo = waitQueue_[0];
-        if (timeBase_ < waitInfo.targetTime_) {
-            break;
-        }
-
-        auto timerInfoPtr = waitInfo.timerInfo_;
-        if (timerInfoPtr->isAllocated() &&
-            timerInfoPtr->isWaitInProgress() &&
-            (timerInfoPtr->engagementId_ == waitInfo.engagementId_)) {
-            GASSERT(timerInfoPtr->handler_);
-
-            postHandler(embxx::error::ErrorCode::Success, *timerInfoPtr, interruptContext);
-        }
-
-        std::pop_heap(
-            waitQueue_.begin(),
-            waitQueue_.begin() + waitQueueCount_,
-            ScheduledWaitPriorityComp());
-
-        --waitQueueCount_;
-    }
-
-}
 
 }  // namespace driver
 

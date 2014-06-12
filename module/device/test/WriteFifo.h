@@ -156,8 +156,7 @@ private:
             scheduleNextCharWritten();
         }
 
-        if (canWrite()) {
-            assert(handler_);
+        if (canWrite() && handler_) {
             handler_();
         }
     }

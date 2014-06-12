@@ -30,11 +30,13 @@ namespace context
 /// @ingroup device
 /// @brief Event loop context tag class.
 /// @details This is empty struct that is used to indicate event loop execution context.
+/// @headerfile embxx/device/context.h
 struct EventLoop {};
 
 /// @ingroup device
 /// @brief Interrupt context tag class.
 /// @details This is empty struct that is used to indicate interrupt execution context.
+/// @headerfile embxx/device/context.h
 struct Interrupt {};
 
 }  // namespace context

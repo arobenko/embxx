@@ -37,6 +37,7 @@ namespace device
 ///         written in intention to adapt interface of embxx::device::DeviceOpQueue.
 ///         If the latter is not used the provided device must expose the same
 ///         interface.
+/// @headerfile embxx/device/IdDeviceCharAdapter.h
 template <typename TDevice>
 class IdDeviceCharAdapter
 {
@@ -53,7 +54,11 @@ public:
     /// @brief constructor
     /// @param device Reference to the wrapped device
     /// @param id ID of the device to be used for all the issued operations.
-    IdDeviceCharAdapter(Device& device, DeviceIdType id);
+    IdDeviceCharAdapter(Device& device, DeviceIdType id)
+      : device_(device),
+        id_(id)
+    {
+    }
 
     /// @brief Copy constructor is default
     IdDeviceCharAdapter(const IdDeviceCharAdapter&) = default;
@@ -65,195 +70,139 @@ public:
     IdDeviceCharAdapter& operator=(const IdDeviceCharAdapter&) = delete;
 
     /// @brief Access to the underlying device.
-    Device& device();
+    Device& device()
+    {
+        return device_;
+    }
 
     /// @brief Const version of the device().
-    const Device& device() const;
+    const Device& device() const
+    {
+        return device_;
+    }
 
     /// @brief Get device ID.
-    const DeviceIdType id() const;
+    const DeviceIdType id() const
+    {
+        return id_;
+    }
 
     /// @brief Set "can read" handler.
     /// @details Calls setCanReadHandler() of the underlying device with
     ///          stored ID information.
     template <typename TFunc>
-    void setCanReadHandler(TFunc&& func);
+    void setCanReadHandler(TFunc&& func)
+    {
+        device_.setCanReadHandler(id_, std::forward<TFunc>(func));
+    }
 
     /// @brief Set "can write" handler.
     /// @details Calls setCanWriteHandler() of the underlying device with
     ///          stored ID information.
     template <typename TFunc>
-    void setCanWriteHandler(TFunc&& func);
+    void setCanWriteHandler(TFunc&& func)
+    {
+        device_.setCanWriteHandler(id_, std::forward<TFunc>(func));
+    }
 
     /// @brief Set "read complete" handler.
     /// @details Calls setReadCompleteHandler() of the underlying device with
     ///          stored ID information.
     template <typename TFunc>
-    void setReadCompleteHandler(TFunc&& func);
+    void setReadCompleteHandler(TFunc&& func)
+    {
+        device_.setReadCompleteHandler(id_, std::forward<TFunc>(func));
+    }
 
     /// @brief Set "write complete" handler.
     /// @details Calls setWriteCompleteHandler() of the underlying device with
     ///          stored ID information.
     template <typename TFunc>
-    void setWriteCompleteHandler(TFunc&& func);
+    void setWriteCompleteHandler(TFunc&& func)
+    {
+        device_.setWriteCompleteHandler(id_, std::forward<TFunc>(func));
+    }
 
     /// @brief Forwards startRead() request to the underlying device.
     /// @details Adds stored ID information to the parameters.
     template <typename... TArgs>
-    void startRead(TArgs&&... args);
+    void startRead(TArgs&&... args)
+    {
+        device_.startRead(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards cancelRead() request to the underlying device.
     /// @details Adds stored ID information to the parameters.
     template <typename... TArgs>
-    bool cancelRead(TArgs&&... args);
+    bool cancelRead(TArgs&&... args)
+    {
+        return device_.cancelRead(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards startWrite() request to the underlying device.
     /// @details Adds stored ID information to the parameters.
     template <typename... TArgs>
-    void startWrite(TArgs&&... args);
+    void startWrite(TArgs&&... args)
+    {
+        device_.startWrite(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards cancelWrite() request to the underlying device.
     /// @details Adds stored ID information to the parameters.
     template <typename... TArgs>
-    bool cancelWrite(TArgs&&... args);
+    bool cancelWrite(TArgs&&... args)
+    {
+        return device_.cancelWrite(id_, std::forward<TArgs>(args)...);
+    }
+
+    /// @brief Forwards suspend() request to the underlying device.
+    /// @details Adds stored ID information to the parameters.
+    template <typename... TArgs>
+    bool suspend(TArgs&&... args)
+    {
+        return device_.suspend(id_, std::forward<TArgs>(args)...);
+    }
+
+    /// @brief Forwards resume() request to the underlying device.
+    /// @details Adds stored ID information to the parameters.
+    template <typename... TArgs>
+    void resume(TArgs&&... args)
+    {
+        device_.resume(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards canRead() call to the underlying device.
     template <typename... TArgs>
-    bool canRead(TArgs&&... args);
+    bool canRead(TArgs&&... args)
+    {
+        return device_.canRead(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards canWrite() call to the underlying device.
     template <typename... TArgs>
-    bool canWrite(TArgs&&... args);
+    bool canWrite(TArgs&&... args)
+    {
+        return device_.canWrite(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards read() call to the underlying device.
     template <typename... TArgs>
-    CharType read(TArgs&&... args);
+    CharType read(TArgs&&... args)
+    {
+        return device_.read(id_, std::forward<TArgs>(args)...);
+    }
 
     /// @brief Forwards write() call to the underlying device.
     template <typename... TArgs>
-    void write(TArgs&&... args);
+    void write(TArgs&&... args)
+    {
+        device_.write(id_, std::forward<TArgs>(args)...);
+    }
 
 private:
     Device& device_;
     DeviceIdType id_;
 };
-
-// Implementation
-template <typename TDevice>
-IdDeviceCharAdapter<TDevice>::IdDeviceCharAdapter(
-    Device& device,
-    DeviceIdType id)
-    : device_(device),
-      id_(id)
-{
-}
-
-template <typename TDevice>
-typename IdDeviceCharAdapter<TDevice>::Device&
-IdDeviceCharAdapter<TDevice>::device()
-{
-    return device_;
-}
-
-template <typename TDevice>
-const typename IdDeviceCharAdapter<TDevice>::Device&
-IdDeviceCharAdapter<TDevice>::device() const
-{
-    return device_;
-}
-
-template <typename TDevice>
-const typename IdDeviceCharAdapter<TDevice>::DeviceIdType
-IdDeviceCharAdapter<TDevice>::id() const
-{
-    return id_;
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void IdDeviceCharAdapter<TDevice>::setCanReadHandler(TFunc&& func)
-{
-    device_.setCanReadHandler(id_, std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void IdDeviceCharAdapter<TDevice>::setCanWriteHandler(TFunc&& func)
-{
-    device_.setCanWriteHandler(id_, std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void IdDeviceCharAdapter<TDevice>::setReadCompleteHandler(TFunc&& func)
-{
-    device_.setReadCompleteHandler(id_, std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void IdDeviceCharAdapter<TDevice>::setWriteCompleteHandler(TFunc&& func)
-{
-    device_.setWriteCompleteHandler(id_, std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void IdDeviceCharAdapter<TDevice>::startRead(TArgs&&... args)
-{
-    device_.startRead(id_, std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool IdDeviceCharAdapter<TDevice>::cancelRead(TArgs&&... args)
-{
-    return device_.cancelRead(id_, std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void IdDeviceCharAdapter<TDevice>::startWrite(TArgs&&... args)
-{
-    device_.startWrite(id_, std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool IdDeviceCharAdapter<TDevice>::cancelWrite(TArgs&&... args)
-{
-    return device_.cancelWrite(id_, std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool IdDeviceCharAdapter<TDevice>::canRead(TArgs&&... args)
-{
-    return device_.canRead(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool IdDeviceCharAdapter<TDevice>::canWrite(TArgs&&... args)
-{
-    return device_.canWrite(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-typename IdDeviceCharAdapter<TDevice>::CharType
-IdDeviceCharAdapter<TDevice>::read(TArgs&&... args)
-{
-    return device_.read(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void IdDeviceCharAdapter<TDevice>::write(TArgs&&... args)
-{
-    device_.write(std::forward<TArgs>(args)...);
-}
-
 
 }  // namespace device
 

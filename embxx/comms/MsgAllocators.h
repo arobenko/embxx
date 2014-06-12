@@ -31,6 +31,7 @@ namespace comms
 /// @brief Message object allocation policy that uses dynamic memory allocation.
 /// @details The newly allocated message object is returned wrapped in
 ///          standard std::unique_ptr with default deleter.
+/// @headerfile embxx/comms/MsgAllocators.h
 class DynMemMsgAllocator : public embxx::util::DynMemAllocator
 {
 };
@@ -45,6 +46,7 @@ class DynMemMsgAllocator : public embxx::util::DynMemAllocator
 ///          deleter that calls destructor of the object.
 /// @tparam TTuple std::tuple<...> with all the types of messages this allocator
 ///          can allocate
+/// @headerfile embxx/comms/MsgAllocators.h
 template <typename TAllMessages>
 class InPlaceMsgAllocator : public embxx::util::SpecificInPlaceAllocator<TAllMessages>
 {

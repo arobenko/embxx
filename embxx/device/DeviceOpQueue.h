@@ -52,23 +52,66 @@ public:
     typedef typename Device::CharType CharType;
     typedef typename Device::DeviceIdType DeviceIdType;
 
-    explicit DeviceOpQueueBase(Device& device);
+    explicit DeviceOpQueueBase(Device& device)
+      : device_(device)
+    {
+    }
+
     ~DeviceOpQueueBase() = default;
 
-    Device& device();
-    const Device& device() const;
+    Device& device()
+    {
+        return device_;
+    }
+
+    const Device& device() const
+    {
+        return device_;
+    }
 
     template <typename TFunc>
-    void setCanReadHandler(DeviceIdType id, TFunc&& func);
+    void setCanReadHandler(DeviceIdType id, TFunc&& func)
+    {
+        auto iter = findDeviceInfo(id);
+        if (iter == infos_.end()) {
+            GASSERT(!"Too many devices");
+            return;
+        }
+        iter->canReadHandler_ = std::forward<TFunc>(func);
+    }
 
     template <typename TFunc>
-    void setCanWriteHandler(DeviceIdType id, TFunc&& func);
+    void setCanWriteHandler(DeviceIdType id, TFunc&& func)
+    {
+        auto iter = findDeviceInfo(id);
+        if (iter == infos_.end()) {
+            GASSERT(!"Too many devices");
+            return;
+        }
+        iter->canWriteHandler_ = std::forward<TFunc>(func);
+    }
 
     template <typename TFunc>
-    void setReadCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setReadCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        auto iter = findDeviceInfo(id);
+        if (iter == infos_.end()) {
+            GASSERT(!"Too many devices");
+            return;
+        }
+        iter->readCompleteHandler_ = std::forward<TFunc>(func);
+    }
 
     template <typename TFunc>
-    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        auto iter = findDeviceInfo(id);
+        if (iter == infos_.end()) {
+            GASSERT(!"Too many devices");
+            return;
+        }
+        iter->writeCompleteHandler_ = std::forward<TFunc>(func);
+    }
 
 protected:
     struct DeviceInfo
@@ -106,7 +149,24 @@ protected:
         Write
     };
 
-    DeviceInfoIter findDeviceInfo(DeviceIdType addr);
+    DeviceInfoIter findDeviceInfo(DeviceIdType id)
+    {
+        auto iter = std::find_if(infos_.begin(), infos_.end(),
+            [id](const DeviceInfo& info) -> bool
+            {
+                return ((!info.isValid()) || (info.id_ == id));
+            });
+
+        if (iter == infos_.end()) {
+            return iter;
+        }
+
+        if (!iter->isValid()) {
+            iter->setValid(true);
+            iter->id_ = id;
+        }
+        return iter;
+    }
 
     Device& device_;
     DeviceInfosArray infos_;
@@ -137,38 +197,106 @@ public:
     typedef typename Base::CharType CharType;
     typedef typename Base::DeviceIdType DeviceIdType;
 
-    explicit DeviceOpQueueImpl(Device& device);
-    ~DeviceOpQueueImpl();
+    explicit DeviceOpQueueImpl(Device& device)
+      : Base(device),
+        currDevInfo_(Base::infos_.end()),
+        currOp_(OpType::Invalid)
+    {
+        Base::device_.setCanReadHandler(
+            std::bind(&DeviceOpQueueImpl::canDoOpHandler, this, OpType::Read));
+        Base::device_.setCanWriteHandler(
+            std::bind(&DeviceOpQueueImpl::canDoOpHandler, this, OpType::Write));
+        Base::device_.setReadCompleteHandler(
+            std::bind(
+                &DeviceOpQueueImpl::opCompleteHandler,
+                this,
+                std::placeholders::_1,
+                OpType::Read));
+        Base::device_.setWriteCompleteHandler(
+            std::bind(
+                &DeviceOpQueueImpl::opCompleteHandler,
+                this,
+                std::placeholders::_1,
+                OpType::Write));
+
+    }
+
+    ~DeviceOpQueueImpl()
+    {
+        Base::device_.setCanReadHandler(nullptr);
+        Base::device_.setCanWriteHandler(nullptr);
+        Base::device_.setReadCompleteHandler(nullptr);
+        Base::device_.setWriteCompleteHandler(nullptr);
+    }
 
     void startRead(
         DeviceIdType id,
         std::size_t length,
-        const context::EventLoop& context);
+        context::EventLoop)
+    {
+        startNewOpReq(id, length, OpType::Read);
+    }
 
     bool cancelRead(
         DeviceIdType id,
-        const context::EventLoop& context);
+        context::EventLoop)
+    {
+        return cancelOpReq(id, OpType::Read);
+    }
 
     bool cancelRead(
         DeviceIdType id,
-        const context::Interrupt& context);
+        context::Interrupt context)
+    {
+        static_cast<void>(id);
+        GASSERT(currDevInfo_ != Base::infos_.end());
+        GASSERT(currDevInfo_->id_ == id);
+        auto cancelResult = Base::device_.cancelRead(context);
+        GASSERT(cancelResult);
+        startNextOp(context);
+        return cancelResult;
+    }
 
     void startWrite(
         DeviceIdType id,
         std::size_t length,
-        const context::EventLoop& context);
+        context::EventLoop)
+    {
+        return startNewOpReq(id, length, OpType::Write);
+    }
 
-    bool cancelWrite(
-        DeviceIdType id,
-        const context::EventLoop& context);
+    bool cancelWrite(DeviceIdType id, context::EventLoop)
+    {
+        return cancelOpReq(id, OpType::Write);
+    }
 
-    bool canRead(const context::Interrupt& context);
+    bool canRead(DeviceIdType id, context::Interrupt context)
+    {
+        GASSERT(opQueue_.front().id_ == id);
+        static_cast<void>(id);
+        return Base::device_.canRead(context);
+    }
 
-    bool canWrite(const context::Interrupt& context);
+    bool canWrite(DeviceIdType id, context::Interrupt context)
+    {
+        GASSERT(opQueue_.front().id_ == id);
+        static_cast<void>(id);
+        return Base::device_.canWrite(context);
+    }
 
-    CharType read(const context::Interrupt& context);
+    CharType read(DeviceIdType id, context::Interrupt context)
+    {
+        GASSERT(opQueue_.front().id_ == id);
+        static_cast<void>(id);
+        return Base::device_.read(context);
+    }
 
-    void write(CharType value, const context::Interrupt& context);
+    void write(DeviceIdType id, CharType value, context::Interrupt context)
+    {
+        GASSERT(opQueue_.front().id_ == id);
+        static_cast<void>(id);
+        Base::device_.write(value, context);
+    }
 
 private:
     typedef typename Base::OpType OpType;
@@ -195,490 +323,146 @@ private:
     void startNewOpReq(
         DeviceIdType id,
         std::size_t length,
-        OpType op);
+        OpType op)
+    {
+        auto suspResult = Base::device_.suspend(EventLoopContext());
+
+        // Suspend is successful if and only if the queue is empty
+        GASSERT(suspResult == (!opQueue_.empty()));
+
+        GASSERT(findOpInfo(id) == opQueue_.end());
+
+        OpInfo info(id, length, op);
+        opQueue_.push_back(std::move(info));
+        if (suspResult) {
+            Base::device_.resume(EventLoopContext());
+            return;
+        }
+
+        startNextOp(EventLoopContext());
+    }
 
     bool cancelOpReq(
         DeviceIdType id,
-        OpType op);
+        OpType op)
+    {
+        auto suspResult = Base::device_.suspend(EventLoopContext());
 
+        // Suspend is successful if and only if the queue is empty
+        GASSERT(suspResult == (!opQueue_.empty()));
 
-    OpQueueIterator findOpInfo(DeviceIdType id);
+        auto guard =
+            embxx::util::makeScopeGuard(
+                [this, suspResult]()
+                {
+                    if (suspResult) {
+                        Base::device().resume(EventLoopContext());
+                    }
+                });
+
+        auto iter = findOpInfo(id);
+        if ((iter == opQueue_.end()) ||
+            (iter->op_ != op)) {
+            return false; // resuming operation
+        }
+
+        GASSERT(currDevInfo_ != Base::infos_.end());
+        if (id != currDevInfo_->id_) {
+            GASSERT(opQueue_.front().id_ != id);
+            opQueue_.erase(iter);
+            return true; // resuming operation
+        }
+
+        // Cancelling current op
+        guard.release(); // No resume on return
+
+        GASSERT(opQueue_.front().id_ == id);
+        bool result = false;
+        if (op == OpType::Read) {
+            result = Base::device_.cancelRead(EventLoopContext());
+        }
+        else {
+            GASSERT(op == OpType::Write);
+            result = Base::device_.cancelWrite(EventLoopContext());
+        }
+
+        GASSERT(result); // cancel must succeed
+        static_cast<void>(result);
+        opQueue_.popFront();
+        startNextOp(EventLoopContext());
+        return result;
+    }
+
+    OpQueueIterator findOpInfo(DeviceIdType id)
+    {
+        return std::find_if(opQueue_.begin(), opQueue_.end(),
+            [id](const OpInfo& elem) -> bool
+            {
+                return elem.id_ == id;
+            });
+    }
 
     template <typename TContext>
-    void startNextOp(TContext context);
+    void startNextOp(TContext context)
+    {
+        if (opQueue_.empty()) {
+            return;
+        }
 
-    void canDoOpHandler(OpType op);
-    void opCompleteHandler(const embxx::error::ErrorStatus& err, OpType op);
+        auto& opInfo = opQueue_.front();
+        currDevInfo_ = Base::findDeviceInfo(opInfo.id_);
+        GASSERT(currDevInfo_ != Base::infos_.end());
 
+        if (opInfo.op_ == OpType::Read) {
+            Base::device_.startRead(opInfo.id_, opInfo.length_, context);
+        }
+        else {
+            GASSERT(opInfo.op_ == OpType::Write);
+            Base::device_.startWrite(opInfo.id_, opInfo.length_, context);
+        }
+    }
+
+    void canDoOpHandler(OpType op)
+    {
+        GASSERT(currDevInfo_ != Base::infos_.end());
+        if (op == OpType::Read) {
+            GASSERT(currDevInfo_->canReadHandler_);
+            currDevInfo_->canReadHandler_();
+        }
+        else {
+            GASSERT(op == OpType::Write);
+            GASSERT(currDevInfo_->canWriteHandler_);
+            currDevInfo_->canWriteHandler_();
+        }
+    }
+
+    void opCompleteHandler(const embxx::error::ErrorStatus& err, OpType op)
+    {
+        GASSERT(currDevInfo_ != Base::infos_.end());
+        GASSERT(!opQueue_.empty());
+        GASSERT(currDevInfo_->id_ == opQueue_.front().id_);
+        GASSERT(opQueue_.front().op_ == op);
+        opQueue_.popFront();
+
+        auto devInfo = currDevInfo_;
+        currDevInfo_ = Base::infos_.end();
+        startNextOp(context::Interrupt());
+
+        if (op == OpType::Read) {
+            GASSERT(devInfo->readCompleteHandler_);
+            devInfo->readCompleteHandler_(err);
+        }
+        else {
+            GASSERT(op == OpType::Write);
+            devInfo->writeCompleteHandler_(err);
+        }
+    }
 
 private:
     DeviceInfoIter currDevInfo_;
     OpQueue opQueue_;
     OpType currOp_;
 };
-
-// Implementation
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::
-DeviceOpQueueBase(
-    Device& device)
-    : device_(device)
-{
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::Device&
-DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::device()
-{
-    return device_;
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-const typename DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::Device&
-DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::device() const
-{
-    return device_;
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::
-setCanReadHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    auto iter = findDeviceInfo(id);
-    if (iter == infos_.end()) {
-        GASSERT(!"Too many devices");
-        return;
-    }
-    iter->canReadHandler_ = std::forward<TFunc>(func);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::
-setCanWriteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    auto iter = findDeviceInfo(id);
-    if (iter == infos_.end()) {
-        GASSERT(!"Too many devices");
-        return;
-    }
-    iter->canWriteHandler_ = std::forward<TFunc>(func);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::
-setReadCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    auto iter = findDeviceInfo(id);
-    if (iter == infos_.end()) {
-        GASSERT(!"Too many devices");
-        return;
-    }
-    iter->readCompleteHandler_ = std::forward<TFunc>(func);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::
-setWriteCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    auto iter = findDeviceInfo(id);
-    if (iter == infos_.end()) {
-        GASSERT(!"Too many devices");
-        return;
-    }
-    iter->writeCompleteHandler_ = std::forward<TFunc>(func);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::DeviceInfoIter
-DeviceOpQueueBase<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::findDeviceInfo(
-    DeviceIdType id)
-{
-    auto iter = std::find_if(infos_.begin(), infos_.end(),
-        [id](const DeviceInfo& info) -> bool
-        {
-            return ((!info.isValid()) || (info.id_ == id));
-        });
-
-    if (iter == infos_.end()) {
-        return iter;
-    }
-
-    if (!iter->isValid()) {
-        iter->setValid(true);
-        iter->id_ = id;
-    }
-    return iter;
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-DeviceOpQueueImpl(
-    Device& device)
-    : Base(device),
-      currDevInfo_(Base::infos_.end()),
-      currOp_(OpType::Invalid)
-{
-    Base::device_.setCanReadHandler(
-        std::bind(&DeviceOpQueueImpl::canDoOpHandler, this, OpType::Read));
-    Base::device_.setCanWriteHandler(
-        std::bind(&DeviceOpQueueImpl::canDoOpHandler, this, OpType::Write));
-    Base::device_.setReadCompleteHandler(
-        std::bind(
-            &DeviceOpQueueImpl::opCompleteHandler,
-            this,
-            std::placeholders::_1,
-            OpType::Read));
-    Base::device_.setWriteCompleteHandler(
-        std::bind(
-            &DeviceOpQueueImpl::opCompleteHandler,
-            this,
-            std::placeholders::_1,
-            OpType::Write));
-
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-~DeviceOpQueueImpl()
-{
-    Base::device_.setCanReadHandler(nullptr);
-    Base::device_.setCanWriteHandler(nullptr);
-    Base::device_.setReadCompleteHandler(nullptr);
-    Base::device_.setWriteCompleteHandler(nullptr);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-startRead(
-    DeviceIdType id,
-    std::size_t length,
-    const context::EventLoop& context)
-{
-    static_cast<void>(context);
-    startNewOpReq(id, length, OpType::Read);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-cancelRead(
-    DeviceIdType id,
-    const context::EventLoop& context)
-{
-    static_cast<void>(context);
-    return cancelOpReq(id, OpType::Read);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-cancelRead(
-    DeviceIdType id,
-    const context::Interrupt& context)
-{
-    static_cast<void>(id);
-    static_cast<void>(context);
-    GASSERT(currDevInfo_ != Base::infos_.end());
-    GASSERT(currDevInfo_->id_ == id);
-    auto cancelResult = Base::device_.cancelRead(context);
-    GASSERT(cancelResult);
-    startNextOp(InterruptContext());
-    return cancelResult;
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-startWrite(
-    DeviceIdType id,
-    std::size_t length,
-    const context::EventLoop& context)
-{
-    static_cast<void>(context);
-    return startNewOpReq(id, length, OpType::Write);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-cancelWrite(
-    DeviceIdType id,
-    const context::EventLoop& context)
-{
-    static_cast<void>(context);
-    return cancelOpReq(id, OpType::Write);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-canRead(
-    const context::Interrupt& context)
-{
-    return Base::device_.canRead(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-canWrite(
-    const context::Interrupt& context)
-{
-    return Base::device_.canWrite(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::CharType
-DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-read(
-    const context::Interrupt& context)
-{
-    return Base::device_.read(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-write(
-    CharType value,
-    const context::Interrupt& context)
-{
-    Base::device_.write(value, context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-startNewOpReq(
-    DeviceIdType id,
-    std::size_t length,
-    OpType op)
-{
-    auto suspResult = Base::device_.suspend(EventLoopContext());
-
-    // Suspend is successful if and only if the queue is empty
-    GASSERT(suspResult == (!opQueue_.empty()));
-
-    GASSERT(findOpInfo(id) == opQueue_.end());
-
-    OpInfo info(id, length, op);
-    opQueue_.push_back(std::move(info));
-    if (suspResult) {
-        Base::device_.resume(EventLoopContext());
-        return;
-    }
-
-    startNextOp(EventLoopContext());
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-cancelOpReq(
-    DeviceIdType id,
-    OpType op)
-{
-    auto suspResult = Base::device_.suspend(EventLoopContext());
-
-    // Suspend is successful if and only if the queue is empty
-    GASSERT(suspResult == (!opQueue_.empty()));
-
-    auto guard =
-        embxx::util::makeScopeGuard(
-            [this, suspResult]()
-            {
-                if (suspResult) {
-                    Base::device().resume(EventLoopContext());
-                }
-            });
-
-    auto iter = findOpInfo(id);
-    if ((iter == opQueue_.end()) ||
-        (iter->op_ != op)) {
-        return false; // resuming operation
-    }
-
-    GASSERT(currDevInfo_ != Base::infos_.end());
-    if (id != currDevInfo_->id_) {
-        GASSERT(opQueue_.front().id_ != id);
-        opQueue_.erase(iter);
-        return true; // resuming operation
-    }
-
-    // Cancelling current op
-    guard.release(); // No resume on return
-
-    GASSERT(opQueue_.front().id_ == id);
-    bool result = false;
-    if (op == OpType::Read) {
-        result = Base::device_.cancelRead(EventLoopContext());
-    }
-    else {
-        GASSERT(op == OpType::Write);
-        result = Base::device_.cancelWrite(EventLoopContext());
-    }
-
-    GASSERT(result); // cancel must succeed
-    static_cast<void>(result);
-    opQueue_.popFront();
-    startNextOp(EventLoopContext());
-    return result;
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::OpQueueIterator
-DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-findOpInfo(DeviceIdType id)
-{
-    return std::find_if(opQueue_.begin(), opQueue_.end(),
-        [id](const OpInfo& elem) -> bool
-        {
-            return elem.id_ == id;
-        });
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TContext>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-startNextOp(TContext context)
-{
-    if (opQueue_.empty()) {
-        return;
-    }
-
-    auto& opInfo = opQueue_.front();
-    currDevInfo_ = Base::findDeviceInfo(opInfo.id_);
-    GASSERT(currDevInfo_ != Base::infos_.end());
-
-    if (opInfo.op_ == OpType::Read) {
-        Base::device_.startRead(opInfo.id_, opInfo.length_, context);
-    }
-    else {
-        GASSERT(opInfo.op_ == OpType::Write);
-        Base::device_.startWrite(opInfo.id_, opInfo.length_, context);
-    }
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-canDoOpHandler(OpType op)
-{
-    GASSERT(currDevInfo_ != Base::infos_.end());
-    if (op == OpType::Read) {
-        GASSERT(currDevInfo_->canReadHandler_);
-        currDevInfo_->canReadHandler_();
-    }
-    else {
-        GASSERT(op == OpType::Write);
-        GASSERT(currDevInfo_->canWriteHandler_);
-        currDevInfo_->canWriteHandler_();
-    }
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueueImpl<TDevice, TSize, embxx::device::op_category::SequentialReadWrite, TCanDoOpHandler, TOpCompleteHandler>::
-opCompleteHandler(
-    const embxx::error::ErrorStatus& err,
-    OpType op)
-{
-    GASSERT(currDevInfo_ != Base::infos_.end());
-    GASSERT(!opQueue_.empty());
-    GASSERT(currDevInfo_->id_ == opQueue_.front().id_);
-    GASSERT(opQueue_.front().op_ == op);
-    opQueue_.popFront();
-
-    auto devInfo = currDevInfo_;
-    currDevInfo_ = Base::infos_.end();
-    startNextOp(context::Interrupt());
-
-    if (op == OpType::Read) {
-        GASSERT(devInfo->readCompleteHandler_);
-        devInfo->readCompleteHandler_(err);
-    }
-    else {
-        GASSERT(op == OpType::Write);
-        devInfo->writeCompleteHandler_(err);
-    }
-}
 
 }  // namespace details
 
@@ -787,36 +571,17 @@ opCompleteHandler(
 ///         bool cancelWrite(embxx::device::context::EventLoop context);
 ///         bool cancelWrite(embxx::device::context::Interrupt context)
 ///
-///         // Suspend current read/write operation. If OpCategory is defined
-///         // to be embxx::device::op_category::SequentialReadWrite, only
-///         // suspend(...) signature is required, and when OpCategory is
-///         // defined to be embxx::device::op_category::ParallelReadWrite
-///         // definition of suspendRead(...)/suspendWrite(...) is required instead.
-///         // The return value indicates whether the read/write operation was
-///         // actually suspended. In case the suspend is reported to be
-///         // successful it can either resumed (by resume() in case of
-///         // embxx::device::op_category::SequentialReadWrite or by
-///         // resumeRead()/resumeWrite()) or cancelled
-///         // (by cancelRead()/cancelWrite()). The "context" is a dummy
+///         // Suspend current read/write operation(s). The "context" is a dummy
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts. This function
 ///         // can be called only in event loop context.
 ///         bool suspend(embxx::device::context::EventLoop context);
-///         bool suspendRead(embxx::device::context::EventLoop context);
-///         bool suspendWrite(embxx::device::context::EventLoop context);
 ///
-///         // Resume suspended read/write operation. If OpCategory is defined
-///         // to be embxx::device::op_category::SequentialReadWrite, only
-///         // resume(...) signature is required, and when OpCategory is
-///         // defined to be embxx::device::op_category::ParallelReadWrite
-///         // definition of resumeRead(...)/resumeWrite(...) is required
-///         // instead.The "context" is a dummy parameter that indicates whether
-///         // the function is executed in NON-interrupt (event loop) or
-///         // interrupt contexts. This function can be called only in event
-///         // loop context.
+///         // Resume suspended read/write operations. The "context" is a dummy
+///         // parameter that indicates whether the function is executed in
+///         // NON-interrupt (event loop) or interrupt contexts. This function
+///         // can be called only in event loop context.
 ///         void resume(embxx::device::context::EventLoop context);
-///         void resumeRead(embxx::device::context::EventLoop context);
-///         void resumeWrite(embxx::device::context::EventLoop context);
 ///
 ///         // Inquiry whether there is at least one character to be
 ///         // read. Will be called in the interrupt context. May be called
@@ -885,7 +650,10 @@ public:
 
     /// @brief Constructor
     /// @param device Reference to device (peripheral) control object
-    explicit DeviceOpQueue(Device& device);
+    explicit DeviceOpQueue(Device& device)
+      : Base(device)
+    {
+    }
 
     /// @brief Copy constructor is default.
     DeviceOpQueue(const DeviceOpQueue&) = default;
@@ -903,10 +671,16 @@ public:
     DeviceOpQueue& operator=(DeviceOpQueue&&) = delete;
 
     /// @brief Get reference to device (peripheral) control object.
-    Device& device();
+    Device& device()
+    {
+        return Base::device();
+    }
 
     /// @brief Const version of device().
-    const Device& device() const;
+    const Device& device() const
+    {
+        return Base::device();
+    }
 
     /// @brief Set the "can read" callback.
     /// @details The callback will be called when read operation to the
@@ -915,7 +689,10 @@ public:
     /// @param[in] id ID of the entity to which read operation will be performed.
     /// @param[in] func Callable functor with signature "void ()".
     template <typename TFunc>
-    void setCanReadHandler(DeviceIdType id, TFunc&& func);
+    void setCanReadHandler(DeviceIdType id, TFunc&& func)
+    {
+        Base::setCanReadHandler(id, std::forward<TFunc>(func));
+    }
 
     /// @brief Set the "can write" callback.
     /// @details The callback will be called when write operation to the
@@ -924,7 +701,10 @@ public:
     /// @param[in] id ID of the entity to which write operation will be performed.
     /// @param[in] func Callable functor with signature "void ()".
     template <typename TFunc>
-    void setCanWriteHandler(DeviceIdType id, TFunc&& func);
+    void setCanWriteHandler(DeviceIdType id, TFunc&& func)
+    {
+        Base::setCanWriteHandler(id, std::forward<TFunc>(func));
+    }
 
     /// @brief Set the "read complete" callback.
     /// @details The callback will be called when read operation to the
@@ -933,7 +713,10 @@ public:
     /// @param[in] id ID of the entity to which read operation will be performed.
     /// @param[in] func Callable functor with signature "void (const embxx::error::ErrorStatus&)".
     template <typename TFunc>
-    void setReadCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setReadCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        Base::setReadCompleteHandler(id, std::forward<TFunc>(func));
+    }
 
     /// @brief Set the "write complete" callback.
     /// @details The callback will be called when write operation to the
@@ -942,83 +725,126 @@ public:
     /// @param[in] id ID of the entity to which write operation will be performed.
     /// @param[in] func Callable functor with signature "void (const embxx::error::ErrorStatus&)".
     template <typename TFunc>
-    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        Base::setWriteCompleteHandler(id, std::forward<TFunc>(func));
+    }
 
     /// @brief Start read operation in event loop context.
     /// @param[in] id ID of the entity to which read should be performed.
     /// @param[in] length Number of bytes about to be read.
-    /// @param[in] context Dummy parameter - indication that function is called
+    /// @param[in] context Tag parameter - indication that function is called
     ///            in event loop context
     void startRead(
         DeviceIdType id,
         std::size_t length,
-        const context::EventLoop& context);
+        context::EventLoop context)
+    {
+        Base::startRead(id, length, context);
+    }
 
-    /// @brief Cancel read operation in event loop context.
+    /// @brief Cancel read operation in either event loop or interrupt context.
     /// @param[in] id ID of the entity to which read operation should be cancelled.
-    /// @param[in] context Dummy parameter - indication that function is called
-    ///            in event loop context
+    /// @param[in] context Tag parameter - indication of call context. May be
+    ///            either embxx::device::context::EventLoop or
+    ///            embxx::device::context::Interrupt
     /// @return true in case the read was successfully cancelled.
+    template <typename TContext>
     bool cancelRead(
         DeviceIdType id,
-        const context::EventLoop& context);
-
-    /// @brief Cancel read operation in interrupt context.
-    /// @param[in] id ID of the entity to which read operation should be cancelled.
-    /// @param[in] context Dummy parameter - indication that function is called
-    ///            in interrupt context
-    /// @return true in case the read was successfully cancelled.
-    bool cancelRead(
-        DeviceIdType id,
-        const context::Interrupt& context);
+        TContext context)
+    {
+        return Base::cancelRead(id, context);
+    }
 
     /// @brief Start write operation in event loop context.
     /// @param[in] id ID of the entity to which write should be performed.
     /// @param[in] length Number of bytes about to be written.
-    /// @param[in] context Dummy parameter - indication that function is called
+    /// @param[in] context Tag parameter - indication that function is called
     ///            in event loop context
     void startWrite(
         DeviceIdType id,
         std::size_t length,
-        const context::EventLoop& context);
+        context::EventLoop context)
+    {
+        Base::startWrite(id, length, context);
+    }
 
     /// @brief Cancel write operation in event loop context.
     /// @param[in] id ID of the entity to which write operation should be cancelled.
-    /// @param[in] context Dummy parameter - indication that function is called
+    /// @param[in] context Tag parameter - indication that function is called
     ///            in event loop context
     /// @return true in case the write was successfully cancelled.
     bool cancelWrite(
         DeviceIdType id,
-        const context::EventLoop& context);
+        context::EventLoop context)
+    {
+        return Base::cancelWrite(id, context);
+    }
+
+    /// @brief Suspend previous issued read/write operations
+    /// @param[in] id ID of the entity to which operations should be suspended.
+    /// @param[in] context Tag parameter - indication that function is called
+    ///            in event loop context
+    /// @return true in case the operations were successfully suspended.
+    bool suspend(DeviceIdType id, context::EventLoop context)
+    {
+        GASSERT(!"Currently suspend/resume operations are not supported.");
+        return false;
+    }
+
+    /// @brief Resumed previously suspended operations.
+    /// @param[in] id ID of the entity to which operations should be resumed.
+    /// @param[in] context Tag parameter - indication that function is called
+    ///            in event loop context
+    /// @return true in case the operations were successfully suspended.
+    void resume(DeviceIdType id, context::EventLoop context)
+    {
+        GASSERT(!"Currently suspend/resume operations are not supported.");
+    }
 
     /// @brief Inquiry whether the device has received character that can be read.
-    /// @param[in] context Dummy parameter - indication that function is called
+    /// @param[in] id ID of the entity to which request is performed
+    /// @param[in] context Tag parameter - indication that function is called
     ///            in interrupt context.
     /// @return true in case a character may be read, false otherwise.
-    bool canRead(const context::Interrupt& context);
+    bool canRead(DeviceIdType id, context::Interrupt context)
+    {
+        return Base::canRead(id, context);
+    }
 
     /// @brief Inquiry whether the device has place for one more character in
     ///        its outgoing FIFO.
-    /// @param[in] context Dummy parameter - indication that function is called
+    /// @param[in] id ID of the entity to which request is performed.
+    /// @param[in] context Tag parameter - indication that function is called
     ///            in interrupt context.
     /// @return true in case a character may be written, false otherwise.
-    bool canWrite(const context::Interrupt& context);
+    bool canWrite(DeviceIdType id, context::Interrupt context)
+    {
+        return Base::canWrite(id, context);
+    }
 
     /// @brief Read character from incoming FIFO of the device.
+    /// @param[in] id ID of the entity to which request is performed.
     /// @param[in] context Dummy parameter - indication that function is called
     ///            in interrupt context.
     /// @return Read character.
     /// @pre @code canRead() == true @endcode
-    CharType read(const context::Interrupt& context);
+    CharType read(DeviceIdType id, context::Interrupt context)
+    {
+        return Base::read(id, context);
+    }
 
     /// @brief Write character to outgoing FIFO of the device.
+    /// @param[in] id ID of the entity to which request is performed.
     /// @param value Character to be written.
     /// @param[in] context Dummy parameter - indication that function is called
     ///            in interrupt context.
     /// @pre @code canWrite() == true @endcode
-    void write(CharType value, const context::Interrupt& context);
-
-private:
+    void write(DeviceIdType id, CharType value, context::Interrupt context)
+    {
+        Base::write(id, value, context);
+    }
 };
 
 /// @cond DOCUMENT_DEVICE_OP_QUEUE_SPECIALISATION
@@ -1033,370 +859,125 @@ public:
     typedef typename Device::DeviceIdType DeviceIdType;
     typedef typename Device::OpCategory OpCategory;
 
-    explicit DeviceOpQueue(Device& device);
+    explicit DeviceOpQueue(Device& device)
+      : device_(device)
+    {
+    }
+
     DeviceOpQueue(const DeviceOpQueue&) = default;
     ~DeviceOpQueue() = default;
 
     DeviceOpQueue& operator=(const DeviceOpQueue&) = delete;
 
-    Device& device();
-    const Device& device() const;
+    Device& device()
+    {
+        return device_;
+    }
+
+    const Device& device() const
+    {
+        return device_;
+    }
 
     template <typename TFunc>
-    void setCanReadHandler(DeviceIdType id, TFunc&& func);
+    void setCanReadHandler(DeviceIdType id, TFunc&& func)
+    {
+        static_cast<void>(id);
+        device_.setCanReadHandler(std::forward<TFunc>(func));
+    }
 
     template <typename TFunc>
-    void setCanWriteHandler(DeviceIdType id, TFunc&& func);
+    void setCanWriteHandler(DeviceIdType id, TFunc&& func)
+    {
+        static_cast<void>(id);
+        device_.setCanWriteHandler(std::forward<TFunc>(func));
+    }
 
     template <typename TFunc>
-    void setReadCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setReadCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        static_cast<void>(id);
+        device_.setReadCompleteHandler(std::forward<TFunc>(func));
+    }
 
     template <typename TFunc>
-    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func);
+    void setWriteCompleteHandler(DeviceIdType id, TFunc&& func)
+    {
+        static_cast<void>(id);
+        device_.setWriteCompleteHandler(std::forward<TFunc>(func));
+    }
 
     template <typename... TArgs>
-    void startRead(TArgs&&... args);
+    void startRead(TArgs&&... args)
+    {
+        device_.startRead(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    bool cancelRead(
-        DeviceIdType id,
-        TArgs&&... args);
+    bool cancelRead(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.cancelRead(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    void startWrite(TArgs&&... args);
+    void startWrite(TArgs&&... args)
+    {
+        device_.startWrite(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    bool cancelWrite(
-        DeviceIdType id,
-        TArgs&&... args);
+    bool cancelWrite(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.cancelWrite(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    bool canRead(TArgs&&... args);
+    bool suspend(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.suspend(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    bool canWrite(TArgs&&... args);
+    void resume(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        device_.resume(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    CharType read(TArgs&&... args);
+    bool canRead(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.canRead(std::forward<TArgs>(args)...);
+    }
 
     template <typename... TArgs>
-    void write(TArgs&&... args);
+    bool canWrite(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.canWrite(std::forward<TArgs>(args)...);
+    }
+
+    template <typename... TArgs>
+    CharType read(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        return device_.read(std::forward<TArgs>(args)...);
+    }
+
+    template <typename... TArgs>
+    void write(DeviceIdType id, TArgs&&... args)
+    {
+        static_cast<void>(id);
+        device_.write(std::forward<TArgs>(args)...);
+    }
 
 private:
     Device& device_;
 };
-/// @endcond
-
-// Implementation
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::DeviceOpQueue(
-    Device& device)
-    : Base(device)
-{
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::Device&
-DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::device()
-{
-    return Base::device();
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-const typename DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::Device&
-DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::device() const
-{
-    return Base::device();
-}
-
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::setCanReadHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    Base::setCanReadHandler(id, std::forward<TFunc>(func));
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::setCanWriteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    Base::setCanWriteHandler(id, std::forward<TFunc>(func));
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::setReadCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    Base::setReadCompleteHandler(id, std::forward<TFunc>(func));
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::setWriteCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    Base::setWriteCompleteHandler(id, std::forward<TFunc>(func));
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::startRead(
-    DeviceIdType id,
-    std::size_t length,
-    const context::EventLoop& context)
-{
-    Base::startRead(id, length, context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::cancelRead(
-    DeviceIdType id,
-    const context::EventLoop& context)
-{
-    return Base::cancelRead(id, context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::cancelRead(
-    DeviceIdType id,
-    const context::Interrupt& context)
-{
-    return Base::cancelRead(id, context);
-}
-
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::startWrite(
-    DeviceIdType id,
-    std::size_t length,
-    const context::EventLoop& context)
-{
-    Base::startWrite(id, length, context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::cancelWrite(
-    DeviceIdType id,
-    const context::EventLoop& context)
-{
-    return Base::cancelWrite(id, context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::canRead(
-    const context::Interrupt& context)
-{
-    return Base::canRead(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-bool DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::canWrite(
-    const context::Interrupt& context)
-{
-    return Base::canWrite(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-typename DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::CharType
-DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::read(
-    const context::Interrupt& context)
-{
-    return Base::read(context);
-}
-
-template <typename TDevice,
-          std::size_t TSize,
-          typename TCanDoOpHandler,
-          typename TOpCompleteHandler>
-void DeviceOpQueue<TDevice, TSize, TCanDoOpHandler, TOpCompleteHandler>::write(
-    CharType value,
-    const context::Interrupt& context)
-{
-    Base::write(value, context);
-}
-
-/// @cond DOCUMENT_DEVICE_OP_QUEUE_SPECIALISATION
-template <typename TDevice>
-DeviceOpQueue<TDevice, 1>::DeviceOpQueue(
-    Device& device)
-    : device_(device)
-{
-}
-
-template <typename TDevice>
-typename DeviceOpQueue<TDevice, 1>::Device&
-DeviceOpQueue<TDevice, 1>::device()
-{
-    return device_;
-}
-
-template <typename TDevice>
-const typename DeviceOpQueue<TDevice, 1>::Device&
-DeviceOpQueue<TDevice, 1>::device() const
-{
-    return device_;
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, 1>::setCanReadHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    static_cast<void>(id);
-    device_.setCanReadHandler(std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, 1>::setCanWriteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    static_cast<void>(id);
-    device_.setCanWriteHandler(std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, 1>::setReadCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    static_cast<void>(id);
-    device_.setReadCompleteHandler(std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename TFunc>
-void DeviceOpQueue<TDevice, 1>::setWriteCompleteHandler(
-    DeviceIdType id,
-    TFunc&& func)
-{
-    static_cast<void>(id);
-    device_.setWriteCompleteHandler(std::forward<TFunc>(func));
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void DeviceOpQueue<TDevice, 1>::startRead(
-    TArgs&&... args)
-{
-    device_.startRead(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool DeviceOpQueue<TDevice, 1>::cancelRead(
-    DeviceIdType id,
-    TArgs&&... args)
-{
-    static_cast<void>(id);
-    return device_.cancelRead(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void DeviceOpQueue<TDevice, 1>::startWrite(
-    TArgs&&... args)
-{
-    device_.startWrite(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool DeviceOpQueue<TDevice, 1>::cancelWrite(
-    DeviceIdType id,
-    TArgs&&... args)
-{
-    static_cast<void>(id);
-    return device_.cancelWrite(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool DeviceOpQueue<TDevice, 1>::canRead(
-    TArgs&&... args)
-{
-    return device_.canRead(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-bool DeviceOpQueue<TDevice, 1>::canWrite(
-    TArgs&&... args)
-{
-    return device_.canWrite(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-typename DeviceOpQueue<TDevice, 1>::CharType
-DeviceOpQueue<TDevice, 1>::read(
-    TArgs&&... args)
-{
-    return device_.read(std::forward<TArgs>(args)...);
-}
-
-template <typename TDevice>
-template <typename... TArgs>
-void DeviceOpQueue<TDevice, 1>::write(
-    TArgs&&... args)
-{
-    device_.write(std::forward<TArgs>(args)...);
-}
 /// @endcond
 
 }  // namespace device

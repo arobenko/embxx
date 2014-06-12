@@ -21,7 +21,7 @@
 ///     ...
 /// };
 ///
-//// I2cDevice i2cDevice(...);
+/// I2cDevice i2cDevice(...);
 /// @endcode 
 /// Then wrap the device with a queue:
 /// @code
@@ -44,3 +44,4 @@
 /// 
 /// charDriver.asyncRead(...);
 /// @endcode
+///

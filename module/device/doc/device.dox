@@ -7,7 +7,7 @@
 /// can be generic. The "device" module provides an implementation for such
 /// common functionality. The module also defines several tag classes:
 /// @li embxx::device::context::EventLoop and embxx::device::context::Interrupt
-///     tags may be used as dummy parameters to the functions to specify the
+///     tags may be used as tag parameters to the functions to specify the
 ///     context in which the function is called: event loop (NON-interrupt) or
 ///     interrupt.
 /// @li embxx::device::op_category::SequentialReadWrite and 

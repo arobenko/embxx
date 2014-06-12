@@ -19,6 +19,7 @@
 #pragma once
 
 #include <functional>
+#include <chrono>
 
 #include <boost/date_time.hpp>
 
@@ -41,7 +42,9 @@ template <typename TLoopLock>
 class TimerDevice : public TestDevice
 {
 public:
-    typedef unsigned WaitTimeType;
+    typedef unsigned WaitUnitTimeType;
+    typedef std::chrono::duration<WaitUnitTimeType, std::milli> WaitTimeUnitDuration;
+
     typedef TLoopLock LoopLock;
 
     TimerDevice(LoopLock& lock)
@@ -65,7 +68,7 @@ public:
     }
 
     void startWait(
-        WaitTimeType milliseconds,
+        WaitUnitTimeType milliseconds,
         embxx::device::context::EventLoop context)
     {
         static_cast<void>(context);
@@ -74,7 +77,7 @@ public:
     }
 
     void startWait(
-        WaitTimeType milliseconds,
+        WaitUnitTimeType milliseconds,
         embxx::device::context::Interrupt context)
     {
         static_cast<void>(context);
@@ -111,7 +114,7 @@ public:
         suspendCond_.notify_all();
     }
 
-    WaitTimeType getElapsed(embxx::device::context::EventLoop context) const
+    WaitUnitTimeType getElapsed(embxx::device::context::EventLoop context) const
     {
         static_cast<void>(context);
         std::lock_guard<LoopLock> guard(lock_);
@@ -129,7 +132,7 @@ public:
     }
 
 private:
-    void startInternal(WaitTimeType milliseconds)
+    void startInternal(WaitUnitTimeType milliseconds)
     {
         waitTime_ = milliseconds;
         startTime_ = boost::posix_time::microsec_clock::local_time();
@@ -176,7 +179,7 @@ private:
     LoopLock& lock_;
     boost::asio::deadline_timer timer_;
     std::function<void (const embxx::error::ErrorStatus&)> handler_;
-    WaitTimeType waitTime_;
+    WaitUnitTimeType waitTime_;
     boost::posix_time::ptime startTime_;
     boost::posix_time::ptime stopTime_;
     bool suspended_;

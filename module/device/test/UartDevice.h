@@ -171,6 +171,14 @@ public:
         startReadInternal(length);
     }
 
+    void startRead(
+        std::size_t length,
+        embxx::device::context::Interrupt context)
+    {
+        static_cast<void>(context);
+        startReadInternal(length);
+    }
+
     bool cancelRead(
         embxx::device::context::EventLoop context)
     {
@@ -195,12 +203,46 @@ public:
         startWriteInternal(length);
     }
 
+    void startWrite(
+        std::size_t length,
+        embxx::device::context::Interrupt context)
+    {
+        static_cast<void>(context);
+        startWriteInternal(length);
+    }
+
     bool cancelWrite(
         embxx::device::context::EventLoop context)
     {
         static_cast<void>(context);
         std::lock_guard<EventLoopLock> guard(lock_);
         return cancelWriteInternal();
+    }
+
+    bool suspend(embxx::device::context::EventLoop context)
+    {
+        static_cast<void>(context);
+        std::lock_guard<EventLoopLock> guard(lock_);
+        return suspendInternal();
+    }
+
+    bool suspend(embxx::device::context::Interrupt context)
+    {
+        static_cast<void>(context);
+        return suspendInternal();
+    }
+
+    void resume(embxx::device::context::EventLoop context)
+    {
+        static_cast<void>(context);
+        std::lock_guard<EventLoopLock> guard(lock_);
+        resumeInternal();
+    }
+
+    void resume(embxx::device::context::Interrupt context)
+    {
+        static_cast<void>(context);
+        resumeInternal();
     }
 
     bool canRead(embxx::device::context::Interrupt context)
@@ -327,6 +369,27 @@ private:
         writeFifo_.stopWrite();
         writeSuspended_ = true;
         writeInProgress_ = false;
+    }
+
+    bool suspendInternal()
+    {
+        bool suspended = readInProgress_ || writeInProgress_;
+        GASSERT((!readInProgress_) || (!readSuspended_)); // If in progress, not suspended
+        GASSERT((!writeInProgress_) || (!writeSuspended_));
+        readSuspended_ = true;
+        writeSuspended_ = true;
+        return suspended;
+    }
+
+    void resumeInternal() {
+        GASSERT(readInProgress_ || writeInProgress_);
+        if (readInProgress_) {
+            readSuspended_ = false;
+        }
+
+        if (writeInProgress_) {
+            writeSuspended_ = false;
+        }
     }
 
     EventLoopLock& lock_;
