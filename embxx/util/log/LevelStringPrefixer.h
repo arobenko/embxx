@@ -45,9 +45,9 @@ namespace log
 /// @tparam TNextLayer Next layer type
 /// @headerfile embxx/util/log/LevelStringPrefixer.h
 template <typename TNextLayer>
-class LevelStringPrefixer : public LoggerDecoratorBase<TNextLayer>
+class LevelStringPrefixer : public details::LoggerDecoratorBase<TNextLayer>
 {
-    typedef LoggerDecoratorBase<TNextLayer> Base;
+    typedef details::LoggerDecoratorBase<TNextLayer> Base;
 public:
 
     /// @brief Constructor
@@ -55,43 +55,42 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    LevelStringPrefixer(TParams&&... params);
+    explicit LevelStringPrefixer(TParams&&... params)
+      : Base(std::forward<TParams>(params)...)
+    {
+    }
+
 
     /// @brief Prints log level in square brackets prior
     ///        to redirecting the request to the next layer.
     /// @param[in] level requested logging level
-    void begin(Level level);
+    void begin(Level level)
+    {
+        static const char* const Strings[NumOfLogLevels] = {
+            "[TRACE] ",
+            "[DEBUG] ",
+            "[INFO] ",
+            "[WARNING] ",
+            "[ERROR] "
+        };
+
+        if ((level < NumOfLogLevels) && (Strings[level] != nullptr)) {
+            Base::stream() << Strings[level];
+        }
+
+        Base::begin(level);
+    }
+
+    /// @brief Calls "end()" member function of the next layer.
+    /// @details No additional formatting.
+    /// @param[in] level requested logging level
+    void end(Level level)
+    {
+        Base::end(level);
+    }
 };
 
 /// @}
-
-// Implementation
-template <typename TNextLayer>
-template<typename... TParams>
-LevelStringPrefixer<TNextLayer>::LevelStringPrefixer(
-    TParams&&... params)
-    : Base(std::forward<TParams>(params)...)
-{
-}
-
-template <typename TNextLayer>
-void LevelStringPrefixer<TNextLayer>::begin(
-    Level level)
-{
-    static const char* const Strings[NumOfLogLevels] = {
-        "[TRACE] ",
-        "[DEBUG] ",
-        "[INFO] ",
-        "[WARNING] ",
-        "[ERROR] "
-    };
-
-    if ((level < NumOfLogLevels) && (Strings[level] != nullptr)) {
-        Base::stream() << Strings[level];
-    }
-
-    Base::begin(level);
-}
 
 }  // namespace log
 

@@ -28,62 +28,58 @@ namespace embxx
 namespace util
 {
 
-/// @addtogroup util
-/// @{
+namespace details
+{
 
-/// @brief Base class for Stream Logger
-/// @details The logger object just wraps reference to output stream object
-///          and returns it upon request.
-/// @tparam TStream Type of the output stream object. May be either std::ostream
-///         or embxx::io::OutStream
-/// @headerfile embxx/util/StreamLogger.h
 template <typename TStream>
 class StreamLoggerBase
 {
 public:
 
-    /// @brief Type of the output stream.
     typedef TStream Stream;
 
-    /// @brief Constructor
-    /// @param[in] outStream referenct to output stream
-    /// @note Thread safety: Safe
-    /// @note Exception guarantee: No throw
-    inline StreamLoggerBase(Stream& outStream);
+    inline StreamLoggerBase(Stream& outStream)
+      : outStream_(outStream)
+    {
+    }
 
-    /// @brief Ger reference to output stream
-    /// @note Thread safety: Safe
-    /// @note Exception guarantee: No throw
-    inline Stream& stream();
+    Stream& stream()
+    {
+        return outStream_;
+    }
 
-    /// @brief Begin output.
-    /// @details This function is called before requested output is redirected
-    ///          to stream. It does nothing.
-    /// @param[in] level Logging level
-    /// @note Thread safety: Safe
-    /// @note Exception guarantee: No throw
-    inline void begin(log::Level level);
+    void begin(log::Level level)
+    {
+        // Do nothing
+        static_cast<void>(level);
+    }
 
-    /// @brief End output.
-    /// @details This function is called after requested output is redirected
-    ///          to stream. It does nothing.
-    /// @param[in] level Logging level
-    /// @note Thread safety: Safe
-    /// @note Exception guarantee: No throw
-    inline void end(log::Level level);
+    void end(log::Level level)
+    {
+        // Do nothing
+        static_cast<void>(level);
+    }
 
 private:
     Stream& outStream_;
 };
 
-/// @brief Stream Logger class
-/// @brief The only thing is adds to its base class (StreamLoggerBase) is
-///        the compile time information of minimal log level.
+}  // namespace details
+
+/// @addtogroup util
+/// @{
+
+/// @brief Stream Logger
+/// @details The logger object just wraps reference to output stream object
+///          and returns it upon request.
+/// @tparam TLevel Minimal logging level.
+/// @tparam TStream Type of the output stream object. May be either std::ostream
+///         or embxx::io::OutStream.
 /// @headerfile embxx/util/StreamLogger.h
 template <log::Level TLevel, typename TStream>
-class StreamLogger : public StreamLoggerBase<TStream>
+class StreamLogger : public details::StreamLoggerBase<TStream>
 {
-    typedef StreamLoggerBase<TStream> Base;
+    typedef details::StreamLoggerBase<TStream> Base;
 public:
 
     /// @brief Type of the output stream object.
@@ -98,7 +94,40 @@ public:
     /// @param[in] outStream Reference to output stream
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
-    inline StreamLogger(Stream& outStream);
+    explicit StreamLogger(Stream& outStream)
+      : Base(outStream)
+    {
+    }
+
+    /// @brief Get reference to output stream
+    /// @note Thread safety: Safe
+    /// @note Exception guarantee: No throw
+    Stream& stream()
+    {
+        return Base::stream();
+    }
+
+    /// @brief Begin output.
+    /// @details This function is called before requested output is redirected
+    ///          to stream. It does nothing.
+    /// @param[in] level Logging level
+    /// @note Thread safety: Safe
+    /// @note Exception guarantee: No throw
+    void begin(log::Level level)
+    {
+        Base::begin(level);
+    }
+
+    /// @brief End output.
+    /// @details This function is called after requested output is redirected
+    ///          to stream. It does nothing.
+    /// @param[in] level Logging level
+    /// @note Thread safety: Safe
+    /// @note Exception guarantee: No throw
+    void end(log::Level level)
+    {
+        Base::end(level);
+    }
 };
 
 /// @brief Logging macro
@@ -115,46 +144,6 @@ public:
     } while (false)
 
 /// @}
-
-// Implementation area
-
-template <typename TStream>
-inline
-StreamLoggerBase<TStream>::StreamLoggerBase(Stream& outStream)
-    : outStream_(outStream)
-{
-}
-
-template <typename TStream>
-inline
-typename StreamLoggerBase<TStream>::Stream&
-StreamLoggerBase<TStream>::stream()
-{
-    return outStream_;
-}
-
-template <typename TStream>
-inline
-void StreamLoggerBase<TStream>::begin(log::Level level)
-{
-    // Do nothing
-    static_cast<void>(level);
-}
-
-template <typename TStream>
-inline
-void StreamLoggerBase<TStream>::end(log::Level level)
-{
-    // Do nothing
-    static_cast<void>(level);
-}
-
-template <log::Level TLevel, typename TStream>
-inline
-StreamLogger<TLevel, TStream>::StreamLogger(Stream& outStream)
-    : Base(outStream)
-{
-}
 
 }  // namespace util
 

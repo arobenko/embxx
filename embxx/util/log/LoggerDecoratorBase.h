@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include <iosfwd>
-
 #include "LogLevel.h"
 
 namespace embxx
@@ -34,9 +32,8 @@ namespace util
 namespace log
 {
 
-/// @addtogroup util
-///
-/// @{
+namespace details
+{
 
 /// @brief Base class for all defined decorators of the StraemLogger
 /// @details It contains instance of the next layer and redirects
@@ -53,7 +50,7 @@ public:
     /// @brief Type of the output stream object
     typedef typename NextLayer::Stream Stream;
 
-    /// MinLevel is the same as defined in the next layer
+    /// @brief MinLevel is the same as defined in the next layer
     static const Level MinLevel = TNextLayer::MinLevel;
 
     /// @brief Constructor
@@ -61,7 +58,7 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    LoggerDecoratorBase(TParams&&... params);
+    explicit LoggerDecoratorBase(TParams&&... params);
 
     /// @brief Returns reference to output stream reported by the next layer.
     /// @return reference to output stream
@@ -79,8 +76,6 @@ public:
 private:
     NextLayer nextLayer_;
 };
-
-/// @}
 
 // Implementation
 
@@ -114,6 +109,8 @@ void LoggerDecoratorBase<TNextLayer>::end(
 {
     nextLayer_.end(level);
 }
+
+}  // namespace details
 
 }  // namespace log
 

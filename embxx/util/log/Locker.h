@@ -41,9 +41,9 @@ namespace log
 /// @tparam TNextLayer Next layer
 /// @headerfile embxx/util/log/Locker.h
 template<typename TLock, typename TNextLayer>
-class Locker : public LoggerDecoratorBase<TNextLayer>
+class Locker : public details::LoggerDecoratorBase<TNextLayer>
 {
-    typedef LoggerDecoratorBase<TNextLayer> Base;
+    typedef details::LoggerDecoratorBase<TNextLayer> Base;
 public:
     /// Lock type
     typedef TLock LockType;
@@ -55,45 +55,35 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    Locker(LockType& lock, TParams&&... params);
+    explicit Locker(LockType& lock, TParams&&... params)
+      : Base(std::forward<TParams>(params)...),
+        lock_(lock)
+    {
+    }
 
     /// @brief Locks the provided lock before calling begin() of the next layer.
     /// @param[in] level requested logging level
     /// @note Exception guarantee: Basic
-    void begin(Level level);
+    void begin(Level level)
+    {
+        lock_.lock();
+        Base::begin(level);
+    }
 
     /// @brief Unlocks the provided lock after calling end() of the next layer.
     /// @param[in] level requested logging level
     /// @note Exception guarantee: Basic
-    void end(Level level);
+    void end(Level level)
+    {
+        Base::end(level);
+        lock_.unlock();
+    }
+
 private:
     LockType& lock_;
 };
 
 /// @}
-
-// Implementation
-template<typename TLock, typename TNextLayer>
-template<typename... TParams>
-Locker<TLock, TNextLayer>::Locker(LockType& lock, TParams&&... params)
-    : Base(std::forward<TParams>(params)...),
-      lock_(lock)
-{
-}
-
-template<typename TLock, typename TNextLayer>
-void Locker<TLock, TNextLayer>::begin(Level level)
-{
-    lock_.lock();
-    Base::begin(level);
-}
-
-template<typename TLock, typename TNextLayer>
-void Locker<TLock, TNextLayer>::end(Level level)
-{
-    Base::end(level);
-    lock_.unlock();
-}
 
 }  // namespace log
 

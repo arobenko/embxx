@@ -41,7 +41,7 @@ private:
 
 /// @brief Output stream manipulator class that sets the width of the next fields.
 /// @details Use embxx::io::setw() function to create object of this class.
-class WidthManip : public details::ValueManipBase<std::size_t>
+class WidthManip : public ValueManipBase<std::size_t>
 {
     typedef details::ValueManipBase<std::size_t> Base;
 public:
@@ -51,11 +51,11 @@ public:
 /// @brief Output stream manipulator class that sets the fill character.
 /// @details Use embxx::io::setfill() function to create object of this class.
 template <typename T>
-class FillManip : public details::ValueManipBase<T>
+class FillManip : public ValueManipBase<T>
 {
     typedef details::ValueManipBase<T> Base;
 public:
-    FillManip(std::size_t value) : Base(value) {}
+    FillManip(T value) : Base(value) {}
 };
 
 }  // namespace details

@@ -39,9 +39,9 @@ namespace log
 ///        of the next layer.
 /// @headerfile embxx/util/log/StreamFlushSuffixer.h
 template <typename TNextLayer>
-class StreamFlushSuffixer : public LoggerDecoratorBase<TNextLayer>
+class StreamFlushSuffixer : public details::LoggerDecoratorBase<TNextLayer>
 {
-    typedef LoggerDecoratorBase<TNextLayer> Base;
+    typedef details::LoggerDecoratorBase<TNextLayer> Base;
 public:
 
     /// @brief Constructor
@@ -50,33 +50,31 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    StreamFlushSuffixer(TParams&&... params);
+    explicit StreamFlushSuffixer(TParams&&... params)
+      : Base(std::forward<TParams>(params)...)
+    {
+    }
+
+    /// @brief Calls "begin()" member function of the next layer.
+    /// @details No additional formatting.
+    /// @param[in] level requested logging level
+    void begin(Level level)
+    {
+        Base::begin(level);
+    }
 
     /// @brief Calls "flush()" method of the output stream after calling
     ///        end() member function of the next layer.
     /// @param[in] level requested logging level
     /// @note Exception guarantee: Strong
-    void end(Level level);
+    void end(Level level)
+    {
+        Base::end(level);
+        Base::stream().flush();
+    }
 };
 
 /// @}
-
-// Implementation
-template <typename TNextLayer>
-template<typename... TParams>
-StreamFlushSuffixer<TNextLayer>::StreamFlushSuffixer(
-    TParams&&... params)
-    : Base(std::forward<TParams>(params)...)
-{
-}
-
-template <typename TNextLayer>
-void StreamFlushSuffixer<TNextLayer>::end(
-    Level level)
-{
-    Base::end(level);
-    Base::stream().flush();
-}
 
 }  // namespace log
 
