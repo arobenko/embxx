@@ -61,7 +61,7 @@ namespace driver
 ///             non-interrupt context.
 ///         @code
 ///         template <typename TFunc>
-///         void setHandler(TFunc&& func);
+///         void setWaitCompleteCallback(TFunc&& func);
 ///         @endcode
 ///         @li Functions to start timer countdown in both event loop
 ///             (non-interrupt) and interrupt contexts.
@@ -306,7 +306,7 @@ public:
       timersCount_(0),
       nextEngagementId_(0)
     {
-        device_.setHandler(
+        device_.setWaitCompleteCallback(
             std::bind(&TimerMgr::interruptHandler, this, std::placeholders::_1));
     }
 
@@ -319,7 +319,7 @@ public:
     /// @brief Destructor
     ~TimerMgr()
     {
-        device_.setHandler(nullptr);
+        device_.setWaitCompleteCallback(nullptr);
     }
 
     /// @brief Copy assignment is deleted
