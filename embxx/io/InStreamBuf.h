@@ -123,7 +123,7 @@ public:
     /// @brief Get size of available for read data.
     std::size_t size() const;
 
-    /// @brief Check whether size of the modifiable section is 0.
+    /// @brief Check whether number of available characters is 0.
     /// @return true if and only if size() == 0.
     bool empty() const;
 

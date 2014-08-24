@@ -125,10 +125,10 @@ public:
     }
 
     template <typename TFunc>
-    void setHandler(TFunc&& func)
+    void setWaitCompleteCallback(TFunc&& func)
     {
         std::lock_guard<LoopLock> guard(lock_);
-        handler_ = std::forward<TFunc>(func);
+        callback_ = std::forward<TFunc>(func);
     }
 
 private:
@@ -153,8 +153,8 @@ private:
 
                 finaliseWait();
 
-                assert(handler_);
-                handler_(embxx::error::ErrorCode::Success);
+                assert(callback_);
+                callback_(embxx::error::ErrorCode::Success);
             });
     }
 
@@ -178,7 +178,7 @@ private:
 
     LoopLock& lock_;
     boost::asio::deadline_timer timer_;
-    std::function<void (const embxx::error::ErrorStatus&)> handler_;
+    std::function<void (const embxx::error::ErrorStatus&)> callback_;
     WaitUnitTimeType waitTime_;
     boost::posix_time::ptime startTime_;
     boost::posix_time::ptime stopTime_;

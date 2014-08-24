@@ -38,9 +38,9 @@ namespace log
 ///        stream afther the call to end() member function of the next layer.
 /// @headerfile embxx/util/log/StreamableValueSuffixer.h
 template <typename T, typename TNextLayer>
-class StreamableValueSuffixer : public StreamableValueDecoratorBase<T, TNextLayer>
+class StreamableValueSuffixer : public details::StreamableValueDecoratorBase<T, TNextLayer>
 {
-    typedef StreamableValueDecoratorBase<T, TNextLayer> Base;
+    typedef details::StreamableValueDecoratorBase<T, TNextLayer> Base;
 public:
 
     /// Redefinition of the Value Type
@@ -53,34 +53,31 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    StreamableValueSuffixer(ValueType&& value, TParams&&... params);
+    explicit StreamableValueSuffixer(ValueType&& value, TParams&&... params)
+      : Base(std::forward<ValueType>(value), std::forward<TParams>(params)...)
+    {
+    }
+
+    /// @brief Calls "begin()" member function of the next layer.
+    /// @details No additional formatting.
+    /// @param[in] level requested logging level
+    void begin(Level level)
+    {
+        Base::begin(level);
+    }
 
     /// @brief Redirects provided streamable value to the output stream after
     ///        call to the end() member function of the next layer.
     /// @param[in] level requested logging level
     /// @note Exception guarantee: Strong
-    void end(Level level);
+    void end(Level level)
+    {
+        Base::end(level);
+        Base::stream() << Base::value_;
+    }
 };
 
 /// @}
-
-// Implementation
-template <typename T, typename TNextLayer>
-template<typename... TParams>
-StreamableValueSuffixer<T, TNextLayer>::StreamableValueSuffixer(
-    ValueType&& value,
-    TParams&&... params)
-    : Base(std::forward<ValueType>(value), std::forward<TParams>(params)...)
-{
-}
-
-template <typename T, typename TNextLayer>
-void StreamableValueSuffixer<T, TNextLayer>::end(
-    Level level)
-{
-    Base::end(level);
-    Base::stream() << Base::value_;
-}
 
 }  // namespace log
 

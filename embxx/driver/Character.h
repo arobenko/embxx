@@ -304,12 +304,16 @@ private:
         GASSERT(!queue_.empty());
         auto& info = queue_.front();
         GASSERT(info.start_ < info.current_);
-        if (es || (!Base::seekedCharFound(*(info.current_ - 1), info))) {
+        if ((es) ||
+            (!info.readUntilPred_) ||
+            (Base::seekedCharFound(*(info.current_ - 1), info)))  {
+
             invokeHandler(Base::el_, info, es, true);
         }
         else {
             invokeHandler(Base::el_, info, embxx::error::ErrorCode::BufferOverflow, true);
         }
+
         queue_.popFront();
         startNextRead(true);
     }
@@ -425,7 +429,10 @@ private:
 
     void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
     {
-        if (es || (!Base::seekedCharFound(*(info_.current_ - 1), info_))) {
+        if ((es) ||
+            (!info_.readUntilPred_) ||
+            (Base::seekedCharFound(*(info_.current_ - 1), info_))) {
+
             invokeHandler(Base::el_, info_, es, true);
             return;
         }

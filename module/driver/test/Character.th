@@ -46,6 +46,7 @@ public:
     void test11();
     void test12();
     void test13();
+    void test14();
 
 private:
     typedef embxx::util::EventLoop<
@@ -462,7 +463,6 @@ void CharacterDriverTestSuite::test9()
     TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
 }
 
-
 void CharacterDriverTestSuite::test10()
 {
     typedef embxx::driver::Character<CharDevice, EventLoop, QueuedReadTraits<3> > Socket;
@@ -521,7 +521,6 @@ void CharacterDriverTestSuite::test10()
     TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
 }
-
 
 void CharacterDriverTestSuite::test11()
 {
@@ -705,4 +704,56 @@ void CharacterDriverTestSuite::test13()
     TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled3, true);
+}
+
+
+void CharacterDriverTestSuite::test14()
+{
+    typedef embxx::driver::Character<CharDevice, EventLoop, QueuedReadTraits<3> > Socket;
+    EventLoop el;
+    CharDevice device(el.getLock());
+    Socket socket(device, el);
+
+    static const std::string ReadString(
+        "AAAAAAAAAAAABCCCCC");
+
+    static const std::size_t BufSize = 8;
+    char outArray[BufSize] = {};
+    device.setDataToRead(&ReadString[0], ReadString.size());
+
+    auto pred =
+        [](CharDevice::CharType ch) -> bool
+        {
+            return ch != 'A';
+        };
+
+    bool asyncReadHandlerCalled1 = false;
+    bool asyncReadHandlerCalled2 = false;
+    socket.asyncReadUntil(
+        outArray,
+        BufSize,
+        pred,
+        [&](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(es);
+            TS_ASSERT_EQUALS(es.code(), embxx::error::ErrorCode::BufferOverflow);
+            TS_ASSERT_EQUALS(size, BufSize);
+            asyncReadHandlerCalled1 = true;
+
+            socket.asyncReadUntil(
+                outArray,
+                BufSize,
+                pred,
+                [&](const embxx::error::ErrorStatus& es, std::size_t size)
+                {
+                    TS_ASSERT(!es);
+                    TS_ASSERT_EQUALS(size, 5U);
+                    asyncReadHandlerCalled2 = true;
+                    el.stop();
+                });
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
 }

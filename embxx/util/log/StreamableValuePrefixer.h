@@ -38,9 +38,9 @@ namespace log
 ///        stream prior to call to begin() member function of the next layer.
 /// @headerfile embxx/util/log/StreamableValuePrefixer.h
 template <typename T, typename TNextLayer>
-class StreamableValuePrefixer : public StreamableValueDecoratorBase<T, TNextLayer>
+class StreamableValuePrefixer : public details::StreamableValueDecoratorBase<T, TNextLayer>
 {
-    typedef StreamableValueDecoratorBase<T, TNextLayer> Base;
+    typedef details::StreamableValueDecoratorBase<T, TNextLayer> Base;
 public:
 
     /// Redefinition of the Value Type
@@ -53,34 +53,31 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    StreamableValuePrefixer(ValueType&& value, TParams&&... params);
+    explicit StreamableValuePrefixer(ValueType&& value, TParams&&... params)
+      : Base(std::forward<ValueType>(value), std::forward<TParams>(params)...)
+    {
+    }
 
     /// @brief Redirects provided streamable value to the output stream prior
     ///        to call to begin() member function of the next layer.
     /// @param[in] level requested logging level
     /// @note Exception guarantee: Strong
-    void begin(Level level);
+    void begin(Level level)
+    {
+        Base::stream() << value_;
+        Base::begin(level);
+    }
+
+    /// @brief Calls "end()" member function of the next layer.
+    /// @details No additional formatting.
+    /// @param[in] level requested logging level
+    void end(Level level)
+    {
+        Base::end(level);
+    }
 };
 
 /// @}
-
-// Implementation
-template <typename T, typename TNextLayer>
-template<typename... TParams>
-StreamableValuePrefixer<T, TNextLayer>::StreamableValuePrefixer(
-    ValueType&& value,
-    TParams&&... params)
-    : Base(std::forward<ValueType>(value), std::forward<TParams>(params)...)
-{
-}
-
-template <typename T, typename TNextLayer>
-void StreamableValuePrefixer<T, TNextLayer>::begin(
-    Level level)
-{
-    Base::stream() << value_;
-    Base::begin(level);
-}
 
 }  // namespace log
 

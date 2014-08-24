@@ -31,8 +31,8 @@ namespace util
 namespace log
 {
 
-/// @addtogroup util
-/// @{
+namespace details
+{
 
 /// @brief Base class for the StreamableValuePrefixer and
 ///        StreamableValueSuffixer
@@ -55,24 +55,20 @@ public:
     /// @param[in] params Zero or more parameters to be forwarded to the next layer.
     /// @note Exception guarantee: Strong
     template<typename... TParams>
-    StreamableValueDecoratorBase(ValueType&& value, TParams&&... params);
+    explicit StreamableValueDecoratorBase(ValueType&& value, TParams&&... params)
+      : Base(std::forward<TParams>(params)...),
+        value_(std::forward<ValueType>(value))
+    {
+    }
+
+    StreamableValueDecoratorBase(const StreamableValueDecoratorBase&) = default;
+    StreamableValueDecoratorBase& operator=(const StreamableValueDecoratorBase&) = default;
 
 protected:
     ValueType value_; ///< Streamable value
 };
 
-/// @}
-
-// Implementation
-template <typename T, typename TNextLayer>
-template<typename... TParams>
-StreamableValueDecoratorBase<T, TNextLayer>::StreamableValueDecoratorBase(
-    ValueType&& value,
-    TParams&&... params)
-    : Base(std::forward<TParams>(params)...),
-      value_(std::forward<ValueType>(value))
-{
-}
+} // namespace details
 
 }  // namespace log
 
