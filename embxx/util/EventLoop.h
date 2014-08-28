@@ -118,7 +118,7 @@ public:
     ///          wait is expected to be terminated to continue execution of
     ///          the event loop. This function never exits unless stop() was
     ///          called to terminate the execution. After stopping the main
-    ///          loop use reset() member function to enable the loop to be
+    ///          loop, use reset() member function to enable the loop to be
     ///          executed again.
     /// @note Thread safety: Unsafe
     /// @note Exception guarantee: Basic

@@ -20,12 +20,14 @@
 
 #include <functional>
 #include <chrono>
+#include <mutex>
 
 #include <boost/date_time.hpp>
 
 #include "cxxtest/TestSuite.h"
 
 #include "embxx/error/ErrorStatus.h"
+#include "embxx/device/context.h"
 
 #include "TestDevice.h"
 
