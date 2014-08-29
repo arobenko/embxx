@@ -1,0 +1,74 @@
+/// @page driver_gpio_page GPIO device driver
+/// @section driver_gpio_overview Overview
+/// In many cases, the GPIO input doesn't need to be processed at the same time 
+/// the interrupt has occured. It can be scheduled for execution in event loop 
+/// (non-interrupt) context. The embxx::driver::Gpio class provides a 
+/// a convenient interface to register appropriate event callback handler
+/// to be executed in event loop when value of the GPIO input line is updated.
+///
+/// @section driver_gpio_tutorial How to use
+/// Like any other driver in embxx::driver module embxx::driver::Gpio 
+/// depends on and uses an event loop (a variant of embxx::util::EventLoop) to
+/// schedule execution of "gpio input update" handlers. To be able to define 
+/// a gpio driver object it is needed to define and instantiate EventLoop one.
+/// @code
+/// #include "embxx/util/EventLoop.h"
+/// typedef embxx::util::EventLoop<...> EventLoop;
+/// EventLoop el;
+/// @endcode
+///
+/// embxx::driver::Gpio also requires device (peripheral) control class to
+/// define a specific interface interface. See the documenation of TDevide
+/// template parameter of embxx::driver::Gpio class.
+/// @code
+/// class GpioDevice
+/// {
+/// public:
+///     typedef unsigned PinIdType;
+///
+///     template <typename TFunc>
+///     void setHandler(TFunc&& func) {...}
+///
+///     void start(embxx::device::context::EventLoop) {...}
+///
+///     void cancel(embxx::device::context::EventLoop) {...}
+///
+///     bool suspend(embxx::device::context::EventLoop) {...}
+///
+///     void resume(embxx::device::context::EventLoop) {...} 
+///
+///     void setEnabled(PinIdType id, bool enabled, embxx::device::context::EventLoop) {...}
+///
+/// };
+///
+/// GpioDevice device;
+/// @endcode
+///
+/// Define and instantiate GPIO driver
+/// @code
+/// #include "embxx/driver/Gpio.h"
+///
+/// const std::size_t NumOfLines = ...; 
+/// typedef embxx::driver::Gpio<CharDevice, EventLoop, NumOfLines> GpioDriver;
+/// GpioDriver driver(device, el);
+/// @endcode 
+///
+/// Now, it is possible to issue gpio input monitor requests to the driver. 
+/// @code
+/// driver.asyncReadCont(
+///     gpioPin, 
+///     [](const embxx::error::ErrorStatus& status, bool value)
+///     {
+///         ... // Handle gpio input value update.
+///     });
+/// @endcode
+///
+/// Note, that there is a continuous read request, i.e. the callback may
+/// be invoked multiple times on every change in the input's value until the
+/// callback registration is cancelled by:
+/// @code
+/// driver.cancelReadCont(gpioPin);
+/// @endcode
+///
+/// In this case the callback will be invoked with embxx::error::ErrorCode::Aborted
+/// as reported error code in the callback.

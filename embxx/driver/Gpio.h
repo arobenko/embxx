@@ -15,6 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+/// @file embxx/driver/Gpio.h
+/// The file contains definition of "Gpio" device driver class.
+
 
 #pragma once
 
@@ -25,6 +28,7 @@
 #include "embxx/util/StaticFunction.h"
 #include "embxx/util/Assert.h"
 #include "embxx/util/ScopeGuard.h"
+#include "embxx/error/ErrorStatus.h"
 
 namespace embxx
 {
@@ -32,26 +36,94 @@ namespace embxx
 namespace driver
 {
 
+/// @ingroup driver
+/// @brief GPIO device driver
+/// @details Manages the gpio lines monitoring requests and dispatches callbacks
+///          to be executed in non-interrupt context using event loop.
+/// @tparam TDevice Platform specific GPIO device (peripheral) control class. It
+///         must expose the following interface:
+///         @code
+///         // Define define type for identifying gpio pins.
+///         typedef std::uint8_t PinIdType;
+///
+///         // Set the GPIO input interrupt callback which has "void (PinIdType, bool)"
+///         // signature, where the first parameter identifies the input line and
+///         // second parameter specifies the value of the input line after
+///         // the interrupt occurred.
+///         template <typename TFunc>
+///         void setHandler(TFunc&& func);
+///
+///         // Start gpio monitoring, i.e. enable GPIO interrupts globally if
+///         // needed
+///         void start(embxx::device::context::EventLoop context);
+///
+///         // Cancel gpio monitoring, i.e. disable GPIO interrupts globally if
+///         // needed. Return true in case the operation is successful,
+///         // false otherwise (the monitoring is already cancelled or wasn't
+///         // started).
+///         bool cancel(embxx::device::context::EventLoop context);
+///
+///         // Enable/Disable GPIO changes report on specific input line.
+///         void setEnabled(PinIdType id, bool enabled, embxx::device::context::EventLoop context);
+///
+///         // Suspend report of all changes in GPIO input lines. Return true
+///         // in case the suspension is successful, false otherwise.
+///         bool suspend(embxx::device::context::EventLoop context);
+///
+///         // Resume previously suspended GPIO changes reports.
+///         void(embxx::device::context::EventLoop context);
+///         @endcode
+/// @tparam TEventLoop Event loop class, must provide the following API member
+///         functions:
+///         @code
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool post(TFunc&& func);
+///
+///         // Post new functor object for execution in event loop. The function
+///         // is called from event loop (non-interrupt) context. Return true
+///         // if the operation is successful.
+///         template <typename TFunc>
+///         bool postInterruptCtx(TFunc&& func)
+///         @endcode
+/// @tparam TNumOfLines Compile time constant specifying number of GPIO
+///         lines this object must support.
+/// @tparam THandler Callback storage type, must be either std::function or
+///         embxx::util::StaticFunction and expose
+///         "void (const std::error::ErrorStatus& es, bool value)" signature.
+/// @headerfile embxx/driver/Gpio.h
 template <typename TDevice,
           typename TEventLoop,
           std::size_t TNumOfLines,
-          typename THandler = embxx::util::StaticFunction<void (bool)> >
+          typename THandler =
+              embxx::util::StaticFunction<void (const embxx::error::ErrorStatus&, bool)> >
 class Gpio
 {
     typedef embxx::device::context::EventLoop EventLoopCtx;
     typedef embxx::device::context::Interrupt InterruptCtx;
 
 public:
+    /// @brief Type of the Device object.
     typedef TDevice Device;
 
+    /// @brief Type of the Event Loop object
     typedef TEventLoop EventLoop;
 
+    /// @brief Number of supported GPIO lines.
     static const std::size_t NumOfLines = TNumOfLines;
 
+    /// @brief Callback handler storage type.
     typedef THandler Handler;
 
+    /// @brief GPIO pin identification type, provided by the Device.
     typedef typename Device::PinIdType PinIdType;
 
+
+    /// @brief Constructor
+    /// @param device Reference to device (peripheral) control object
+    /// @param el Reference to event loop object
     Gpio(Device& device, EventLoop& el)
       : device_(device),
         el_(el),
@@ -69,34 +141,56 @@ public:
                 }
 
                 GASSERT(iter->handler_);
-                el_.postInterruptCtx(std::bind(iter->handler_, value));
+                el_.postInterruptCtx(
+                    std::bind(
+                        iter->handler_,
+                        embxx::error::ErrorCode::Success,
+                        value));
                 GASSERT(iter->handler_);
             });
     }
 
+    /// @brief Copy constructor is deleted.
     Gpio(const Gpio&) = delete;
 
+    /// @brief Move constructor is deleted.
     Gpio(Gpio&&) = delete;
 
+    /// @brief Copy assignment operator is deleted.
     Gpio& operator=(const Gpio&) = delete;
 
+    /// @brief Move assignment operator is deleted.
     Gpio& operator=(Gpio&&) = delete;
 
+    /// @brief The destructor is default, generated by the compiler.
     ~Gpio() = default;
 
+    /// @brief Get reference to device (peripheral) control object.
     Device& device()
     {
         return device_;
     }
 
+    /// @brief Get referent to event loop object.
     EventLoop& eventLoop()
     {
         return el_;
     }
 
-    /// @pre func is copy-constructible
+    /// @brief Continuous asynchronous read request.
+    /// @details The operation returns immediately, the callback will be
+    ///          called multiple times on changes of the requested GPIO input
+    ///          value until it is removed using cancelReadCont().
+    ///          The rising/falling edge interrupts configuration must
+    ///          be done directly with the Device.
+    /// @param id GPIO input line id.
+    /// @param func Callback function, must have the following signature:
+    ///        @code void handler(const embxx::error::ErrorStatus& es, bool value); @endcode
+    /// @pre func is copy-constructible.
+    /// @pre No active "read" on the specified GPIO line exists, i.e. no callback
+    ///      is registered.
     template <typename TFunc>
-    void setHandler(PinIdType id, TFunc&& func)
+    void asyncReadCont(PinIdType id, TFunc&& func)
     {
         bool suspended = device_.suspend(EventLoopCtx());
         auto guard = embxx::util::makeScopeGuard(
@@ -112,8 +206,8 @@ public:
 
         if ((iter != endIter) &&
             (iter->id_ == id)) {
-            iter->handler_ = std::forward<TFunc>(func);
             GASSERT(suspended);
+            GASSERT(!"Overriding existing handler");
             return;
         }
 
@@ -130,7 +224,17 @@ public:
         }
     }
 
-    void setHandler(PinIdType id, std::nullptr_t)
+    /// @brief Cancel previously issues continuous asynchronous read.
+    /// @details If there is no registered asynchronous continuous read
+    ///          operation in progress, the call to this function will have
+    ///          no effect and false will be returned. Otherwise the callback
+    ///          will be called with embxx::error::ErrorCode::Aborted
+    ///          as status value and will be deleted from the internal data
+    ///          structures.
+    /// @return true in case the operation was really
+    ///         cancelled, false in case there was no unfinished asynchronous
+    ///         continuous read in progress.
+    bool cancelReadCont(PinIdType id)
     {
         bool suspended = device_.suspend(EventLoopCtx());
         auto guard = embxx::util::makeScopeGuard(
@@ -146,19 +250,27 @@ public:
 
         if ((iter == endIter) ||
             (iter->id_ != id)) {
-            return;
+            return false;
         }
 
         GASSERT(suspended);
         device_.setEnabled(id, false, EventLoopCtx());
+        GASSERT(iter->handler_);
+        el_.post(
+            std::bind(
+                std::move(iter->handler_),
+                embxx::error::ErrorCode::Aborted,
+                false));
+        GASSERT(!iter->handler_);
+
         std::move(iter + 1, endIter, iter);
         --numOfHandlers_;
 
         if (numOfHandlers_ == 0) {
             device_.cancel(EventLoopCtx());
             guard.release();
-            return;
         }
+        return true;
     }
 
 private:

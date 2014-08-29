@@ -16,7 +16,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /// @file embxx/driver/Character.h
-/// Put file contains definition of "Character" device driver class.
+/// The file contains definition of "Character" device driver class.
 
 #pragma once
 
@@ -938,6 +938,7 @@ struct DefaultCharacterTraits
 ///         // Resume previously suspended read and/or write operations (re-enable
 ///         // interrupts). This API function is needed only if the driver supports
 ///         // more than 1 outstanding read or write opration.
+///         void resume(embxx::device::context::EventLoop context);
 ///         @endcode
 /// @tparam TEventLoop Event loop class, must provide the following API member
 ///         functions:
