@@ -236,42 +236,24 @@ public:
     ///         continuous read in progress.
     bool cancelReadCont(PinIdType id)
     {
-        bool suspended = device_.suspend(EventLoopCtx());
-        auto guard = embxx::util::makeScopeGuard(
-            [this, suspended]()
-            {
-                if (suspended) {
-                    device_.resume(EventLoopCtx());
-                }
-            });
-
-        auto endIter = infos_.begin() + numOfHandlers_;
-        auto iter = lowerBound(id, endIter);
-
-        if ((iter == endIter) ||
-            (iter->id_ != id)) {
-            return false;
-        }
-
-        GASSERT(suspended);
-        device_.setEnabled(id, false, EventLoopCtx());
-        GASSERT(iter->handler_);
-        el_.post(
-            std::bind(
-                std::move(iter->handler_),
-                embxx::error::ErrorCode::Aborted,
-                false));
-        GASSERT(!iter->handler_);
-
-        std::move(iter + 1, endIter, iter);
-        --numOfHandlers_;
-
-        if (numOfHandlers_ == 0) {
-            device_.cancel(EventLoopCtx());
-            guard.release();
-        }
-        return true;
+        return cancelReadContInternal(id, true);
     }
+
+    /// @brief Cancel previously issues continuous asynchronous read.
+    /// @details If there is no registered asynchronous continuous read
+    ///          operation in progress, the call to this function will have
+    ///          no effect and false will be returned. In case of successful
+    ///          cancellation, no callback is invoked. This function is
+    ///          suitable to be used in destructor of the component that
+    ///          uses this driver to monitor GPIO input.
+    /// @return true in case the operation was really
+    ///         cancelled, false in case there was no unfinished asynchronous
+    ///         continuous read in progress.
+    bool cancelReadContNoCallback(PinIdType id)
+    {
+        return cancelReadContInternal(id, false);
+    }
+
 
 private:
     struct Node
@@ -292,6 +274,50 @@ private:
                 {
                     return n.id_ < i;
                 });
+    }
+
+    bool cancelReadContInternal(PinIdType id, bool invokeHandler)
+    {
+        bool suspended = device_.suspend(EventLoopCtx());
+        auto guard = embxx::util::makeScopeGuard(
+            [this, suspended]()
+            {
+                if (suspended) {
+                    device_.resume(EventLoopCtx());
+                }
+            });
+
+        auto endIter = infos_.begin() + numOfHandlers_;
+        auto iter = lowerBound(id, endIter);
+
+        if ((iter == endIter) ||
+            (iter->id_ != id)) {
+            return false;
+        }
+
+        GASSERT(suspended);
+        device_.setEnabled(id, false, EventLoopCtx());
+        GASSERT(iter->handler_);
+        if (invokeHandler) {
+            el_.post(
+                std::bind(
+                    std::move(iter->handler_),
+                    embxx::error::ErrorCode::Aborted,
+                    false));
+        }
+        else {
+            iter->handler_ = nullptr;
+        }
+        GASSERT(!iter->handler_);
+
+        std::move(iter + 1, endIter, iter);
+        --numOfHandlers_;
+
+        if (numOfHandlers_ == 0) {
+            device_.cancel(EventLoopCtx());
+            guard.release();
+        }
+        return true;
     }
 
     Device& device_;
