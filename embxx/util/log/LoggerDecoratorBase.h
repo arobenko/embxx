@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <utility>
 #include "LogLevel.h"
 
 namespace embxx

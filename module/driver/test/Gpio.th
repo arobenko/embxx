@@ -1,0 +1,188 @@
+//
+// Copyright 2014 (C). Alex Robenko. All rights reserved.
+//
+
+// This file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+#pragma once
+
+#include "embxx/util/EventLoop.h"
+#include "embxx/driver/Gpio.h"
+#include "cxxtest/TestSuite.h"
+#include "module/device/test/EventLoopLock.h"
+#include "module/device/test/EventLoopCond.h"
+#include "module/device/test/GpioDevice.h"
+
+class GpioDriverTestSuite : public CxxTest::TestSuite
+{
+public:
+    void test1();
+    void test2();
+
+private:
+
+    typedef embxx::util::EventLoop<
+        132,
+        embxx::device::test::EventLoopLock,
+        embxx::device::test::EventLoopCond> EventLoop;
+
+    typedef embxx::device::test::GpioDevice<EventLoop::LockType> GpioDevice;
+};
+
+
+void GpioDriverTestSuite::test1()
+{
+    EventLoop el;
+    GpioDevice device(el.getLock());
+
+    static const GpioDevice::PinIdType Pin1 = 1;
+    static const GpioDevice::PinIdType Pin2 = 5;
+    static const GpioDevice::PinIdType Pin3 = 34;
+    static const GpioDevice::PinIdType Pin4 = 45;
+
+    GpioDevice::GpiosList gpioList = {
+        { Pin1, 10, true},
+        { Pin2, 10, true},
+        { Pin3, 10, false},
+        { Pin4, 10, false}
+    };
+
+    device.programGpios(std::move(gpioList));
+
+    typedef embxx::driver::Gpio<
+        GpioDevice,
+        EventLoop,
+        4,
+        std::function<void (const embxx::error::ErrorStatus&, bool)> > GpioDriver;
+
+    GpioDriver driver(device, el);
+
+    bool pin1HandlerInvoked = false;
+    driver.asyncReadCont(
+        Pin1,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT(value);
+            pin1HandlerInvoked = true;
+        });
+
+    bool pin2HandlerInvoked = false;
+    driver.asyncReadCont(
+        Pin2,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT(value);
+            pin2HandlerInvoked = true;
+        });
+
+    bool pin3HandlerInvoked = false;
+    driver.asyncReadCont(
+        Pin3,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT(!value);
+            pin3HandlerInvoked = true;
+        });
+
+    bool pin4HandlerInvoked = false;
+    driver.asyncReadCont(
+        Pin4,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT(!value);
+            pin4HandlerInvoked = true;
+            el.stop();
+        });
+
+    el.run();
+    TS_ASSERT(pin1HandlerInvoked && pin2HandlerInvoked && pin3HandlerInvoked && pin4HandlerInvoked);
+}
+
+void GpioDriverTestSuite::test2()
+{
+    EventLoop el;
+    GpioDevice device(el.getLock());
+
+    static const GpioDevice::PinIdType Pin1 = 1;
+    static const GpioDevice::PinIdType Pin2 = 5;
+    static const GpioDevice::PinIdType Pin3 = 10;
+
+    GpioDevice::GpiosList gpioList = {
+        { Pin1, 10, true},
+        { Pin2, 10, true},
+        { Pin1, 10, false},
+        { Pin1, 10, true},
+        { Pin1, 10, false},
+        { Pin2, 10, false},
+        { Pin3, 10, true},
+    };
+
+    device.programGpios(std::move(gpioList));
+
+    typedef embxx::driver::Gpio<
+        GpioDevice,
+        EventLoop,
+        10,
+        std::function<void (const embxx::error::ErrorStatus&, bool)> > GpioDriver;
+
+    GpioDriver driver(device, el);
+
+    std::size_t pin1InvocationCount = 0;
+    bool pin1NextExpValue = true;
+    driver.asyncReadCont(
+        Pin1,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT_EQUALS(pin1NextExpValue, value);
+            ++pin1InvocationCount;
+            pin1NextExpValue = !value;
+        });
+
+    std::size_t pin2InvocationCount = 0;
+    driver.asyncReadCont(
+        Pin2,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            static_cast<void>(value);
+            TS_ASSERT(es);
+            TS_ASSERT_EQUALS(es.code(), embxx::error::ErrorCode::Aborted);
+            ++pin2InvocationCount;
+        });
+
+    driver.cancelReadCont(Pin2);
+
+    std::size_t pin3InvocationCount = 0;
+    driver.asyncReadCont(
+        Pin3,
+        [&](const embxx::error::ErrorStatus& es, bool value)
+        {
+            TS_ASSERT(!es);
+            TS_ASSERT(value);
+            ++pin3InvocationCount;
+            el.stop();
+        });
+
+
+    el.run();
+    TS_ASSERT_EQUALS(pin1InvocationCount, 4U);
+    TS_ASSERT_EQUALS(pin2InvocationCount, 1U);
+    TS_ASSERT_EQUALS(pin3InvocationCount, 1U);
+}
+
