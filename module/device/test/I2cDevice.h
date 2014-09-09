@@ -32,7 +32,6 @@
 
 #include "embxx/error/ErrorStatus.h"
 #include "embxx/device/context.h"
-#include "embxx/device/op_category.h"
 
 #include "ReadFifo.h"
 #include "WriteFifo.h"
@@ -65,7 +64,6 @@ public:
 
     // Required definitions
     typedef std::uint8_t DeviceIdType;
-    typedef embxx::device::op_category::SequentialReadWrite OpCategory;
     typedef TCharType CharType;
 
     // Implementation specific definitions
@@ -236,9 +234,9 @@ public:
     }
 
     bool suspend(
-        embxx::device::context::EventLoop context) {
+        embxx::device::context::EventLoop context)
+    {
         static_cast<void>(context);
-
         std::lock_guard<EventLoopLock> guard(lock_);
 
         if (op_ == OpType::Invalid) {
@@ -252,7 +250,8 @@ public:
     }
 
     void resume(
-        embxx::device::context::EventLoop context) {
+        embxx::device::context::EventLoop context)
+    {
         static_cast<void>(context);
         std::lock_guard<EventLoopLock> guard(lock_);
         assert(suspended_);
