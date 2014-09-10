@@ -51,16 +51,6 @@ namespace device
 ///         // Definition of ID type
 ///         typedef ... DeviceIdType;
 ///
-///         // Definition of device operation category, may be either
-///         // embxx::device::op_category::SequentialReadWrite (the read and
-///         // write must be sequential, i.e. cannot be executed in parallel -
-///         // I2C interface) or  embxx::device::op_category::ParallelReadWrite
-///         // (the read and write operations are independent and may be
-///         // executed in parallel). This definition is used to identify
-///         // whether read and write operations to the same device can be executed
-///         // at the same time or not.
-///         typedef ... OpCategory;
-///
 ///         // Definition of single character type
 ///         typedef ... CharType;
 ///
@@ -111,14 +101,18 @@ namespace device
 ///
 ///         // Start read operation. The device will perform some configuration
 ///         // if needed and enable read interrupts, i.e. interrupt when there
-///         // is at least one character to read. The "context" is a dummy
+///         // is at least one character to read. The "context" is a tag
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts.
+///         // In case the device supports execution of read and write at the
+///         // same time, the call to startRead() may occur when the device
+///         // is in the "suspended" state, i.e. between calls to suspend()
+///         // and resume().
 ///         void startRead(DeviceIdType id, std::size_t length, embxx::device::context::EventLoop context);
 ///         void startRead(DeviceIdType id, std::size_t length, embxx::device::context::Interrupt context);
 ///
 ///         // Cancel current read operation. The return value indicates whether the
-///         // read operation was cancelled. The "context" is a dummy
+///         // read operation was cancelled. The "context" is a tag
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts.
 ///         bool cancelRead(embxx::device::context::EventLoop context);
@@ -127,25 +121,29 @@ namespace device
 ///         // Start write operation. The device will perform some configuration
 ///         // if needed and enable write interrupts, i.e. interrupt when there
 ///         // is space for at least one character to write. The "context" is a
-///         // dummy parameter that indicates whether the function is executed
+///         // tag parameter that indicates whether the function is executed
 ///         // in NON-interrupt (event loop) or interrupt contexts.
+///         // In case the device supports execution of read and write at the
+///         // same time, the call to startWrite() may occur when the device
+///         // is in the "suspended" state, i.e. between calls to suspend()
+///         // and resume().
 ///         void startWrite(DeviceIdType id, std::size_t length, embxx::device::context::EventLoop context);
 ///         void startWrite(DeviceIdType id, std::size_t length, embxx::device::context::Interrupt context);
 ///
 ///         // Cancel current write operation. The return value indicates whether
-///         // the write operation was cancelled. The "context" is a dummy
+///         // the write operation was cancelled. The "context" is a tag
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts.
 ///         bool cancelWrite(embxx::device::context::EventLoop context);
 ///         bool cancelWrite(embxx::device::context::Interrupt context)
 ///
-///         // Suspend current read/write operation(s). The "context" is a dummy
+///         // Suspend current read/write operation(s). The "context" is a tag
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts. This function
 ///         // can be called only in event loop context.
 ///         bool suspend(embxx::device::context::EventLoop context);
 ///
-///         // Resume suspended read/write operations. The "context" is a dummy
+///         // Resume suspended read/write operations. The "context" is a tag
 ///         // parameter that indicates whether the function is executed in
 ///         // NON-interrupt (event loop) or interrupt contexts. This function
 ///         // can be called only in event loop context.
@@ -215,7 +213,8 @@ public:
     /// @brief Constructor
     /// @param device Reference to device (peripheral) control object
     explicit DeviceOpQueue(Device& device)
-      : device_(device)
+      : device_(device),
+        suspended_(false)
     {
         device_.setCanReadHandler(
             [this]()
@@ -408,13 +407,13 @@ public:
     /// @return true in case the operations were successfully suspended.
     bool suspend(DeviceIdType id, context::EventLoop context)
     {
-        auto suspResult = device_.suspend(EventLoopContext());
+        auto suspResult = suspendDeviceEventLoopCtx();
         auto guard =
             embxx::util::makeScopeGuard(
                 [this, suspResult]()
                 {
                     if (suspResult) {
-                        device_.resume(EventLoopContext());
+                        resumeDeviceEventLoopCtx();
                     }
                 });
 
@@ -441,13 +440,13 @@ public:
     /// @return true in case the operations were successfully suspended.
     void resume(DeviceIdType id, context::EventLoop context)
     {
-        auto suspResult = device_.suspend(EventLoopContext());
+        auto suspResult = suspendDeviceEventLoopCtx();
         auto guard =
             embxx::util::makeScopeGuard(
                 [this, suspResult]()
                 {
                     if (suspResult) {
-                        device_.resume(EventLoopContext());
+                        resumeDeviceEventLoopCtx();
                     }
                 });
 
@@ -638,7 +637,7 @@ private:
         OpType op)
     {
         GASSERT(0 < length);
-        auto suspResult = device_.suspend(EventLoopContext());
+        auto suspResult = suspendDeviceEventLoopCtx();
 
         auto iter = findOpInfo(id);
         if (iter == opQueue_.end()) {
@@ -667,7 +666,7 @@ private:
         }
 
         if (suspResult) {
-            device_.resume(EventLoopContext());
+            resumeDeviceEventLoopCtx();
             return;
         }
 
@@ -695,13 +694,13 @@ private:
         DeviceIdType id,
         OpType op)
     {
-        auto suspResult = device_.suspend(EventLoopContext());
+        auto suspResult = suspendDeviceEventLoopCtx();
         auto guard =
             embxx::util::makeScopeGuard(
                 [this, suspResult]()
                 {
                     if (suspResult) {
-                        device_.resume(EventLoopContext());
+                        resumeDeviceEventLoopCtx();
                     }
                 });
 
@@ -790,9 +789,26 @@ private:
         startNextOpIfAvailable(InterruptContext());
     }
 
+    bool suspendDeviceEventLoopCtx()
+    {
+        if (!suspended_) {
+            suspended_ = device_.suspend(EventLoopContext());
+            return suspended_;
+        }
+        return false;
+    }
+
+    void resumeDeviceEventLoopCtx()
+    {
+        GASSERT(suspended_);
+        suspended_ = false;
+        device_.resume(EventLoopContext());
+    }
+
     Device& device_;
     DeviceInfosArray infos_;
     OpQueue opQueue_;
+    bool suspended_;
 };
 
 /// @cond DOCUMENT_DEVICE_OP_QUEUE_SPECIALISATION
