@@ -772,10 +772,25 @@ private:
     void opCompleteInterruptHandler(const embxx::error::ErrorStatus& es, OpType op)
     {
         GASSERT(!opQueue_.empty());
-        auto iter = findDeviceInfo(opQueue_.front().id_);
+        auto& opInfo = opQueue_.front();
+        auto iter = findDeviceInfo(opInfo.id_);
         if (iter == infos_.end()) {
             GASSERT(!"Mustn't happen");
             return;
+        }
+
+        if (op == OpType::Read) {
+            GASSERT(opInfo.readLength_ != 0);
+            opInfo.readLength_ = 0;
+        }
+        else if (op == OpType::Write) {
+            GASSERT(opInfo.writeLength_ != 0);
+            opInfo.writeLength_ = 0;
+        }
+
+        if ((opInfo.readLength_ == 0) && (opInfo.writeLength_ == 0)) {
+            opQueue_.popFront();
+            startNextOpIfAvailable(InterruptContext());
         }
 
         if ((op == OpType::Read) && (iter->readCompleteHandler_)) {
@@ -784,9 +799,6 @@ private:
         else if ((op == OpType::Write) && (iter->writeCompleteHandler_)) {
             iter->writeCompleteHandler_(es);
         }
-
-        opQueue_.popFront();
-        startNextOpIfAvailable(InterruptContext());
     }
 
     bool suspendDeviceEventLoopCtx()
