@@ -4,7 +4,7 @@
 /// several indipendent units using the same built in device (peripheral). The
 /// examples of such protocols are I2C and SPI. In I2C the address of the slave
 /// is specified prior to communication and in SPI the appropriate "chip select"
-/// GPIO line is toggled. The embxx::device::DeviceOpQueue provides a 
+/// line is toggled. The embxx::device::DeviceOpQueue provides a 
 /// convenient interface to perform independent read/write operations to 
 /// independent entities without worrying whether some operation to some other
 /// entity on the same bus is being performed at the same time. In other words
@@ -22,9 +22,6 @@
 /// public:
 ///     // Definition of ID type
 ///     typedef std::uint8_t DeviceIdType; // only 7 bit addresses are supported
-///
-///     // Definition of operation category: The read/write are sequential.
-///     typedef embxx::device::op_category::SequentialReadWrite OpCategory;
 ///
 ///     // Definition of single character type
 ///     typedef std::uint8_t CharType;
@@ -101,6 +98,6 @@
 /// forward all the operations directly to the underlying device object saving
 /// the overhead of queue management.
 ///
-/// NOTE: Issueing request to the same ID while previous request hasn't been
-/// handled yet will cause run time failure.
+/// NOTE: Issueing a request to the same ID while previous request hasn't been
+/// handled yet will cause a run time failure.
  

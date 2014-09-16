@@ -32,7 +32,6 @@
 
 #include "embxx/error/ErrorStatus.h"
 #include "embxx/device/context.h"
-#include "embxx/device/op_category.h"
 
 #include "ReadFifo.h"
 #include "WriteFifo.h"

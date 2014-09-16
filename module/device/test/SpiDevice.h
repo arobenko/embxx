@@ -50,20 +50,14 @@ template <typename TEventLoopLock,
           typename TCharType = std::uint8_t,
           std::size_t TFifoSize = 16,
           std::size_t TFifoOpDelayMs = 2>
-class I2cDevice : public TestDevice
+class SpiDevice : public TestDevice
 {
     typedef TestDevice Base;
-
-    enum class OpType {
-        Invalid,
-        Read,
-        Write
-    };
 
 public:
 
     // Required definitions
-    typedef std::uint8_t DeviceIdType;
+    typedef unsigned DeviceIdType;
     typedef TCharType CharType;
 
     // Implementation specific definitions
@@ -79,28 +73,28 @@ public:
 
     // Creation and configuration interface
 
-    I2cDevice(EventLoopLock& lock)
+    SpiDevice(EventLoopLock& lock)
         : Base(),
           lock_(lock),
-          op_(OpType::Invalid),
           currDevId_(0),
-          remainingLen_(0),
+          remainingReadLen_(0),
+          remainingWriteLen_(0),
           readFifo_(io_),
           writeFifo_(io_),
-          suspended_(true)
+          suspended_(false)
     {
         readFifo_.setReadAvailableHandler(
             std::bind(
-                &I2cDevice::readAvailableHandler,
+                &SpiDevice::readAvailableHandler,
                 this));
 
         writeFifo_.setWriteAvailableHandler(
             std::bind(
-                &I2cDevice::writeAvailableHandler,
+                &SpiDevice::writeAvailableHandler,
                 this));
     }
 
-    ~I2cDevice()
+    ~SpiDevice()
     {
         {
             std::lock_guard<EventLoopLock> guard(lock_);
@@ -239,7 +233,7 @@ public:
         static_cast<void>(context);
         std::lock_guard<EventLoopLock> guard(lock_);
 
-        if (op_ == OpType::Invalid) {
+        if ((remainingReadLen_ == 0) && (remainingWriteLen_ == 0)) {
             return false;
         }
 
@@ -262,22 +256,20 @@ public:
     bool canRead(embxx::device::context::Interrupt context)
     {
         static_cast<void>(context);
-        assert(op_ == OpType::Read);
-        return (readFifo_.canRead() && (0 < remainingLen_));
+        return (readFifo_.canRead() && (0 < remainingReadLen_));
     }
 
     bool canWrite(embxx::device::context::Interrupt context)
     {
         static_cast<void>(context);
-        assert(op_ == OpType::Write);
-        return (writeFifo_.canWrite() && (0 < remainingLen_));
+        return (writeFifo_.canWrite() && (0 < remainingWriteLen_));
     }
 
     CharType read(embxx::device::context::Interrupt context)
     {
         static_cast<void>(context);
         assert(canRead(context));
-        --remainingLen_;
+        --remainingReadLen_;
         return readFifo_.read();
     }
 
@@ -288,7 +280,7 @@ public:
         static_cast<void>(context);
         assert(canWrite(context));
         writeFifo_.write(value);
-        --remainingLen_;
+        --remainingWriteLen_;
     }
 
 private:
@@ -300,15 +292,14 @@ private:
         DeviceIdType id,
         std::size_t length)
     {
-        assert(op_ == OpType::Invalid);
+        assert(remainingReadLen_ == 0);
+        assert((remainingWriteLen_ == 0) || (currDevId_ == id));
         assert(!dataToRead_[id].empty());
         assert(canReadHandler_);
         assert(readCompleteHandler_);
         assert(length <= dataToRead_[id].size());
-        op_ = OpType::Read;
         currDevId_ = id;
-        remainingLen_ = length;
-        suspended_ = false;
+        remainingReadLen_ = length;
         ReadDataSeq dataToRead;
         dataToRead.assign(dataToRead_[id].begin(), dataToRead_[id].begin() + length);
         readFifo_.setDataToRead(std::move(dataToRead));
@@ -317,11 +308,10 @@ private:
 
     bool cancelReadInternal()
     {
-        if (op_ == OpType::Invalid) {
+        if (remainingReadLen_ == 0) {
             return false;
         }
 
-        assert(op_ == OpType::Read);
         finaliseRead();
         return true;
     }
@@ -329,16 +319,19 @@ private:
     void readAvailableHandler()
     {
         std::unique_lock<EventLoopLock> guard(lock_);
-        suspendCond_.wait(guard, [this]() -> bool {return !suspended_;});
+        suspendCond_.wait(guard,
+            [this]() -> bool
+            {
+                return (!suspended_);
+            });
 
-        assert(op_ == OpType::Read);
         assert(readFifo_.canRead());
         if (canRead(embxx::device::context::Interrupt())) {
             assert(canReadHandler_);
             canReadHandler_();
         }
 
-        if (remainingLen_ == 0) {
+        if (remainingReadLen_ == 0) {
             assert(readFifo_.complete());
             finaliseRead();
             assert(readCompleteHandler_);
@@ -352,32 +345,30 @@ private:
         auto& remData = readFifo_.getDataToRead();
         data.insert(data.begin(), remData.begin(), remData.end());
         readFifo_.clear();
-        op_ = OpType::Invalid;
-        suspended_ = true;
+        remainingReadLen_ = 0;
     }
 
     void startWriteInternal(
         DeviceIdType id,
         std::size_t length)
     {
-        assert(op_ == OpType::Invalid);
+        assert(0 < length);
+        assert(remainingWriteLen_ == 0);
+        assert((remainingReadLen_ == 0) || (currDevId_ == id));
         assert(canWriteHandler_);
         assert(writeCompleteHandler_);
-        op_ = OpType::Write;
         currDevId_ = id;
-        remainingLen_ = length;
-        suspended_ = false;
+        remainingWriteLen_ = length;
         assert(writeFifo_.empty());
         writeFifo_.startWrite();
     }
 
     bool cancelWriteInternal()
     {
-        if (op_ == OpType::Invalid) {
+        if (remainingWriteLen_ == 0) {
             return false;
         }
 
-        assert(op_ == OpType::Write);
         finaliseWrite();
         return true;
     }
@@ -385,15 +376,18 @@ private:
     void writeAvailableHandler()
     {
         std::unique_lock<EventLoopLock> guard(lock_);
-        suspendCond_.wait(guard, [this]() -> bool {return !suspended_;});
+        suspendCond_.wait(guard,
+            [this]() -> bool
+            {
+                return (!suspended_);
+            });
 
-        assert(op_ == OpType::Write);
         assert(canWriteHandler_);
         if (canWrite(embxx::device::context::Interrupt())) {
             canWriteHandler_();
         }
 
-        if ((remainingLen_ == 0) && (writeFifo_.complete())) {
+        if ((remainingWriteLen_ == 0) && (writeFifo_.complete())) {
             finaliseWrite();
             assert(writeCompleteHandler_);
             writeCompleteHandler_(embxx::error::ErrorCode::Success);
@@ -406,14 +400,13 @@ private:
         auto& writtenData = writeFifo_.getWrittenData();
         data.insert(data.end(), writtenData.begin(), writtenData.end());
         writeFifo_.clear();
-        op_ = OpType::Invalid;
-        suspended_ = true;
+        remainingWriteLen_ = 0;
     }
 
     EventLoopLock& lock_;
-    OpType op_;
     DeviceIdType currDevId_;
-    std::size_t remainingLen_;
+    volatile std::size_t remainingReadLen_;
+    volatile std::size_t remainingWriteLen_;
     ReadDataSeqMap dataToRead_;
     WriteDataSeqMap writtenData_;
     RFifo readFifo_;
@@ -423,6 +416,7 @@ private:
     OpCompleteHandler readCompleteHandler_;
     OpCompleteHandler writeCompleteHandler_;
     volatile bool suspended_;
+
     std::condition_variable_any suspendCond_;
 };
 

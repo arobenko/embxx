@@ -10,11 +10,6 @@
 ///     tags may be used as tag parameters to the functions to specify the
 ///     context in which the function is called: event loop (NON-interrupt) or
 ///     interrupt.
-/// @li embxx::device::op_category::SequentialReadWrite and 
-///     embxx::device::op_category::ParallelReadWrite is served to specify the
-///     operation category of the device, i.e. the read/write operation must
-///     be sequential or can be executed in parallel. These tag classes must
-///     be typedefed to OpCategory type inside the definition of device class.
 ///
 /// Currenty "device" module provides implementation of following common devices:
 /// @li @ref device_op_queue_page
@@ -28,7 +23,4 @@
 /// @ingroup device
 /// @brief Provides scope for operation context definitions.
 
-/// @namespace embxx::device::op_category
-/// @ingroup device
-/// @brief Provides scope for operation category definitions.
 

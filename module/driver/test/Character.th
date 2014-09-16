@@ -29,6 +29,7 @@
 #include "module/device/test/EventLoopCond.h"
 #include "module/device/test/UartDevice.h"
 #include "module/device/test/I2cDevice.h"
+#include "module/device/test/SpiDevice.h"
 
 class CharacterDriverTestSuite : public CxxTest::TestSuite
 {
@@ -47,6 +48,8 @@ public:
     void test12();
     void test13();
     void test14();
+    void test15();
+    void test16();
 
 private:
     typedef embxx::util::EventLoop<
@@ -56,6 +59,7 @@ private:
 
     typedef embxx::device::test::UartDevice<EventLoop::LockType, char> CharDevice;
     typedef embxx::device::test::I2cDevice<EventLoop::LockType, char> I2cDevice;
+    typedef embxx::device::test::SpiDevice<EventLoop::LockType, char> SpiDevice;
 
     struct DefaultReadUntilTraits
     {
@@ -756,4 +760,151 @@ void CharacterDriverTestSuite::test14()
     el.run();
     TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
     TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
+}
+
+void CharacterDriverTestSuite::test15()
+{
+    typedef embxx::device::DeviceOpQueue<SpiDevice, 2> DevOpQueue;
+    typedef embxx::device::IdDeviceCharAdapter<DevOpQueue> DevCharAdapter;
+    typedef embxx::driver::Character<
+        DevCharAdapter,
+        EventLoop,
+        DefaultStdFunctionTraits> Socket;
+
+    EventLoop el;
+    SpiDevice device(el.getLock());
+    DevOpQueue devOpQueue(device);
+    static const DevCharAdapter::DeviceIdType Id = 1;
+    DevCharAdapter devAdapter(devOpQueue, Id);
+    Socket socket(devAdapter, el);
+
+    static const std::string CommonString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    char outArray[256] = {};
+    device.setDataToRead(Id, &CommonString[0], CommonString.size());
+
+    bool asyncReadHandlerCalled = false;
+    bool asyncWriteHandlerCalled = false;
+    socket.asyncRead(outArray, CommonString.size(),
+        [&el, &outArray, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled = true;
+            TS_ASSERT_EQUALS(size, CommonString.size());
+            TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), &outArray[0]));
+            if (asyncWriteHandlerCalled) {
+                el.stop();
+            }
+        });
+
+    socket.asyncWrite(&CommonString[0], CommonString.size(),
+        [&el, &asyncReadHandlerCalled, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t writtenSize)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled = true;
+            TS_ASSERT_EQUALS(writtenSize, CommonString.size());
+            if (asyncReadHandlerCalled) {
+                el.stop();
+            }
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled, true);
+    TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), device.getWrittenData(Id).begin()));
+}
+
+void CharacterDriverTestSuite::test16()
+{
+    typedef embxx::device::DeviceOpQueue<SpiDevice, 2> DevOpQueue;
+    typedef embxx::device::IdDeviceCharAdapter<DevOpQueue> DevCharAdapter;
+    typedef embxx::driver::Character<
+        DevCharAdapter,
+        EventLoop,
+        DefaultStdFunctionTraits> Socket;
+
+    EventLoop el;
+    SpiDevice device(el.getLock());
+    DevOpQueue devOpQueue(device);
+    static const DevCharAdapter::DeviceIdType Id1 = 1;
+    static const DevCharAdapter::DeviceIdType Id2 = 2;
+    DevCharAdapter devAdapter1(devOpQueue, Id1);
+    DevCharAdapter devAdapter2(devOpQueue, Id2);
+    Socket socket1(devAdapter1, el);
+    Socket socket2(devAdapter2, el);
+
+    static const std::string CommonString(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+
+    char outArray1[256] = {};
+    char outArray2[256] = {};
+
+    device.setDataToRead(Id1, &CommonString[0], CommonString.size());
+    device.setDataToRead(Id2, &CommonString[0], CommonString.size());
+
+    bool asyncReadHandlerCalled1 = false;
+    bool asyncWriteHandlerCalled1 = false;
+    bool asyncReadHandlerCalled2 = false;
+    bool asyncWriteHandlerCalled2 = false;
+
+    auto checkStop =
+        [&]()
+        {
+            if (asyncReadHandlerCalled1 &&
+                asyncWriteHandlerCalled1 &&
+                asyncReadHandlerCalled2 &&
+                asyncWriteHandlerCalled2) {
+                el.stop();
+            }
+        };
+
+    socket1.asyncRead(outArray1, CommonString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(size, CommonString.size());
+            TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), &outArray1[0]));
+            checkStop();
+        });
+
+    socket2.asyncWrite(&CommonString[0], CommonString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t writtenSize)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(writtenSize, CommonString.size());
+            checkStop();
+        });
+
+    socket2.asyncRead(outArray2, CommonString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t size)
+        {
+            TS_ASSERT(!es);
+            asyncReadHandlerCalled2 = true;
+            TS_ASSERT_EQUALS(size, CommonString.size());
+            TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), &outArray2[0]));
+            checkStop();
+        });
+
+    socket1.asyncWrite(&CommonString[0], CommonString.size(),
+        [&](const embxx::error::ErrorStatus& es, std::size_t writtenSize)
+        {
+            TS_ASSERT(!es);
+            asyncWriteHandlerCalled1 = true;
+            TS_ASSERT_EQUALS(writtenSize, CommonString.size());
+            checkStop();
+        });
+
+    el.run();
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled1, true);
+    TS_ASSERT_EQUALS(asyncReadHandlerCalled2, true);
+    TS_ASSERT_EQUALS(asyncWriteHandlerCalled2, true);
+
+    TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), device.getWrittenData(Id1).begin()));
+    TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), device.getWrittenData(Id2).begin()));
 }
