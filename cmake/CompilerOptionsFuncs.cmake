@@ -61,7 +61,11 @@ endmacro ()
 
 macro (embxx_add_cpp11_support)
     if (CMAKE_COMPILER_IS_GNUCC)
-        embxx_add_cxx_flags("--std=c++0x")
+        if (COMPILER_SUPPORTS_CXX11)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+        else (COMPILER_SUPPORTS_CXX0X)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+        endif()
     endif ()
 endmacro ()
 
