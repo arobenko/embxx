@@ -44,7 +44,7 @@ macro (embxx_add_asm_c_cxx_flags)
 endmacro ()
 
 macro (embxx_set_default_compiler_options)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         set (extra_c_cxx_flags 
             "-Wall"
             "-Wextra"
@@ -60,26 +60,26 @@ macro (embxx_set_default_compiler_options)
 endmacro ()
 
 macro (embxx_add_cpp11_support)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_cxx_flags("--std=c++0x")
     endif ()
 endmacro ()
 
 macro (embxx_disable_exceptions)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_cxx_flags("-fno-exceptions -fno-unwind-tables")
     endif ()
 endmacro ()
 
 macro (embxx_disable_rtti)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_cxx_flags("-fno-rtti")
     endif ()
 endmacro ()
 
 macro (embxx_disable_stdlib)
     add_definitions(-DNOSTDLIB)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_c_cxx_flags("-nostdlib")
     endif ()
 endmacro ()
