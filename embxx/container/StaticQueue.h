@@ -257,7 +257,7 @@ protected:
             return -1;
         }
 
-        auto rawIdx = cellPtr - &data_[0];
+        std::size_t rawIdx = cellPtr - &data_[0];
         std::size_t actualIdx = capacity(); // invalid value
         if (rawIdx < startIdx_) {
             actualIdx = (capacity() - startIdx_) + rawIdx;
@@ -401,15 +401,15 @@ protected:
         auto rangeTwo = arrayTwo();
         auto rangeTwoSize = std::distance(rangeTwo.first, rangeTwo.second);
         GASSERT(0 < rangeTwoSize);
-        GASSERT((rangeOneSize + rangeTwoSize) == size());
+        GASSERT(static_cast<std::size_t>(rangeOneSize + rangeTwoSize) == size());
         auto remSpaceSize = capacity() - size();
 
-        if (rangeTwoSize <= remSpaceSize) {
+        if (static_cast<std::size_t>(rangeTwoSize) <= remSpaceSize) {
             lineariseByMoveOneTwo(rangeOne, rangeTwo);
             return;
         }
 
-        if (rangeOneSize <= remSpaceSize) {
+        if (static_cast<std::size_t>(rangeOneSize) <= remSpaceSize) {
             lineariseByMoveTwoOne(rangeOne, rangeTwo);
             return;
         }
@@ -849,7 +849,8 @@ private:
                 capacity() - size());
         auto movConstructFirstEnd = firstRange.first + movConstructFirstSize;
         GASSERT(movConstructFirstEnd <= firstRange.second);
-        GASSERT(movConstructFirstSize <= (firstRange.second - firstRange.first));
+        GASSERT(firstRange.second >= firstRange.first);
+        GASSERT(movConstructFirstSize <= static_cast<std::size_t>(firstRange.second - firstRange.first));
 
         auto newPlacePtr = secondRange.second;
         for (auto iter = firstRange.first; iter != movConstructFirstEnd; ++iter) {

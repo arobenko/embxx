@@ -430,7 +430,7 @@ private:
     void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
     {
         if ((es) ||
-            (!info_.readUntilPred_) ||
+            (!static_cast<bool>(info_.readUntilPred_)) ||
             (Base::seekedCharFound(*(info_.current_ - 1), info_))) {
 
             invokeHandler(Base::el_, info_, es, true);
