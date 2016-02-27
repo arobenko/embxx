@@ -112,8 +112,8 @@ public:
     typedef ConstReference const_reference;
 
     /// @brief Constructor
-    /// @param driver Reference to driver object
-    explicit OutStreamBuf(Driver& driver);
+    /// @param driv Reference to driver object
+    explicit OutStreamBuf(Driver& driv);
 
     /// @brief Destructor
     ~OutStreamBuf();
@@ -258,8 +258,8 @@ private:
 
 // Implementation
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
-OutStreamBuf<TDriver, TBufSize, TWaitHandler>::OutStreamBuf(Driver& driver)
-    : driver_(driver),
+OutStreamBuf<TDriver, TBufSize, TWaitHandler>::OutStreamBuf(Driver& driv)
+    : driver_(driv),
       flushedSize_(0),
       waitAvailableCapacity_(0)
 {
@@ -329,10 +329,10 @@ void OutStreamBuf<TDriver, TBufSize, TWaitHandler>::flush(
     std::size_t flushSize)
 {
     GASSERT(flushSize <= size());
-    bool flush = (flushedSize_ == 0);
+    bool flushRequired = (flushedSize_ == 0);
     std::size_t actualFlushSize = std::min(flushSize, size());
     flushedSize_ += actualFlushSize;
-    if (flush) {
+    if (flushRequired) {
         initiateFlush();
     }
 }

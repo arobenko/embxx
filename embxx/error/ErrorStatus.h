@@ -52,9 +52,9 @@ public:
     /// @brief Constructor
     /// @details This constructor may be used for implicit construction of
     ///          error status object out of error code value.
-    /// @param code Numeric error code value.
-    ErrorStatusT(ErrorCodeType code)
-        : code_(code)
+    /// @param codeVal Numeric error code value.
+    ErrorStatusT(ErrorCodeType codeVal)
+        : code_(codeVal)
     {
     }
 

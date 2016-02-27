@@ -86,9 +86,9 @@ private:
         if (maxCount <= count) {
             buf.asyncWaitAvailableCapacity(
                 buf.fullCapacity(),
-                [&buf](const embxx::error::ErrorStatus error)
+                [&buf](const embxx::error::ErrorStatus err)
                 {
-                    TS_ASSERT(!error);
+                    TS_ASSERT(!err);
                     buf.driver().eventLoop().stop();
                 });
             return;

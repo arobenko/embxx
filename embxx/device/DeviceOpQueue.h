@@ -211,9 +211,9 @@ public:
     typedef typename Device::DeviceIdType DeviceIdType;
 
     /// @brief Constructor
-    /// @param device Reference to device (peripheral) control object
-    explicit DeviceOpQueue(Device& device)
-      : device_(device),
+    /// @param dev Reference to device (peripheral) control object
+    explicit DeviceOpQueue(Device& dev)
+      : device_(dev),
         suspended_(false)
     {
         device_.setCanReadHandler(
@@ -834,8 +834,8 @@ public:
     typedef typename Device::CharType CharType;
     typedef typename Device::DeviceIdType DeviceIdType;
 
-    explicit DeviceOpQueue(Device& device)
-      : device_(device)
+    explicit DeviceOpQueue(Device& dev)
+      : device_(dev)
     {
     }
 

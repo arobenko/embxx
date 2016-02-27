@@ -48,12 +48,25 @@ macro (embxx_set_default_compiler_options)
         set (extra_c_cxx_flags 
             "-Wall"
             "-Wextra"
-            "-Werror")
+            "-Werror"
+            "-Wcast-align"
+            "-Wcast-qual"
+            "-Wmissing-include-dirs"
+            "-Wlogical-op"
+            "-Wstrict-null-sentinel"
+            "-Wredundant-decls"
+            "-Wno-unknown-pragmas"
+            "-Wundef" 
+            "-Wunused"
+            "-Wshadow"
+            "-fdiagnostics-show-option")
         embxx_add_c_cxx_flags (${extra_c_cxx_flags})
         
         set (extra_cxx_flags
             "-Woverloaded-virtual"
-            "-Wno-unused-local-typedefs")
+            "-Wno-unused-local-typedefs"
+            "-Wctor-dtor-privacy"
+            "-Wnoexcept")
        
         embxx_add_cxx_flags (${extra_cxx_flags})
     endif ()

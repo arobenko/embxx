@@ -382,9 +382,9 @@ ErrorStatus MsgIdLayer<TAllMessages, TAllocator, TTraits, TNextLayer>::read(
 
     auto id = Base::template readData<MsgIdType, MsgIdLen>(iter);
     auto factoryIter = std::lower_bound(factories_.begin(), factories_.end(), id,
-        [](Factory* factory, MsgIdType id) -> bool
+        [](Factory* factory, MsgIdType idVal) -> bool
         {
-            return factory->getId() < id;
+            return factory->getId() < idVal;
         });
 
     if ((factoryIter == factories_.end()) || ((*factoryIter)->getId() != id)) {

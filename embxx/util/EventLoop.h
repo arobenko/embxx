@@ -194,7 +194,7 @@ private:
     class InterruptLockWrapper
     {
     public:
-        InterruptLockWrapper(TInternalLock& lock) : lock_(lock) {}
+        InterruptLockWrapper(TInternalLock& intLock) : lock_(intLock) {}
         void lock()
         {
             lock_.lockInterruptCtx();

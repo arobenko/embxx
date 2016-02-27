@@ -34,7 +34,7 @@ public:
     typedef TValueType ValueType;
     ValueType value() const { return value_; }
 protected:
-    ValueManipBase(ValueType value) : value_(value) {}
+    ValueManipBase(ValueType val) : value_(val) {}
 private:
     ValueType value_;
 };
@@ -45,7 +45,7 @@ class WidthManip : public ValueManipBase<std::size_t>
 {
     typedef details::ValueManipBase<std::size_t> Base;
 public:
-    WidthManip(std::size_t value) : Base(value) {}
+    WidthManip(std::size_t val) : Base(val) {}
 };
 
 /// @brief Output stream manipulator class that sets the fill character.
@@ -55,7 +55,7 @@ class FillManip : public ValueManipBase<T>
 {
     typedef details::ValueManipBase<T> Base;
 public:
-    FillManip(T value) : Base(value) {}
+    FillManip(T val) : Base(val) {}
 };
 
 }  // namespace details
