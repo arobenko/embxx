@@ -305,7 +305,7 @@ template <typename TDriver,
 void WriteQueue<TDriver, TSize, THandler>::cancelAllWrites()
 {
     if (queue_.isEmpty()) {
-        return false;
+        return;
     }
 
     return driver_.cancelWrite();

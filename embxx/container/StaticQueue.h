@@ -532,47 +532,7 @@ protected:
         return invalidIter();
     }
 
-    Iterator erase(Iterator pos)
-    {
-        GASSERT(pos != end());
-        GASSERT(!empty());
-        Pointer elem = &(*pos);
-        auto rangeOne = arrayOne();
-        auto rangeTwo = arrayTwo();
-
-        auto isInRangeFunc =
-            [](Pointer elemPtr, const LinearisedIteratorRange range) -> bool
-            {
-                return ((&(*range.first) <= elemPtr) && (elemPtr < &(*range.second)));
-            };
-
-        GASSERT(isInRangeFunc(elem, rangeOne) ||
-                isInRangeFunc(elem, rangeTwo));
-
-        if (isInRangeFunc(elem, rangeOne)) {
-            std::move_backward(rangeOne.first, elem, elem + 1);
-
-            popFront();
-            rangeOne = arrayOne();
-            if (isInRangeFunc(elem, rangeOne)) {
-                return pos + 1;
-            }
-
-            return begin();
-        }
-
-        if (isInRangeFunc(elem, rangeTwo)) {
-            std::move(elem + 1, rangeTwo.second, elem);
-            popBack();
-            if (!linearised()) {
-                return pos;
-            }
-            return end();
-        }
-
-        GASSERT(!"Invalid iterator is used");
-        return end();
-    }
+    Iterator erase(Iterator pos);
 
     Iterator begin()
     {
@@ -1207,6 +1167,48 @@ public:
     }
 };
 
+template <typename T>
+typename StaticQueueBase<T>::Iterator StaticQueueBase<T>::erase(typename StaticQueueBase<T>::Iterator pos)
+{
+    GASSERT(pos != end());
+    GASSERT(!empty());
+    Pointer elem = &(*pos);
+    auto rangeOne = arrayOne();
+    auto rangeTwo = arrayTwo();
+
+    auto isInRangeFunc =
+        [](Pointer elemPtr, const LinearisedIteratorRange range) -> bool
+        {
+            return ((&(*range.first) <= elemPtr) && (elemPtr < &(*range.second)));
+        };
+
+    GASSERT(isInRangeFunc(elem, rangeOne) ||
+            isInRangeFunc(elem, rangeTwo));
+
+    if (isInRangeFunc(elem, rangeOne)) {
+        std::move_backward(rangeOne.first, elem, elem + 1);
+
+        popFront();
+        rangeOne = arrayOne();
+        if (isInRangeFunc(elem, rangeOne)) {
+            return pos + 1;
+        }
+
+        return begin();
+    }
+
+    if (isInRangeFunc(elem, rangeTwo)) {
+        std::move(elem + 1, rangeTwo.second, elem);
+        popBack();
+        if (!linearised()) {
+            return pos;
+        }
+        return end();
+    }
+
+    GASSERT(!"Invalid iterator is used");
+    return end();
+}
 
 template <typename TWrapperElemType, typename TQueueElemType>
 class CastWrapperQueueBase : public StaticQueueBase<TQueueElemType>
@@ -1446,11 +1448,7 @@ protected:
                 reinterpret_cast<BaseLinearisedIterator>(pos)));
     }
 
-    Iterator erase(Iterator pos)
-    {
-        auto tmp = Base::erase(pos);
-        return *(reinterpret_cast<Iterator*>(&tmp));
-    }
+    inline Iterator erase(Iterator pos);
 
     Iterator begin()
     {
@@ -1723,6 +1721,14 @@ protected:
         return reinterpret_cast<ConstPointer>(ptr);
     }
 };
+
+template <typename TWrapperElemType, typename TQueueElemType>
+inline typename CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::Iterator CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::erase(
+        typename CastWrapperQueueBase<TWrapperElemType, TQueueElemType>::Iterator pos)
+{
+    auto tmp = Base::erase(pos);
+    return *(reinterpret_cast<Iterator*>(&tmp));
+}
 
 template <typename T>
 class StaticQueueBaseOptimised : public StaticQueueBase<T>
@@ -2676,21 +2682,7 @@ public:
     }
 
     /// @brief Erase element.
-    /// @details Erases element from specified position
-    /// @param[in] pos Iterator to the element to be erased
-    /// @return Iterator pointing to new location of
-    ///         the next element after the erased one.
-    /// @pre (pos != end())
-    /// @pre pos is in range [begin(), end())
-    /// @note Thread safety: Unsafe
-    /// @note Exception guarantee: No throw in case copy assignment operator
-    ///       of the internal elements do not throw, Basic otherwise.
-    Iterator erase(Iterator pos)
-    {
-        auto iter = Base::erase(pos);
-        return *(static_cast<Iterator*>(&iter));
-    }
-
+    inline Iterator erase(Iterator pos);
 
     /// @brief Returns iterator to the beginning.
     /// @details This iterator works on the non-linearised queue. It has extra
@@ -3188,6 +3180,23 @@ public:
         return ConstIterator(queue, iter);
     }
 };
+
+/// @details Erases element from specified position
+/// @param[in] pos Iterator to the element to be erased
+/// @return Iterator pointing to new location of
+///         the next element after the erased one.
+/// @pre (pos != end())
+/// @pre pos is in range [begin(), end())
+/// @note Thread safety: Unsafe
+/// @note Exception guarantee: No throw in case copy assignment operator
+///       of the internal elements do not throw, Basic otherwise.
+template <typename T, std::size_t TSize>
+inline typename StaticQueue<T, TSize>::Iterator StaticQueue<T, TSize>::erase(
+        typename StaticQueue<T, TSize>::Iterator pos)
+{
+    auto iter = Base::erase(pos);
+    return *(static_cast<Iterator*>(&iter));
+}
 
 /// @}
 
