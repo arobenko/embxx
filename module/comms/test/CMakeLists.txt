@@ -114,6 +114,13 @@ function (test_checksum_layer)
     set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
+
+    if (NOT Boost_INCLUDE_DIRS)
+      find_package(Boost REQUIRED)
+    endif()
+    if(Boost_FOUND)
+      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
+    endif()
     
     set (link)
 

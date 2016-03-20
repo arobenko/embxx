@@ -15,8 +15,15 @@ function (test_timer_mgr)
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
+    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
+      find_package(Boost COMPONENTS system REQUIRED)
+    endif()
+    if(Boost_FOUND)
+      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
+    endif()
+
     set (link
-        "boost_system"
+        "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
@@ -57,8 +64,15 @@ function (test_character)
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
+    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
+      find_package(Boost COMPONENTS system REQUIRED)
+    endif()
+    if(Boost_FOUND)
+      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
+    endif()
+
     set (link
-        "boost_system"
+        "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
@@ -78,9 +92,16 @@ function (test_gpio)
     set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
-    
+
+    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
+      find_package(Boost COMPONENTS system REQUIRED)
+    endif()
+    if(Boost_FOUND)
+      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
+    endif()
+
     set (link
-        "boost_system"
+        "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
