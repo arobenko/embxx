@@ -7,6 +7,11 @@ if (CXXTEST_FOUND)
 
 function (test_timer_mgr)
     set (test_suite_name "TimerMgr")
+    if ((NOT Boost_FOUND) OR (NOT Boost_SYSTEM_LIBRARY))
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
+    
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -15,13 +20,6 @@ function (test_timer_mgr)
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
-    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
-      find_package(Boost COMPONENTS system REQUIRED)
-    endif()
-    if(Boost_FOUND)
-      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
-    endif()
-
     set (link
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
@@ -56,6 +54,11 @@ endfunction ()
 
 function (test_character)
     set (test_suite_name "Character")
+    if ((NOT Boost_FOUND) OR (NOT Boost_SYSTEM_LIBRARY))
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
+        
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -64,13 +67,6 @@ function (test_character)
 
     set (runner "${test_suite_name}TestRunner.cpp")
     
-    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
-      find_package(Boost COMPONENTS system REQUIRED)
-    endif()
-    if(Boost_FOUND)
-      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
-    endif()
-
     set (link
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
@@ -85,6 +81,11 @@ endfunction ()
 
 function (test_gpio)
     set (test_suite_name "Gpio")
+    if ((NOT Boost_FOUND) OR (NOT Boost_SYSTEM_LIBRARY))
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
+        
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -92,13 +93,6 @@ function (test_gpio)
     set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
-
-    if ((NOT Boost_INCLUDE_DIRS) OR (NOT Boost_SYSTEM_LIBRARY))
-      find_package(Boost COMPONENTS system REQUIRED)
-    endif()
-    if(Boost_FOUND)
-      include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
-    endif()
 
     set (link
         "${Boost_SYSTEM_LIBRARY}"

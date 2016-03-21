@@ -26,6 +26,11 @@ if (NOT DEFINED CROSS_COMPILE AND "${NO_UNIT_TESTS}" STREQUAL "")
     if (CXXTEST_FOUND)
         enable_testing ()
     endif ()
+    
+    find_package(Boost COMPONENTS system)
+    if(Boost_FOUND)
+        include_directories(SYSTEM "${Boost_INCLUDE_DIRS}")
+    endif()
 endif ()
 
 set (INSTALL_DIR "${CMAKE_BINARY_DIR}/install")
