@@ -27,6 +27,11 @@ endfunction ()
 
 function (test_std_streambuf_access)
     set (test_suite_name "std_streambuf_access")
+    if (NOT Boost_FOUND)
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
+
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
