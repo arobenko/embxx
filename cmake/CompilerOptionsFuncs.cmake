@@ -44,42 +44,75 @@ macro (embxx_add_asm_c_cxx_flags)
 endmacro ()
 
 macro (embxx_set_default_compiler_options)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         set (extra_c_cxx_flags 
             "-Wall"
             "-Wextra"
-            "-Werror")
+            "-Werror"
+            "-Wcast-align"
+            "-Wcast-qual"
+            "-Wmissing-include-dirs"
+            "-Wlogical-op"
+            "-Wstrict-null-sentinel"
+            "-Wredundant-decls"
+            "-Wno-unknown-pragmas"
+            "-Wundef" 
+            "-Wunused"
+            "-Wshadow"
+            "-fdiagnostics-show-option")
         embxx_add_c_cxx_flags (${extra_c_cxx_flags})
         
         set (extra_cxx_flags
             "-Woverloaded-virtual"
-            "-Wno-unused-local-typedefs")
+            "-Wno-unused-local-typedefs"
+            "-Wctor-dtor-privacy"
+            "-Wnoexcept")
        
         embxx_add_cxx_flags (${extra_cxx_flags})
     endif ()
 endmacro ()
 
-macro (embxx_add_cpp11_support)
-    if (UNIX)
+macro (_embxx_add_cpp11_support_direct)
+    if (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
         embxx_add_cxx_flags("--std=c++0x")
+    else ()
+        message (WARNING "Unknown compiler, manual set of C++11 support may be required!")
     endif ()
 endmacro ()
 
+macro (embxx_add_cpp11_support)
+    while (TRUE)
+        if (CMAKE_VERSION VERSION_LESS 3.1)
+            _embxx_add_cpp11_support_direct()
+            break()
+        endif ()
+        
+        if ((DEFINED CMAKE_CROSSCOMPILING) AND (CMAKE_VERSION VERSION_LESS 3.6))
+            _embxx_add_cpp11_support_direct()
+            break()
+        endif ()
+        
+        set (CMAKE_CXX_STANDARD   11)
+        set (CMAKE_CXX_EXTENSIONS OFF)
+        break()
+    endwhile ()
+endmacro ()
+
 macro (embxx_disable_exceptions)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_cxx_flags("-fno-exceptions -fno-unwind-tables")
     endif ()
 endmacro ()
 
 macro (embxx_disable_rtti)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_cxx_flags("-fno-rtti")
     endif ()
 endmacro ()
 
 macro (embxx_disable_stdlib)
     add_definitions(-DNOSTDLIB)
-    if (UNIX)
+    if (CMAKE_COMPILER_IS_GNUCC)
         embxx_add_c_cxx_flags("-nostdlib")
     endif ()
 endmacro ()

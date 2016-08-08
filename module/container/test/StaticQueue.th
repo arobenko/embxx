@@ -396,7 +396,7 @@ void StaticQueueTestSuite::internalTestSimpleFill()
     {
         TQueue queue;
         checkQueueEmpty(queue);
-        for (int i = 0; i < queue.capacity(); ++i) {
+        for (std::size_t i = 0; i < queue.capacity(); ++i) {
             queue.pushBack(ValueType()); // r-value
             checkQueueSize(queue, i + 1);
         }
@@ -405,7 +405,7 @@ void StaticQueueTestSuite::internalTestSimpleFill()
         queue.clear();
         checkQueueEmpty(queue);
 
-        for (int i = 0; i < queue.capacity(); ++i) {
+        for (std::size_t i = 0; i < queue.capacity(); ++i) {
             ValueType value;
             queue.pushBack(value); // l-value
             checkQueueSize(queue, i + 1);

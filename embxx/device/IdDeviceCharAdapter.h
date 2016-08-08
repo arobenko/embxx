@@ -52,11 +52,11 @@ public:
     typedef typename TDevice::DeviceIdType DeviceIdType;
 
     /// @brief constructor
-    /// @param device Reference to the wrapped device
-    /// @param id ID of the device to be used for all the issued operations.
-    IdDeviceCharAdapter(Device& device, DeviceIdType id)
-      : device_(device),
-        id_(id)
+    /// @param dev Reference to the wrapped device
+    /// @param idVal ID of the device to be used for all the issued operations.
+    IdDeviceCharAdapter(Device& dev, DeviceIdType idVal)
+      : device_(dev),
+        id_(idVal)
     {
     }
 

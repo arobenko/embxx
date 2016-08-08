@@ -99,8 +99,8 @@ public:
     typedef ConstReference const_reference;
 
     /// @brief Constructor
-    /// @param driver Reference to driver object
-    explicit InStreamBuf(Driver& driver);
+    /// @param driv Reference to driver object
+    explicit InStreamBuf(Driver& driv);
 
         /// @brief Destructor
     ~InStreamBuf();
@@ -217,8 +217,8 @@ private:
 
 // Implementation
 template <typename TDriver, std::size_t TBufSize, typename TWaitHandler>
-InStreamBuf<TDriver, TBufSize, TWaitHandler>::InStreamBuf(Driver& driver)
-    : driver_(driver),
+InStreamBuf<TDriver, TBufSize, TWaitHandler>::InStreamBuf(Driver& driv)
+    : driver_(driv),
       availableSize_(0),
       waitAvailableDataSize_(std::numeric_limits<decltype(waitAvailableDataSize_)>::max()),
       running_(false),

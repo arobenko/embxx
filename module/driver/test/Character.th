@@ -301,9 +301,9 @@ void CharacterDriverTestSuite::test6()
             TS_ASSERT(std::equal(CommonString.begin(), CommonString.end(), &outArray[0]));
 
             socket.asyncWrite(&CommonString[0], CommonString.size(),
-                [&el, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es, std::size_t writtenSize)
+                [&el, &asyncWriteHandlerCalled](const embxx::error::ErrorStatus& es2, std::size_t writtenSize)
                 {
-                    TS_ASSERT(!es);
+                    TS_ASSERT(!es2);
                     asyncWriteHandlerCalled = true;
                     TS_ASSERT_EQUALS(writtenSize, CommonString.size());
                     el.stop();
@@ -556,11 +556,11 @@ void CharacterDriverTestSuite::test11()
             TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray1[0]));
 
             socket.asyncRead(outArray3, ReadString.size(),
-                [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+                [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es2, std::size_t size2)
                 {
-                    TS_ASSERT(!es);
+                    TS_ASSERT(!es2);
                     asyncReadHandlerCalled3 = true;
-                    TS_ASSERT_EQUALS(size, ReadString.size());
+                    TS_ASSERT_EQUALS(size2, ReadString.size());
                     TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray3[0]));
                     el.stop();
                 });
@@ -606,11 +606,11 @@ void CharacterDriverTestSuite::test12()
             TS_ASSERT_EQUALS(size, WriteString.size());
 
             socket.asyncWrite(&WriteString[0], WriteString.size(),
-                [&](const embxx::error::ErrorStatus& es, std::size_t size)
+                [&](const embxx::error::ErrorStatus& es2, std::size_t size2)
                 {
-                    TS_ASSERT(!es);
+                    TS_ASSERT(!es2);
                     asyncWriteHandlerCalled4 = true;
-                    TS_ASSERT_EQUALS(size, WriteString.size());
+                    TS_ASSERT_EQUALS(size2, WriteString.size());
                     el.stop();
                 });
         });
@@ -683,11 +683,11 @@ void CharacterDriverTestSuite::test13()
             TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray1[0]));
 
             socket.asyncRead(outArray3, ReadString.size(),
-                [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es, std::size_t size)
+                [&el, &outArray3, &asyncReadHandlerCalled3](const embxx::error::ErrorStatus& es2, std::size_t size2)
                 {
-                    TS_ASSERT(!es);
+                    TS_ASSERT(!es2);
                     asyncReadHandlerCalled3 = true;
-                    TS_ASSERT_EQUALS(size, ReadString.size());
+                    TS_ASSERT_EQUALS(size2, ReadString.size());
                     TS_ASSERT(std::equal(ReadString.begin(), ReadString.end(), &outArray3[0]));
                     el.stop();
                 });
@@ -748,10 +748,10 @@ void CharacterDriverTestSuite::test14()
                 outArray,
                 BufSize,
                 pred,
-                [&](const embxx::error::ErrorStatus& es, std::size_t size)
+                [&](const embxx::error::ErrorStatus& es2, std::size_t size2)
                 {
-                    TS_ASSERT(!es);
-                    TS_ASSERT_EQUALS(size, 5U);
+                    TS_ASSERT(!es2);
+                    TS_ASSERT_EQUALS(size2, 5U);
                     asyncReadHandlerCalled2 = true;
                     el.stop();
                 });

@@ -74,9 +74,9 @@ protected:
     typedef std::pair<LinearisedIterator, LinearisedIterator> LinearisedIteratorRange;
     typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
 
-    StaticQueueBase(StorageTypePtr data, std::size_t capacity)
+    StaticQueueBase(StorageTypePtr data, std::size_t cap)
         : data_(data),
-          capacity_(capacity),
+          capacity_(cap),
           startIdx_(0),
           count_(0)
     {
@@ -257,7 +257,7 @@ protected:
             return -1;
         }
 
-        auto rawIdx = cellPtr - &data_[0];
+        std::size_t rawIdx = cellPtr - &data_[0];
         std::size_t actualIdx = capacity(); // invalid value
         if (rawIdx < startIdx_) {
             actualIdx = (capacity() - startIdx_) + rawIdx;
@@ -401,15 +401,15 @@ protected:
         auto rangeTwo = arrayTwo();
         auto rangeTwoSize = std::distance(rangeTwo.first, rangeTwo.second);
         GASSERT(0 < rangeTwoSize);
-        GASSERT((rangeOneSize + rangeTwoSize) == size());
+        GASSERT(static_cast<std::size_t>(rangeOneSize + rangeTwoSize) == size());
         auto remSpaceSize = capacity() - size();
 
-        if (rangeTwoSize <= remSpaceSize) {
+        if (static_cast<std::size_t>(rangeTwoSize) <= remSpaceSize) {
             lineariseByMoveOneTwo(rangeOne, rangeTwo);
             return;
         }
 
-        if (rangeOneSize <= remSpaceSize) {
+        if (static_cast<std::size_t>(rangeOneSize) <= remSpaceSize) {
             lineariseByMoveTwoOne(rangeOne, rangeTwo);
             return;
         }
@@ -499,9 +499,9 @@ protected:
         auto rangeTwo = arrayTwo();
 
         auto isInRangeFunc =
-            [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
+            [](LinearisedIterator posVal, const LinearisedIteratorRange range) -> bool
             {
-                return ((range.first <= pos) && (pos < range.second));
+                return ((range.first <= posVal) && (posVal < range.second));
             };
 
         GASSERT(isInRangeFunc(pos, rangeOne) ||
@@ -796,9 +796,9 @@ private:
             return arrayTwo().second - 1;
         }
 
-        auto isInRangeFunc = [](LinearisedIterator pos, const LinearisedIteratorRange range) -> bool
+        auto isInRangeFunc = [](LinearisedIterator posVal, const LinearisedIteratorRange range) -> bool
             {
-                return ((range.first <= pos) && (pos < range.second));
+                return ((range.first <= posVal) && (posVal < range.second));
             };
 
         GASSERT(isInRangeFunc(pos, rangeOne) ||
@@ -849,7 +849,8 @@ private:
                 capacity() - size());
         auto movConstructFirstEnd = firstRange.first + movConstructFirstSize;
         GASSERT(movConstructFirstEnd <= firstRange.second);
-        GASSERT(movConstructFirstSize <= (firstRange.second - firstRange.first));
+        GASSERT(firstRange.second >= firstRange.first);
+        GASSERT(movConstructFirstSize <= static_cast<std::size_t>(firstRange.second - firstRange.first));
 
         auto newPlacePtr = secondRange.second;
         for (auto iter = firstRange.first; iter != movConstructFirstEnd; ++iter) {
@@ -1250,8 +1251,8 @@ protected:
     typedef std::pair<LinearisedIterator, LinearisedIterator> LinearisedIteratorRange;
     typedef std::pair<ConstLinearisedIterator, ConstLinearisedIterator> ConstLinearisedIteratorRange;
 
-    CastWrapperQueueBase(StorageTypePtr data, std::size_t capacity)
-        : Base(reinterpret_cast<BaseStorageTypePtr>(data), capacity)
+    CastWrapperQueueBase(StorageTypePtr data, std::size_t cap)
+        : Base(reinterpret_cast<BaseStorageTypePtr>(data), cap)
     {
         static_assert(sizeof(ValueType) == sizeof(BaseValueType),
             "The times must have identical size.");
@@ -1731,8 +1732,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 
@@ -1750,8 +1751,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 
@@ -1768,8 +1769,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 
@@ -1786,8 +1787,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 
@@ -1804,8 +1805,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 
@@ -1822,8 +1823,8 @@ protected:
 
     typedef typename Base::StorageTypePtr StorageTypePtr;
 
-    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t capacity)
-        : Base(data, capacity)
+    StaticQueueBaseOptimised(StorageTypePtr data, std::size_t cap)
+        : Base(data, cap)
     {
     }
 

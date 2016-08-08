@@ -88,8 +88,8 @@ public:
 
 
     /// @brief Constructor
-    /// @param driver Reference to driver object
-    WriteQueue(Driver& driver);
+    /// @param driv Reference to driver object
+    WriteQueue(Driver& driv);
 
     /// @brief Copy constructor is deleted
     WriteQueue(const WriteQueue&) = delete;
@@ -194,8 +194,8 @@ private:
 template <typename TDriver,
           std::size_t TSize,
           typename THandler>
-WriteQueue<TDriver, TSize, THandler>::WriteQueue(Driver& driver)
-    : driver_(driver),
+WriteQueue<TDriver, TSize, THandler>::WriteQueue(Driver& driv)
+    : driver_(driv),
       nextHandleId_(0)
 {
 }

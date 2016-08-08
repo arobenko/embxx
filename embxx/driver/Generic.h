@@ -87,9 +87,9 @@ public:
     typedef THandler Handler;
 
     /// @brief Constructor
-    /// @param device Reference to device (peripheral) control object.
+    /// @param dev Reference to device (peripheral) control object.
     /// @param el Reference to event loop object.
-    Generic(Device& device, EventLoop& el);
+    Generic(Device& dev, EventLoop& el);
 
     /// @brief Get reference to device (peripheral) control object.
     Device& device();
@@ -155,9 +155,9 @@ template <typename TDevice,
           typename THandler,
           typename... TArgs>
 Generic<TDevice, TEventLoop, void(TArgs...), THandler>::Generic(
-    Device& device,
+    Device& dev,
     EventLoop& el)
-    : device_(device),
+    : device_(dev),
       el_(el)
 {
 }

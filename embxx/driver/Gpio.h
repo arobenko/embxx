@@ -122,10 +122,10 @@ public:
 
 
     /// @brief Constructor
-    /// @param device Reference to device (peripheral) control object
+    /// @param dev Reference to device (peripheral) control object
     /// @param el Reference to event loop object
-    Gpio(Device& device, EventLoop& el)
-      : device_(device),
+    Gpio(Device& dev, EventLoop& el)
+      : device_(dev),
         el_(el),
         numOfHandlers_(0)
     {

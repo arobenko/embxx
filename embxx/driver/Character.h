@@ -430,7 +430,7 @@ private:
     void readCompleteInterruptHandler(const embxx::error::ErrorStatus& es)
     {
         if ((es) ||
-            (!info_.readUntilPred_) ||
+            (!static_cast<bool>(info_.readUntilPred_)) ||
             (Base::seekedCharFound(*(info_.current_ - 1), info_))) {
 
             invokeHandler(Base::el_, info_, es, true);
@@ -1031,11 +1031,11 @@ public:
     static const std::size_t WriteQueueSize = Traits::WriteQueueSize;
 
     /// @brief Constructor
-    /// @param device Reference to device (peripheral) control object
+    /// @param dev Reference to device (peripheral) control object
     /// @param el Reference to event loop object
-    Character(Device& device, EventLoop& el)
-    : ReadBase(device, el),
-      WriteBase(device, el)
+    Character(Device& dev, EventLoop& el)
+    : ReadBase(dev, el),
+      WriteBase(dev, el)
     {
     }
 
