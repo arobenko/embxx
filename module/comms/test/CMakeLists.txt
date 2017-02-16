@@ -107,6 +107,11 @@ endfunction ()
 
 function (test_checksum_layer)
     set (test_suite_name "ChecksumLayer")
+    if (NOT Boost_FOUND)
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif ()
+    
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -114,7 +119,7 @@ function (test_checksum_layer)
     set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
-    
+
     set (link)
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})

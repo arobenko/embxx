@@ -7,6 +7,11 @@ if (CXXTEST_FOUND)
 
 function (test_device_op_queue)
     set (test_suite_name "DeviceOpQueue")
+    if ((NOT Boost_FOUND) OR (NOT Boost_SYSTEM_LIBRARY))
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
+    
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -14,9 +19,9 @@ function (test_device_op_queue)
     set (name "${COMPONENT_NAME}.${test_suite_name}Test")
 
     set (runner "${test_suite_name}TestRunner.cpp")
-    
+
     set (link
-        "boost_system"
+        "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
@@ -29,6 +34,10 @@ endfunction ()
 
 function (test_id_device_char_adapter)
     set (test_suite_name "IdDeviceCharAdapter")
+    if ((NOT Boost_FOUND) OR (NOT Boost_SYSTEM_LIBRARY))
+        message (WARNING "Skipping unittests for ${test_suite_name}, due to missing boost")
+        return ()
+    endif()
     set (tests "${CMAKE_CURRENT_SOURCE_DIR}/${test_suite_name}.th")
 
     set (extra_sources)
@@ -38,7 +47,7 @@ function (test_id_device_char_adapter)
     set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link
-        "boost_system"
+        "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
