@@ -237,7 +237,7 @@ typename std::decay<T>::type signExtCommon(T value, std::size_t size)
 }
 
 // http://lists.llvm.org/pipermail/cfe-dev/2013-November/033677.html
-template<size_t N> struct Size { static constexpr size_t value = N; };
+template<size_t N> struct Size { static constexpr std::size_t value = N; };
 
 template <typename T, typename TSize, typename TByteType>
 class SignExt
@@ -256,7 +256,7 @@ public:
         signExtCommon<UnsignedByteType>(castedValue, TSize::value));
     }
 };
-    
+
 template <typename T, typename TByteType>
 class SignExt<T, Size<sizeof(typename std::decay<T>::type)>, TByteType>
 {
