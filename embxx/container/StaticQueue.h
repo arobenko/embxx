@@ -55,11 +55,15 @@ public:
 
 protected:
     typedef T ValueType;
+
+public:
     typedef
         typename std::aligned_storage<
             sizeof(ValueType),
             std::alignment_of<ValueType>::value
         >::type StorageType;
+
+protected:
     typedef StorageType* StorageTypePtr;
     typedef const StorageType* ConstStorageTypePtr;
     typedef std::size_t SizeType;
@@ -1236,11 +1240,15 @@ public:
 
 protected:
     typedef WrapperElemType ValueType;
+
+public:
     typedef
         typename std::aligned_storage<
             sizeof(ValueType),
             std::alignment_of<ValueType>::value
         >::type StorageType;
+
+protected:
     typedef StorageType* StorageTypePtr;
     typedef ValueType& Reference;
     typedef const ValueType& ConstReference;
@@ -1843,6 +1851,14 @@ protected:
 }  // namespace details
 
 
+template <typename StorType, std::size_t TSize>
+class StaticQueueArray
+{
+protected:
+    typedef std::array<StorType, TSize> ArrayType;
+    ArrayType array_;
+};
+
 /// @addtogroup container
 /// @{
 
@@ -1858,8 +1874,9 @@ protected:
 ///         elements.
 /// @headerfile embxx/container/StaticQueue.h
 template <typename T, std::size_t TSize>
-class StaticQueue : public details::StaticQueueBaseOptimised<T>
+class StaticQueue : protected StaticQueueArray<typename details::StaticQueueBaseOptimised<T>::StorageType, TSize>, public details::StaticQueueBaseOptimised<T>
 {
+    typedef StaticQueueArray<typename details::StaticQueueBaseOptimised<T>::StorageType, TSize> Arr;
     typedef details::StaticQueueBaseOptimised<T> Base;
 
     typedef typename Base::StorageType StorageType;
@@ -1936,7 +1953,7 @@ public:
     /// @note Thread safety: Safe
     /// @note Exception guarantee: No throw
     StaticQueue()
-        : Base(&array_[0], TSize)
+        : Base(&Arr::array_[0], TSize)
     {
     }
 
@@ -1949,7 +1966,7 @@ public:
     /// @note Exception guarantee: No throw in case copy constructor
     ///       of the internal elements do not throw, Basic otherwise.
     StaticQueue(const StaticQueue& queue)
-        : Base(&array_[0], TSize)
+        : Base(&Arr::array_[0], TSize)
     {
         Base::assignElements(queue);
     }
@@ -1963,7 +1980,7 @@ public:
     /// @note Exception guarantee: No throw in case move constructor
     ///       of the internal elements do not throw, Basic otherwise.
     StaticQueue(StaticQueue&& queue)
-        : Base(&array_[0], TSize)
+        : Base(&Arr::array_[0], TSize)
     {
         Base::assignElements(std::move(queue));
     }
@@ -1979,7 +1996,7 @@ public:
     ///       of the internal elements do not throw, Basic otherwise.
     template <std::size_t TAnySize>
     StaticQueue(const StaticQueue<T, TAnySize>& queue)
-        : Base(&array_[0], TSize)
+        : Base(&Arr::array_[0], TSize)
     {
         Base::assignElements(queue);
     }
@@ -1994,7 +2011,7 @@ public:
     ///       of the internal elements do not throw, Basic otherwise.
     template <std::size_t TAnySize>
     StaticQueue(StaticQueue<T, TAnySize>&& queue)
-        : Base(&array_[0], TSize)
+        : Base(&Arr::array_[0], TSize)
     {
         Base::assignElements(std::move(queue));
     }
@@ -2753,10 +2770,6 @@ public:
         return Base::operator!=(other);
     }
 
-
-private:
-    typedef std::array<StorageType, TSize> ArrayType;
-    ArrayType array_;
 };
 
 /// @brief Const iterator for the elements of StaticQueue.
