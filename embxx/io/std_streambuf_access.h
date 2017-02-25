@@ -293,7 +293,13 @@ T getBig(std::size_t size, std::streambuf& buf)
     std::size_t remainingSize = size;
     while (remainingSize > 0) {
         auto byte = buf.sbumpc();
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshift-count-overflow"
+	static_assert(static_cast<uint8_t>(uint8_t(std::numeric_limits<uint8_t>::max()) << 8) == 0, "shifting uint8_t by 8 should yield 0 (are you getting using an 8 bit processor?)");
         value <<= 8;
+#pragma clang diagnostic pop
+
         value |= static_cast<std::uint8_t>(byte);
         --remainingSize;
     }
