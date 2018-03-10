@@ -158,7 +158,7 @@ void MessageTestSuite::test5()
     TS_ASSERT_EQUALS(std::get<1>(beMsg.getFields()).getValue(), -5);
     TS_ASSERT_EQUALS(std::get<2>(beMsg.getFields()).getValue(), 0xdead);
     TS_ASSERT_EQUALS(std::get<3>(beMsg.getFields()).getValue(), 0xaaff);
-    TS_ASSERT_EQUALS(beMsg.length(), 10);
+    TS_ASSERT_EQUALS(beMsg.length(), 10U);
 
     auto leMsg =
         internalReadWriteTest<Message3, LittleEndianTraits>(
@@ -170,7 +170,7 @@ void MessageTestSuite::test5()
     TS_ASSERT_EQUALS(std::get<1>(leMsg.getFields()).getValue(), -5);
     TS_ASSERT_EQUALS(std::get<2>(leMsg.getFields()).getValue(), 0xadde);
     TS_ASSERT_EQUALS(std::get<3>(leMsg.getFields()).getValue(), 0xffaa00);
-    TS_ASSERT_EQUALS(leMsg.length(), 10);
+    TS_ASSERT_EQUALS(leMsg.length(), 10U);
 }
 
 void MessageTestSuite::test6()

@@ -161,7 +161,7 @@ public:
 private:
 
     /// @cond DOCUMENT_EVENT_LOOP_TASK
-    class Task
+    class alignas(8) Task
     {
     public:
         virtual ~Task();
@@ -170,7 +170,7 @@ private:
     };
 
     template <typename TTask>
-    class TaskBound : public Task
+    class alignas(8) TaskBound : public Task
     {
 
     public:

@@ -280,7 +280,7 @@ public:
         static_assert(IsInTuple<TObj, TTuple>::Value,
                     "TObj must be included in TTuple");
 
-        return allocator_.alloc<TObj>(std::forward<TArgs>(args)...);
+        return allocator_.template alloc<TObj>(std::forward<TArgs>(args)...);
     }
 
 private:

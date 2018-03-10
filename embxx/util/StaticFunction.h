@@ -133,7 +133,7 @@ public:
 private:
 
     /// @cond DOCUMENT_STATIC_FUNCTION_INVOKER
-    class Invoker
+    class alignas(8) Invoker
     {
     public:
         virtual ~Invoker();
@@ -145,7 +145,7 @@ private:
     };
 
     template <typename TBound>
-    class InvokerBound : public Invoker
+    class alignas(8) InvokerBound : public Invoker
     {
     public:
         template <typename TFunc>

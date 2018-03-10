@@ -216,9 +216,9 @@ void StaticQueueTestSuite::testPriorityQueue()
         queue.push(i);
     }
 
-    TS_ASSERT_EQUALS(queue.top(), MaxQueueSize);
+    TS_ASSERT_EQUALS(static_cast<decltype(MaxQueueSize)>(queue.top()), MaxQueueSize);
     while (!queue.empty()) {
-        TS_ASSERT_EQUALS(queue.top(), queue.size());
+        TS_ASSERT_EQUALS(static_cast<decltype(queue.size())>(queue.top()), queue.size());
         queue.pop();
     }
 
