@@ -305,10 +305,10 @@ template <typename TDriver,
 void WriteQueue<TDriver, TSize, THandler>::cancelAllWrites()
 {
     if (queue_.isEmpty()) {
-        return false;
+        return;
     }
 
-    return driver_.cancelWrite();
+    driver_.cancelWrite();
 
     auto cancelAllFunc =
         [this](typename Queue::LinearisedIterator iterBegin, typename Queue::LinearisedIterator iterEnd)
