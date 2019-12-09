@@ -99,7 +99,7 @@ void WriteQueueTestSuite::test2()
         {
             asyncWriteHandlerCalled = true;
             TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
-            TS_ASSERT_EQUALS(size, 0);
+            TS_ASSERT_EQUALS(size, 0U);
             el.stop();
         });
 
@@ -174,7 +174,7 @@ void WriteQueueTestSuite::test4()
         {
             handler2called = true;
             TS_ASSERT_EQUALS(status.code(), embxx::error::ErrorCode::Aborted);
-            TS_ASSERT_EQUALS(size, 0);
+            TS_ASSERT_EQUALS(size, 0U);
         });
 
     bool handler3called = false;

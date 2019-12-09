@@ -17,6 +17,10 @@ function (test_access)
     
     set (link)
 
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
+
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
@@ -41,6 +45,10 @@ function (test_std_streambuf_access)
     set (runner "${test_suite_name}TestRunner.cpp")
     
     set (link)
+
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
@@ -69,6 +77,10 @@ function (test_write_queue)
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
+
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
@@ -95,6 +107,10 @@ function (test_out_stream_buf)
     set (link
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
+
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
@@ -123,6 +139,10 @@ function (test_out_stream)
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
+
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
@@ -149,6 +169,10 @@ function (test_in_stream_buf)
     set (link
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
+
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     

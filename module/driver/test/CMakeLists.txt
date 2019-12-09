@@ -24,6 +24,10 @@ function (test_timer_mgr)
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
+
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
@@ -71,6 +75,10 @@ function (test_character)
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
 
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
+
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     
     target_link_libraries (${name} ${link})
@@ -97,6 +105,10 @@ function (test_gpio)
     set (link
         "${Boost_SYSTEM_LIBRARY}"
         "pthread")
+
+    if(WIN32)
+        set(link ${link} ws2_32)
+    endif()
 
     CXXTEST_ADD_TEST (${name} ${runner} ${tests} ${extra_sources})
     

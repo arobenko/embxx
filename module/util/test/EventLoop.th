@@ -247,7 +247,7 @@ void EventLoopTestSuite::test5()
 
 
     std::thread th(
-        [&ready]()
+        [&ready]() noexcept
         {
             for (volatile auto i = 0U; i < 100000000; ++i) {}
             ready = true;
@@ -282,7 +282,7 @@ void EventLoopTestSuite::test6()
 
 
     std::thread th(
-        [&ready]()
+        [&ready]() noexcept
         {
             for (volatile auto i = 0U; i < 100000000; ++i) {}
             ready = true;

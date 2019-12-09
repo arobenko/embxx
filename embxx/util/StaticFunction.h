@@ -32,6 +32,18 @@ namespace embxx
 namespace util
 {
 
+namespace details_static_function
+{
+constexpr inline int platform_align()
+{
+#ifdef _WIN32
+    return 8;
+#else
+    return 4;
+#endif
+}
+}
+
 /// @addtogroup util
 /// @{
 
@@ -133,7 +145,7 @@ public:
 private:
 
     /// @cond DOCUMENT_STATIC_FUNCTION_INVOKER
-    class Invoker
+    class alignas(details_static_function::platform_align()) Invoker
     {
     public:
         virtual ~Invoker();
@@ -145,7 +157,7 @@ private:
     };
 
     template <typename TBound>
-    class InvokerBound : public Invoker
+    class alignas(details_static_function::platform_align()) InvokerBound : public Invoker
     {
     public:
         template <typename TFunc>

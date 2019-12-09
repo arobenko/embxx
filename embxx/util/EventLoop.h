@@ -35,6 +35,19 @@ namespace embxx
 namespace util
 {
 
+namespace details_event_loop
+{
+
+constexpr inline int platform_align()
+{
+#ifdef _WIN32
+    return 8;
+#else
+    return 4;
+#endif
+}
+}
+
 /// @addtogroup util
 /// @{
 
@@ -161,7 +174,7 @@ public:
 private:
 
     /// @cond DOCUMENT_EVENT_LOOP_TASK
-    class Task
+    class alignas(details_event_loop::platform_align()) Task
     {
     public:
         virtual ~Task();
@@ -170,7 +183,7 @@ private:
     };
 
     template <typename TTask>
-    class TaskBound : public Task
+    class alignas(details_event_loop::platform_align()) TaskBound : public Task
     {
 
     public:

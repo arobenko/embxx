@@ -216,5 +216,5 @@ void SyncPrefixLayerTestSuite::test7()
     TS_ASSERT_EQUALS(std::get<1>(msg.getFields()).getValue(), -5);
     TS_ASSERT_EQUALS(std::get<2>(msg.getFields()).getValue(), 0xdead);
     TS_ASSERT_EQUALS(std::get<3>(msg.getFields()).getValue(), 0xaaff);
-    TS_ASSERT_EQUALS(msg.length(), 10);
+    TS_ASSERT_EQUALS(msg.length(), 10U);
 }
