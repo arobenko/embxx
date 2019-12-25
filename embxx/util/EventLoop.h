@@ -181,8 +181,9 @@ private:
         virtual std::size_t getSize() const;
         virtual void exec();
 
-        static const std::size_t Size =
-            ((sizeof(TaskBound<typename std::decay<TTask>::type>) - 1) / sizeof(Task)) + 1;
+        static constexpr std::size_t Size() {
+            return ((sizeof(TaskBound<typename std::decay<TTask>::type>) - 1) / sizeof(Task)) + 1;
+        }
 
     private:
         TTask task_;
@@ -416,7 +417,7 @@ template <std::size_t TSize,
 template <typename TTask>
 std::size_t EventLoop<TSize, TLock, TCond>::TaskBound<TTask>::getSize() const
 {
-    return Size;
+    return Size();
 }
 
 template <std::size_t TSize,
@@ -440,7 +441,7 @@ bool EventLoop<TSize, TLock, TCond>::postNoLock(TTask&& task)
     static_assert(std::alignment_of<Task>::value == std::alignment_of<TaskBoundType>::value,
         "Alignment of TaskBound must be same as alignment of Task");
 
-    static const std::size_t requiredQueueSize = TaskBoundType::Size;
+    static const std::size_t requiredQueueSize = TaskBoundType::Size();
 
     bool wasEmpty = queue_.isEmpty();
 

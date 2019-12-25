@@ -450,7 +450,7 @@ private:
 
         if (size == 0) {
             auto code = embxx::error::ErrorCode::Success;
-            if (info_.readUntilPred_) {
+            if (static_cast<bool>(info_.readUntilPred_)) {
                 code = embxx::error::ErrorCode::BufferOverflow;
             }
             invokeHandler(Base::el_, info_, code, false);

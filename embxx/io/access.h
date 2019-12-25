@@ -236,7 +236,10 @@ typename std::decay<T>::type signExtCommon(T value, std::size_t size)
     return value;
 }
 
-template <typename T, std::size_t TSize, typename TByteType>
+// http://lists.llvm.org/pipermail/cfe-dev/2013-November/033677.html
+template<size_t N> struct Size { static constexpr std::size_t value = N; };
+
+template <typename T, typename TSize, typename TByteType>
 class SignExt
 {
 public:
@@ -250,12 +253,12 @@ public:
 
         auto castedValue = static_cast<UnsignedValueType>(value);
         return static_cast<ValueType>(
-            signExtCommon<UnsignedByteType>(castedValue, TSize));
+        signExtCommon<UnsignedByteType>(castedValue, TSize::value));
     }
 };
 
 template <typename T, typename TByteType>
-class SignExt<T, sizeof(typename std::decay<T>::type), TByteType>
+class SignExt<T, Size<sizeof(typename std::decay<T>::type)>, TByteType>
 {
 public:
     static typename std::decay<T>::type value(T value)
@@ -651,7 +654,7 @@ struct Reader
                 THelper<TEndian, IsRandomAccess>::template read<OptimisedValueType>(TSize, iter));
 
         if (std::is_signed<ValueType>::value) {
-            retval = details::SignExt<decltype(retval), TSize, ByteType>::value(retval);
+            retval = details::SignExt<decltype(retval), Size<TSize>, ByteType>::value(retval);
         }
         return static_cast<T>(retval);
     }
